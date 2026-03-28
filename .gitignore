@@ -21,3 +21,5 @@ env/
 # OS files
 .DS_Store
 Thumbs.db
+DB_Clone_SQL_Queries.sql
+supabase_schema.txt
