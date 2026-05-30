@@ -78,7 +78,7 @@ textarea.form-control { resize:vertical; }
 #accStickyBar {
   position:sticky;
   top:0;
-  z-index:200;
+  z-index:50;
   background:var(--bg);
   padding:.75rem 0;
   transition:all .2s ease;
@@ -93,7 +93,7 @@ textarea.form-control { resize:vertical; }
   position:fixed;
   right:18px;
   bottom:22px;
-  z-index:300;
+  z-index:500;
   display:flex;
   flex-direction:column;
   gap:.7rem;
@@ -230,9 +230,54 @@ textarea.form-control { resize:vertical; }
   gap: .6rem;
   margin-bottom: .85rem;
 }
-@media (max-width: 600px) {
+@media (max-width: 640px) {
   .tips-modes-row { grid-template-columns: 1fr; }
   .tips-grid { grid-template-columns: 1fr; }
+
+  /* Page padding */
+  .page-top { padding: .75rem 0 .5rem; }
+
+  /* Sticky bar: stack title + buttons */
+  #accStickyBar .acc-top-toolbar {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: .5rem !important;
+    flex-wrap: wrap !important;
+  }
+  #accStickyBar .acc-top-toolbar h3 { font-size:.92rem !important; }
+
+  /* Buttons row: horizontal scroll, no wrap */
+  #accStickyBar .acc-top-toolbar > .d-flex {
+    overflow-x: auto;
+    overflow-y: hidden;
+    scrollbar-width: none;
+    flex-wrap: nowrap !important;
+    padding-bottom: 2px;
+  }
+  #accStickyBar .acc-top-toolbar > .d-flex::-webkit-scrollbar { display: none; }
+  #accStickyBar .btn { flex-shrink: 0; font-size:.72rem; padding:.3rem .55rem; }
+
+  /* Question preview cards */
+  .question-preview-card { padding:.85rem .75rem; overflow:hidden; max-width:100%; }
+  .question-preview-card * { max-width:100%; }
+  .raw-code { font-size:.7rem; word-break:break-all; overflow-x:auto; max-width:100%; }
+  .rendered-option { font-size:.78rem; }
+
+  /* Per-card toolbar: wrap */
+  .question-preview-card .d-flex.align-items-center {
+    flex-wrap: wrap !important;
+    gap: .35rem !important;
+  }
+
+  /* Floating nav: smaller on mobile */
+  #accScrollNav { right:10px; bottom:14px; gap:.5rem; }
+  .acc-scroll-btn { width:46px; height:46px; }
+
+  /* Mode grid: single col */
+  .ai-mode-grid { grid-template-columns: 1fr; }
+
+  /* Prevent body overflow */
+  body { overflow-x: hidden; }
 }
 .mode-tip-badge {
   background: var(--surface-2);

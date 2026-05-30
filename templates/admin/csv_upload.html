@@ -262,6 +262,43 @@
 .csv-top-toolbar .btn-primary{
   min-width:max-content;
 }
+
+/* ── Mobile Responsive ─────────────────────────────── */
+@media (max-width: 640px) {
+  #csvUploaderModal .modal-header { padding:.75rem 1rem; }
+  #csvUploaderModal .modal-body { padding:1rem !important; }
+
+  #csvStickyBar .d-flex.justify-content-between {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: .5rem !important;
+  }
+  #csvStickyBar .d-flex.justify-content-between > div { width: 100%; }
+
+  #csvStickyBar .d-flex.gap-2.align-items-center.flex-wrap {
+    overflow-x: auto;
+    overflow-y: hidden;
+    scrollbar-width: none;
+    flex-wrap: nowrap !important;
+    padding-bottom: 2px;
+  }
+  #csvStickyBar .d-flex.gap-2.align-items-center.flex-wrap::-webkit-scrollbar { display:none; }
+  #csvStickyBar .btn { flex-shrink:0; font-size:.72rem; padding:.3rem .55rem; }
+
+  .csv-q-card { padding:.85rem .75rem; overflow:hidden; max-width:100%; }
+  .csv-raw-code { font-size:.7rem; word-break:break-all; max-width:100%; overflow-x:auto; }
+  .csv-rend-opt { font-size:.78rem; }
+
+  .csv-q-card .d-flex.align-items-center.gap-2 {
+    flex-wrap: wrap !important;
+    gap: .35rem !important;
+  }
+  #csvStep1 .col-lg-6 { padding:0; }
+
+  /* Prevent any child from busting card width */
+  .csv-q-card * { max-width: 100%; }
+  .modal-body { overflow-x: hidden !important; }
+}
 </style>
 
 <!-- ── CSV Uploader Modal ─────────────────────────────────────────────────── -->
