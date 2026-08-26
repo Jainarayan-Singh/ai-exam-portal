@@ -82,6 +82,11 @@
   --info-border:   rgba(25,113,194,0.25);
   --info-text:     #74c0fc;
 
+  --shared:        #9c36b5;
+  --shared-bg:     rgba(156,54,181,0.12);
+  --shared-border: rgba(156,54,181,0.25);
+  --shared-text:   #e599f7;
+
   --shadow-sm:  0 1px 4px rgba(0,0,0,0.5);
   --shadow-md:  0 4px 20px rgba(0,0,0,0.5);
   --shadow-lg:  0 12px 48px rgba(0,0,0,0.6);
@@ -132,6 +137,11 @@
   --info-bg:       #e7f5ff;
   --info-border:   #a5d8ff;
   --info-text:     #1864ab;
+
+  --shared:        #9c36b5;
+  --shared-bg:     #f8f0fc;
+  --shared-border: #eebefa;
+  --shared-text:   #862e9c;
 
   --shadow-sm:  0 1px 3px rgba(0,0,0,0.06);
   --shadow-md:  0 4px 16px rgba(0,0,0,0.08);
@@ -184,6 +194,11 @@
   --info-border:   rgba(25,113,194,0.25);
   --info-text:     #74c0fc;
 
+  --shared:        #9c36b5;
+  --shared-bg:     rgba(156,54,181,0.14);
+  --shared-border: rgba(156,54,181,0.28);
+  --shared-text:   #e599f7;
+
   --shadow-sm:  0 1px 4px rgba(0,0,0,0.6);
   --shadow-md:  0 4px 20px rgba(0,0,0,0.55);
   --shadow-lg:  0 12px 48px rgba(0,0,0,0.65);
@@ -198,27 +213,27 @@
    THEME: emerald  (dark forest green)
    ================================================================ */
 [data-theme="emerald"] {
-  --bg:            #060d0a;
-  --bg-raised:     #0a1510;
-  --surface:       #0e1d16;
-  --surface-2:     #14261c;
-  --border:        rgba(34,197,94,0.13);
-  --border-focus:  #22c55e;
+  --bg:            #0c130f;
+  --bg-raised:     #121a16;
+  --surface:       #16211b;
+  --surface-2:     #1c2a22;
+  --border:        rgba(255,255,255,0.06);
+  --border-focus:  #2f9e74;
 
-  --accent:        #22c55e;
-  --accent-hover:  #16a34a;
-  --accent-subtle: rgba(34,197,94,0.11);
+  --accent:        #2f9e74;
+  --accent-hover:  #267d5c;
+  --accent-subtle: rgba(47,158,116,0.14);
   --accent-on:     #ffffff;
 
-  --text-1:        #f0fdf4;
-  --text-2:        rgba(240,253,244,0.58);
-  --text-3:        rgba(240,253,244,0.30);
+  --text-1:        #e9f2ed;
+  --text-2:        rgba(233,242,237,0.62);
+  --text-3:        rgba(233,242,237,0.32);
   --text-on-dark:  rgba(255,255,255,0.78);
 
-  --success:       #22c55e;
-  --success-bg:    rgba(34,197,94,0.11);
-  --success-border:rgba(34,197,94,0.26);
-  --success-text:  #86efac;
+  --success:       #2f9e74;
+  --success-bg:    rgba(47,158,116,0.13);
+  --success-border:rgba(47,158,116,0.28);
+  --success-text:  #8fe0b8;
 
   --warning:       #e67700;
   --warning-bg:    rgba(230,119,0,0.12);
@@ -235,6 +250,11 @@
   --info-border:   rgba(25,113,194,0.25);
   --info-text:     #74c0fc;
 
+  --shared:        #9c36b5;
+  --shared-bg:     rgba(156,54,181,0.13);
+  --shared-border: rgba(156,54,181,0.28);
+  --shared-text:   #e599f7;
+
   --shadow-sm:  0 1px 4px rgba(0,0,0,0.6);
   --shadow-md:  0 4px 20px rgba(0,0,0,0.55);
   --shadow-lg:  0 12px 48px rgba(0,0,0,0.65);
@@ -247,66 +267,74 @@
    THEME: sunset  (warm amber / orange)
    ================================================================ */
 [data-theme="sunset"] {
-  --bg:            #0f0805;
-  --bg-raised:     #1a0f07;
-  --surface:       #1f1208;
-  --surface-2:     #281709;
-  --border:        rgba(240,120,48,0.14);
-  --border-focus:  #f07830;
+  --bg:            #f0eee6;
+  --bg-raised:     #ffffff;
+  --surface:       #faf9f5;
+  --surface-2:     #eae6da;
+  --border:        #e3ddce;
+  --border-focus:  #c15f3c;
 
-  --accent:        #f07830;
-  --accent-hover:  #d9622a;
-  --accent-subtle: rgba(240,120,48,0.12);
-  --accent-on:     #0f0805;
+  --accent:        #c15f3c;
+  --accent-hover:  #a94f30;
+  --accent-subtle: rgba(193,95,60,0.10);
+  --accent-on:     #ffffff;
 
-  --text-1:        #fdf0e0;
-  --text-2:        rgba(253,240,224,0.55);
-  --text-3:        rgba(253,240,224,0.28);
+  --text-1:        #2d2a26;
+  --text-2:        rgba(45,42,38,0.62);
+  --text-3:        rgba(45,42,38,0.34);
   --text-on-dark:  rgba(255,255,255,0.75);
 
   --success:       #2f9e44;
-  --success-bg:    rgba(47,158,68,0.12);
-  --success-border:rgba(47,158,68,0.25);
-  --success-text:  #8ce99a;
+  --success-bg:    #ebfbee;
+  --success-border:#b2f2bb;
+  --success-text:  #2b8a3e;
 
-  --warning:       #f07830;
-  --warning-bg:    rgba(240,120,48,0.12);
-  --warning-border:rgba(240,120,48,0.25);
-  --warning-text:  #fdba74;
+  --warning:       #c1852f;
+  --warning-bg:    rgba(193,133,47,0.10);
+  --warning-border:rgba(193,133,47,0.25);
+  --warning-text:  #8a5f1f;
 
-  --danger:        #e03131;
-  --danger-bg:     rgba(224,49,49,0.12);
-  --danger-border: rgba(224,49,49,0.25);
-  --danger-text:   #ff8787;
+  --danger:        #c1432f;
+  --danger-bg:     rgba(193,67,47,0.10);
+  --danger-border: rgba(193,67,47,0.25);
+  --danger-text:   #9c3623;
 
   --info:          #1971c2;
-  --info-bg:       rgba(25,113,194,0.12);
+  --info-bg:       rgba(25,113,194,0.10);
   --info-border:   rgba(25,113,194,0.25);
-  --info-text:     #74c0fc;
+  --info-text:     #17579c;
 
-  --shadow-sm:  0 1px 4px rgba(0,0,0,0.6);
-  --shadow-md:  0 4px 20px rgba(0,0,0,0.55);
-  --shadow-lg:  0 12px 48px rgba(0,0,0,0.65);
+  --shared:        #9c36b5;
+  --shared-bg:     rgba(156,54,181,0.10);
+  --shared-border: rgba(156,54,181,0.25);
+  --shared-text:   #862e9c;
+
+  --shadow-sm:  0 1px 3px rgba(45,42,38,0.08);
+  --shadow-md:  0 4px 16px rgba(45,42,38,0.10);
+  --shadow-lg:  0 12px 40px rgba(45,42,38,0.14);
 
   --radius:     10px;
 }
 
 
 /* ================================================================
-   ADMIN SIDEBAR — always dark regardless of theme
-   These tokens are only used inside .sidebar
+   ADMIN SIDEBAR — theme-synced
+   These tokens alias the real semantic tokens (not fixed hex/rgba)
+   so the sidebar adapts with every theme, same as the rest of the app.
+   Kept as a separate --sb-* indirection layer since admin_base.html's
+   sidebar CSS already references these names — only their values change.
    ================================================================ */
 :root {
-  --sb-bg:         #0d0d12;
-  --sb-border:     rgba(255,255,255,0.07);
-  --sb-text:       rgba(255,255,255,0.5);
-  --sb-text-hover: rgba(255,255,255,0.9);
-  --sb-hover-bg:   rgba(255,255,255,0.06);
-  --sb-active-bg:  rgba(76,110,245,0.15);
-  --sb-active-border: rgba(76,110,245,0.3);
-  --sb-section:    rgba(255,255,255,0.18);
-  --sb-toggle-bg:  rgba(255,255,255,0.07);
-  --sb-toggle-c:   rgba(255,255,255,0.4);
+  --sb-bg:         var(--surface);
+  --sb-border:     var(--border);
+  --sb-text:       var(--text-2);
+  --sb-text-hover: var(--text-1);
+  --sb-hover-bg:   var(--surface-2);
+  --sb-active-bg:  var(--accent-subtle);
+  --sb-active-border: var(--accent);
+  --sb-section:    var(--text-3);
+  --sb-toggle-bg:  var(--surface-2);
+  --sb-toggle-c:   var(--text-3);
 }
 
 
@@ -1329,6 +1357,7 @@ body.sidebar-open .sidebar-overlay { display: block; }
 .mdot-get    { background: var(--success); }
 .mdot-post   { background: var(--info); }
 .mdot-put    { background: var(--warning); }
+.mdot-patch  { background: var(--warning); }
 .mdot-delete { background: var(--danger); }
 .mdot-info   { background: var(--text-3); }
 
@@ -1444,6 +1473,7 @@ body.sidebar-open .sidebar-overlay { display: block; }
 .mb-GET    { background: var(--success-bg);  color: var(--success-text); border: 1px solid var(--success-border); }
 .mb-POST   { background: var(--info-bg);     color: var(--info-text);    border: 1px solid var(--info-border); }
 .mb-PUT    { background: var(--warning-bg);  color: var(--warning-text); border: 1px solid var(--warning-border); }
+.mb-PATCH  { background: var(--warning-bg);  color: var(--warning-text); border: 1px solid var(--warning-border); }
 .mb-DELETE { background: var(--danger-bg);   color: var(--danger-text);  border: 1px solid var(--danger-border); }
 .ep-path { font-family: 'JetBrains Mono', monospace; font-weight: 600; color: var(--text-1); font-size: .88rem; flex: 1; min-width: 0; }
 .ep-summary { font-size: .78rem; color: var(--text-3); }

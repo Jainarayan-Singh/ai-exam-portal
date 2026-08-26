@@ -3,6 +3,7 @@
 
 {% block content %}
 
+<link rel="stylesheet" href="{{ url_for('static', filename='shared/date-picker.css') }}">
 <style>
 /* ── Page Header ── */
 .page-top { display:flex; align-items:flex-start; justify-content:space-between; flex-wrap:wrap; gap:1rem; margin-bottom:1.5rem; }
@@ -213,11 +214,17 @@
       </div>
       <div>
         <label>Date From</label>
-        <input type="date" class="f-date" id="rf-from">
+        <div class="dt-field">
+          <input type="text" class="f-date dt-date-input" id="rf-from" placeholder="Select date" readonly autocomplete="off">
+          <i class="fas fa-calendar-days dt-field-icon"></i>
+        </div>
       </div>
       <div>
         <label>Date To</label>
-        <input type="date" class="f-date" id="rf-to">
+        <div class="dt-field">
+          <input type="text" class="f-date dt-date-input" id="rf-to" placeholder="Select date" readonly autocomplete="off">
+          <i class="fas fa-calendar-days dt-field-icon"></i>
+        </div>
       </div>
       <div style="display:flex;gap:.5rem;align-items:flex-end">
         <button class="btn-flat primary" onclick="applyResultsFilter()"><i class="fas fa-search"></i>Filter</button>
@@ -250,8 +257,18 @@
         </select>
       </div>
       <div id="customRange">
-        <div><label>From</label><input type="date" class="f-date" id="af-from"></div>
-        <div><label>To</label>  <input type="date" class="f-date" id="af-to"></div>
+        <div><label>From</label>
+          <div class="dt-field">
+            <input type="text" class="f-date dt-date-input" id="af-from" placeholder="Select date" readonly autocomplete="off">
+            <i class="fas fa-calendar-days dt-field-icon"></i>
+          </div>
+        </div>
+        <div><label>To</label>
+          <div class="dt-field">
+            <input type="text" class="f-date dt-date-input" id="af-to" placeholder="Select date" readonly autocomplete="off">
+            <i class="fas fa-calendar-days dt-field-icon"></i>
+          </div>
+        </div>
       </div>
       <div>
         <label>Exam</label>
@@ -320,6 +337,7 @@
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+<script src="{{ url_for('static', filename='shared/date-picker.js') }}"></script>
 <script>
 /* ═══════════════════════════════════════════
    STAT CARD HELPERS
@@ -342,7 +360,7 @@ function setStatCard(bigId, exactId, value) {
 }
 
 function loadStatCards() {
-  fetch('/admin/api/users-analytics/stats')
+  fetch('/api/v01/admin/analytics/stats')
     .then(r => r.json())
     .then(d => {
       setStatCard('sc-users',    'sc-users-exact',    d.total_users     || 0);
@@ -390,7 +408,7 @@ function fetchUserSuggestions() {
 
   if (q.length < 2) { dd.classList.remove('open'); return; }
 
-  fetch(`/admin/api/users/search?q=${encodeURIComponent(q)}&page=1`)
+  fetch(`/api/v01/admin/users/search?q=${encodeURIComponent(q)}&page=1`)
     .then(r => r.json())
     .then(d => {
       const users = d.users || [];
@@ -429,14 +447,24 @@ document.addEventListener('click', e => {
 let _resultsCurPage = 1;
 let _resultsLoading = false;
 
-function applyResultsFilter() { _resultsCurPage = 1; _fetchResults(); }
+function applyResultsFilter() {
+  const from = document.getElementById('rf-from').dataset.iso || '';
+  const to   = document.getElementById('rf-to').dataset.iso || '';
+  if (from && to && from > to) {
+    adminToast('"Date From" must be before or equal to "Date To".', 'warning');
+    return;
+  }
+  _resultsCurPage = 1; _fetchResults();
+}
 
 function clearResultsFilter() {
   document.getElementById('rf-user-search').value = '';
   document.getElementById('rf-user-id').value     = '';
   document.getElementById('rf-exam').value         = '';
   document.getElementById('rf-from').value         = '';
+  document.getElementById('rf-from').dataset.iso   = '';
   document.getElementById('rf-to').value           = '';
+  document.getElementById('rf-to').dataset.iso     = '';
   _selectedUserId = '';
   _resultsCurPage = 1;
   _fetchResults();
@@ -450,8 +478,8 @@ function _fetchResults() {
   const wrap = document.getElementById('resultsTableWrap');
   wrap.innerHTML = _skeletonTable();
 
-  const from = document.getElementById('rf-from').value;   // YYYY-MM-DD from date input
-  const to   = document.getElementById('rf-to').value;
+  const from = document.getElementById('rf-from').dataset.iso || '';   // YYYY-MM-DD, kept in sync by date-picker.js
+  const to   = document.getElementById('rf-to').dataset.iso || '';
 
   const params = new URLSearchParams({
     user:     document.getElementById('rf-user-id').value,
@@ -482,7 +510,8 @@ function _skeletonTable() {
 function popupOpen(url, w, h) {
   const left = Math.round(window.screenX + (window.innerWidth - w) / 2);
   const top  = Math.round(window.screenY + (window.innerHeight - h) / 2);
-  window.open(url, '_blank', `width=${w},height=${h},left=${left},top=${top},scrollbars=yes,resizable=yes`);
+  window.openLoadingWindow(url, '_blank', `width=${w},height=${h},left=${left},top=${top},scrollbars=yes,resizable=yes`,
+    {title: 'Loading — SmartAIExam Admin', message: 'Loading response analysis…'});
 }
 
 /* ═══════════════════════════════════════════
@@ -504,12 +533,12 @@ function toggleCustomRange(v) {
 }
 
 function _themeColors() {
-  const isLight = document.documentElement.getAttribute('data-theme') === 'light';
+  const s = getComputedStyle(document.documentElement);
   return {
-    tick:           isLight ? 'rgba(0,0,0,0.6)'   : 'rgba(255,255,255,0.5)',
-    grid:           isLight ? 'rgba(0,0,0,0.08)'  : 'rgba(255,255,255,0.07)',
-    doughnutBorder: isLight ? '#f0f2f8'            : '#111118',
-    legendColor:    isLight ? '#374151'            : 'rgba(255,255,255,0.75)',
+    tick:           s.getPropertyValue('--text-3').trim(),
+    grid:           s.getPropertyValue('--border').trim(),
+    doughnutBorder: s.getPropertyValue('--surface-2').trim(),
+    legendColor:    s.getPropertyValue('--text-2').trim(),
   };
 }
 
@@ -531,18 +560,27 @@ function _destroyChart(k) {
 }
 
 function loadAnalytics() {
+  const periodEl = document.getElementById('af-period');
+  if (periodEl.value === 'custom') {
+    const from = document.getElementById('af-from')?.dataset.iso || '';
+    const to   = document.getElementById('af-to')?.dataset.iso || '';
+    if (from && to && from > to) {
+      adminToast('"From" must be before or equal to "To".', 'warning');
+      return;
+    }
+  }
   _analyticsLoaded = true;
   const params = new URLSearchParams({
-    timePeriod: document.getElementById('af-period').value,
+    timePeriod: periodEl.value,
     exam:       document.getElementById('af-exam').value,
-    startDate:  document.getElementById('af-from')?.value || '',
-    endDate:    document.getElementById('af-to')?.value   || '',
+    startDate:  document.getElementById('af-from')?.dataset.iso || '',
+    endDate:    document.getElementById('af-to')?.dataset.iso   || '',
   });
   ['as-avg','as-att','as-pass','as-users'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.innerHTML = '<i class="fas fa-spinner fa-spin" style="font-size:.9rem"></i>';
   });
-  fetch('/admin/api/users-analytics/data?' + params)
+  fetch('/api/v01/admin/analytics/data?' + params)
     .then(r => r.json())
     .then(d => {
       _renderSummary(d.summary || {});
@@ -668,7 +706,7 @@ function _renderTables(t) {
       ? '<tr><td colspan="5" class="loading-row">No recent activity</td></tr>'
       : ra.map(a => {
           const pct  = Number(a.percentage||0);
-          const time = a.created_at ? new Date(a.created_at).toLocaleString() : '—';
+          const time = a.created_at || '—';
           return `<tr>
             <td style="font-size:.73rem;color:var(--text-3)">${_esc(time)}</td>
             <td style="font-weight:600">${_esc(a.username||'')}</td>
@@ -714,6 +752,14 @@ document.addEventListener('DOMContentLoaded', () => {
   loadStatCards();
   // Load initial results
   _fetchResults();
+
+  // Date pickers — same themed calendar/pattern as the Exams page
+  // (static/shared/date-picker.js), one independent instance per field.
+  const displayFmt = {{ DISPLAY_DATE_FORMAT | tojson }};
+  ['rf-from', 'rf-to', 'af-from', 'af-to'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) createDatePicker(el, { displayFormat: displayFmt });
+  });
 });
 </script>
 {% endblock %}

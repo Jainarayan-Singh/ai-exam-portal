@@ -9,7 +9,7 @@ Business logic for authentication:
 import re
 import secrets
 from datetime import datetime, timedelta
-from typing import Tuple, Dict
+from typing import Tuple, Dict, List
 
 import bcrypt
 
@@ -18,6 +18,7 @@ from app.db.auth import (
     get_password_token as db_get_token,
     mark_token_used as db_mark_used,
 )
+from app.utils.datetime_service import now_utc_naive
 
 
 # ─────────────────────────────────────────────
@@ -43,6 +44,14 @@ def verify_password(plain: str, hashed: str) -> bool:
 def is_password_hashed(password: str) -> bool:
     """Return True if the stored password is already a bcrypt hash."""
     return bool(password and password.startswith(("$2a$", "$2b$", "$2y$")) and len(password) == 60)
+
+
+def is_password_reused(new_plain: str, current_hash: str, history_hashes: List[str]) -> bool:
+    """True if new_plain matches the current password or any of the
+    supplied prior-password hashes — used to block reuse of the last 3
+    passwords. Only ever compares via bcrypt; nothing plaintext is stored."""
+    candidates = [h for h in ([current_hash] + list(history_hashes)) if h and is_password_hashed(h)]
+    return any(verify_password(new_plain, h) for h in candidates)
 
 
 # ─────────────────────────────────────────────
@@ -80,7 +89,7 @@ def create_password_token(email: str, token_type: str) -> str:
     Raises Exception if persistence fails.
     """
     token = secrets.token_urlsafe(32)
-    expires_at = (datetime.now() + timedelta(hours=1)).strftime("%Y-%m-%d %H:%M:%S")
+    expires_at = (now_utc_naive() + timedelta(hours=1)).strftime("%Y-%m-%d %H:%M:%S")
 
     if not db_create_token(email, token_type, token, expires_at):
         raise Exception(f"Failed to save {token_type} token for {email}")
@@ -109,7 +118,7 @@ def validate_and_use_token(token: str) -> Tuple[bool, str, Dict]:
         except Exception:
             return False, "Token expiry format unreadable", {}
 
-    if datetime.now() > expires_at:
+    if now_utc_naive() > expires_at:
         return False, "Token has expired", {}
 
     if not db_mark_used(token):
