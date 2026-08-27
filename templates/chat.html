@@ -517,6 +517,13 @@
   /* Prevent a tall modal (e.g. many search results) from exceeding a short
      mobile viewport instead of scrolling. */
   .modal-overlay .modal-box { max-height:85vh; overflow-y:auto; }
+  /* .bg-editor-pane's height is set (via JS) to match #chatMain's own live
+     aspect ratio, so the preview matches reality — but on mobile #chatMain
+     is nearly the full portrait screen, so the same ratio applied to this
+     narrow popup produced a ~600px-tall box that pushed the zoom/overlay/
+     apply controls off-screen. The drag/zoom math reads the pane's actual
+     rendered size on every interaction, so capping the height here is safe. */
+  .bg-editor-pane { max-height:40vh; }
 }
 
 /* Without this, an element that both has [hidden] and a class-based
