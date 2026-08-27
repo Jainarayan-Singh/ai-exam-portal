@@ -84,6 +84,9 @@ def count_items(dash: Dict) -> int:
         + len(dash.get("results_available") or [])
         + (1 if dash.get("pending_update") else 0)
         + len(dash.get("new_messages") or [])
+        + len(dash.get("connection_requests") or [])
+        + len(dash.get("connection_responses") or [])
+        + len(dash.get("group_additions") or [])
         + len(dash.get("shared_notebooks") or [])
         + len(dash.get("new_exams") or [])
     )
@@ -109,6 +112,9 @@ def get_dashboard_context(
     results_available = _safe(lambda: _build_results_available(user_results, seen, cat_names), [], "results")
     pending_update = _safe(lambda: _build_pending_update(user_id, seen), None, "requests")
     new_messages = _safe(lambda: _build_new_messages(user_id), [], "chat")
+    connection_requests = _safe(lambda: _build_connection_requests(user_id), [], "connection_requests")
+    connection_responses = _safe(lambda: _build_connection_responses(user_id, seen), [], "connection_responses")
+    group_additions = _safe(lambda: _build_group_additions(user_id, seen), [], "group_additions")
     shared_notebooks = _safe(lambda: _build_shared_notebooks(user_id, seen), [], "notebooks")
     new_exams = _safe(lambda: _build_new_exams(all_exams, seen, cat_names), [], "new_exams")
 
@@ -121,6 +127,12 @@ def get_dashboard_context(
         summary_parts.append("1 update")
     if new_messages:
         summary_parts.append(f"{len(new_messages)} new message{'s' if len(new_messages) != 1 else ''}")
+    if connection_requests:
+        summary_parts.append(f"{len(connection_requests)} connection request{'s' if len(connection_requests) != 1 else ''}")
+    if connection_responses:
+        summary_parts.append(f"{len(connection_responses)} connection update{'s' if len(connection_responses) != 1 else ''}")
+    if group_additions:
+        summary_parts.append(f"added to {len(group_additions)} group{'s' if len(group_additions) != 1 else ''}")
     if shared_notebooks:
         summary_parts.append(f"{len(shared_notebooks)} notebook{'s' if len(shared_notebooks) != 1 else ''} shared")
     if new_exams:
@@ -129,12 +141,16 @@ def get_dashboard_context(
     return {
         "greeting": get_greeting(),
         "summary_parts": summary_parts,
-        "has_any": bool(today_exams or results_available or pending_update
-                         or new_messages or shared_notebooks or new_exams),
+        "has_any": bool(today_exams or results_available or pending_update or new_messages
+                         or connection_requests or connection_responses or group_additions
+                         or shared_notebooks or new_exams),
         "today_exams": today_exams,
         "results_available": results_available,
         "pending_update": pending_update,
         "new_messages": new_messages,
+        "connection_requests": connection_requests,
+        "connection_responses": connection_responses,
+        "group_additions": group_additions,
         "shared_notebooks": shared_notebooks,
         "new_exams": new_exams,
     }
@@ -242,6 +258,97 @@ def _build_new_messages(user_id: int, limit: int = 3) -> List[Dict]:
     convs = get_conversations_for_user(user_id)
     unread = [c for c in convs if c.get("unread", 0) > 0]
     return unread[:limit]  # already sorted by last-message time, newest first
+
+
+def _build_connection_requests(user_id: int, limit: int = 5) -> List[Dict]:
+    """Pending connection/friend requests addressed to me. No seen-gating —
+    like the exam-access "pending" case, this stays visible for as long as
+    it's genuinely unresolved (actionable), not a one-time event; it
+    naturally disappears once accepted/declined since the underlying query
+    only matches status='pending'."""
+    from app.db.chat import get_pending_requests_for
+    from app.db.users import get_users_by_ids
+    from app.services.image_storage_service import profile_photo_url_from_key
+
+    rows = get_pending_requests_for(user_id)
+    if not rows:
+        return []
+    rows = sorted(rows, key=lambda r: r.get("created_at") or "", reverse=True)[:limit]
+
+    users = get_users_by_ids([r["requester_id"] for r in rows])
+    out = []
+    for r in rows:
+        u = users.get(str(r["requester_id"]), {})
+        out.append({
+            "connection_id": r["id"],
+            "requester_name": u.get("full_name") or u.get("username") or "Someone",
+            "photo_url": profile_photo_url_from_key(u.get("profile_photo_key")),
+        })
+    return out
+
+
+def _build_connection_responses(user_id: int, seen: Dict, limit: int = 5) -> List[Dict]:
+    """Requests *I* sent that were since accepted/rejected — one-time
+    events, seen-gated. There's no natural "view" page for a rejected
+    request (no conversation gets created), so this is dismissed explicitly
+    from the popup rather than by opening something."""
+    from app.db.chat import get_recent_resolved_requests_for_requester
+    from app.db.users import get_users_by_ids
+    from app.services.image_storage_service import profile_photo_url_from_key
+
+    seen_ids = seen.get("connection_response", set())
+    candidates = [
+        r for r in get_recent_resolved_requests_for_requester(user_id, limit=15)
+        if str(r["id"]) not in seen_ids
+    ][:limit]
+    if not candidates:
+        return []
+
+    users = get_users_by_ids([r["recipient_id"] for r in candidates])
+    out = []
+    for r in candidates:
+        u = users.get(str(r["recipient_id"]), {})
+        out.append({
+            "connection_id": r["id"],
+            "other_name": u.get("full_name") or u.get("username") or "Someone",
+            "photo_url": profile_photo_url_from_key(u.get("profile_photo_key")),
+            "status": r["status"],
+        })
+    return out
+
+
+def _build_group_additions(user_id: int, seen: Dict, limit: int = 5) -> List[Dict]:
+    """Groups I was recently added to. Seen-gated by conversation id —
+    naturally marked seen when I open that group's chat (see
+    app/routes/api/v01/chat.py's message-fetch endpoint, the same place
+    chat's own unread counter already resets on open)."""
+    from app.db.chat import get_recent_group_memberships
+    from app.db.users import get_users_by_ids
+    from app.services.image_storage_service import group_photo_url_from_key
+
+    seen_ids = seen.get("group_added", set())
+    candidates = [
+        g for g in get_recent_group_memberships(user_id, limit=15)
+        # A group I created myself isn't something "another user/admin added
+        # me to" — I'm only in chat_members for it because creation adds the
+        # creator as a member too (see app/routes/api/v01/chat.py:create_group).
+        if g.get("created_by") != user_id
+        and str(g["conversation_id"]) not in seen_ids
+    ][:limit]
+    if not candidates:
+        return []
+
+    users = get_users_by_ids([g["created_by"] for g in candidates if g.get("created_by")])
+    out = []
+    for g in candidates:
+        u = users.get(str(g.get("created_by")), {})
+        out.append({
+            "conversation_id": g["conversation_id"],
+            "group_name": g.get("group_name") or "Group",
+            "added_by_name": u.get("full_name") or u.get("username") or "Someone",
+            "photo_url": group_photo_url_from_key(g.get("group_photo_key")),
+        })
+    return out
 
 
 def _build_shared_notebooks(user_id: int, seen: Dict, limit: int = 5) -> List[Dict]:

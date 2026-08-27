@@ -310,6 +310,26 @@
 .msg-row.own .msg-meta { text-align:right; }
 .edited-tag { font-size:.6rem; color:var(--text-3); margin-left:.3rem; font-style:italic; }
 
+.msg-system-row { align-self:center; max-width:90%; display:flex; justify-content:center; animation:msgIn .18s ease-out; }
+.msg-system-text {
+  background:var(--surface-2); color:var(--text-3); font-size:.72rem;
+  padding:.35rem .8rem; border-radius:999px; text-align:center; line-height:1.4;
+}
+
+.group-photo-picker {
+  width:64px; height:64px; border-radius:50%; margin:0 auto .75rem; position:relative;
+  background:var(--surface-2); border:1px dashed var(--border); cursor:pointer;
+  display:flex; align-items:center; justify-content:center; color:var(--text-3);
+  overflow:hidden; font-size:1.1rem; transition:border-color .12s;
+}
+.group-photo-picker:hover { border-color:var(--accent); color:var(--accent); }
+.group-photo-picker img { position:absolute; inset:0; width:100%; height:100%; object-fit:cover; }
+.group-photo-picker .gp-badge {
+  position:absolute; bottom:-2px; right:-2px; width:20px; height:20px; border-radius:50%;
+  background:var(--accent); color:var(--accent-on); display:flex; align-items:center;
+  justify-content:center; font-size:.6rem; border:2px solid var(--surface);
+}
+
 /* Msg dots menu */
 .msg-dots-wrap { position:relative; align-self:center; flex-shrink:0; }
 .msg-dots-btn {
@@ -534,6 +554,10 @@
       <p class="modal-title" style="margin:0"><i class="fas fa-users me-2" style="color:var(--accent)"></i> Create Group </p>
       <button class="btn-ghost-sm" style="padding:0.3rem 0.6rem" onclick="closeGroupModal()"><i class="fas fa-times"></i></button>
     </div>
+    <div class="group-photo-picker" id="groupPhotoPreview" onclick="pickGroupPhoto()" title="Set group photo">
+      <i class="fas fa-camera"></i><span class="gp-badge"><i class="fas fa-plus"></i></span>
+    </div>
+    <input type="file" id="groupPhotoCreateInput" accept="image/*" style="display:none" onchange="onGroupPhotoCreateSelected(event)">
     <input type="text" class="modal-input" id="groupName" placeholder="Group name (required)">
     <div style="position:relative;margin-bottom:0.75rem">
       <i class="fas fa-user-plus input-icon"></i>
@@ -547,6 +571,8 @@
     </div>
   </div>
 </div>
+
+<input type="file" id="groupPhotoChangeInput" accept="image/*" style="display:none" onchange="onGroupPhotoChangeSelected(event)">
 
 <!-- Add Member Modal -->
 <div class="modal-overlay" id="addMemberModal">
@@ -1129,6 +1155,8 @@ async function openConversation(convId,name,otherId,isGroup=false,createdBy=null
   let menuItems=`<div class="dropdown-item" onclick="clearChat()"><i class="fas fa-broom" style="width:14px"></i>Clear Chat</div>`;
   if(isGroup){
     menuItems+=`<div class="dropdown-item" onclick="openAddMemberModal()"><i class="fas fa-user-plus" style="width:14px"></i>Add Member</div>`;
+    menuItems+=`<div class="dropdown-item" onclick="changeGroupPhoto()"><i class="fas fa-camera" style="width:14px"></i>Change Group Photo</div>`;
+    if(conv&&conv.photo_url)menuItems+=`<div class="dropdown-item" onclick="removeGroupPhoto()"><i class="fas fa-image" style="width:14px"></i>Remove Group Photo</div>`;
     menuItems+=`<div class="dropdown-divider"></div>`;
     menuItems+=isCreator
       ?`<div class="dropdown-item danger" onclick="deleteGroup()"><i class="fas fa-trash" style="width:14px"></i>Delete Group</div>`
@@ -1171,8 +1199,13 @@ function loadMoreMessages(){if(oldestMsgTime&&activeConvId)fetchMessages(activeC
 
 function buildMsgEl(m){
   const div=document.createElement('div');
-  div.className='msg-row'+(m.is_own?' own':'');
   div.dataset.msgId=m.id;
+  if(m.is_system){
+    div.className='msg-system-row';
+    div.innerHTML=`<span class="msg-system-text"><i class="fas fa-image me-1"></i>${m.message}</span>`;
+    return div;
+  }
+  div.className='msg-row'+(m.is_own?' own':'');
   const replyHtml=m.reply_to_id?`<div class="reply-bar" onclick="scrollToMsg(${m.reply_to_id})"><strong>${m.reply_to_name||''}</strong>${(m.reply_to_text||'').substring(0,60)}</div>`:'';
   const editedTag=m.is_edited?'<span class="edited-tag">(edited)</span>':'';
   const mid=`menu-${m.id}`;
@@ -1281,6 +1314,25 @@ async function removeFriend(){
       await loadConversations();showToast('Friend removed.','success');
     } else showToast('Failed to remove friend.','error');
   });
+}
+
+function changeGroupPhoto(){
+  document.getElementById('headerMenu').classList.remove('show');
+  document.getElementById('groupPhotoChangeInput').click();
+}
+async function onGroupPhotoChangeSelected(e){
+  const f=e.target.files[0];e.target.value='';
+  if(!f||!activeConvId)return;
+  const data=await uploadGroupPhotoFile(activeConvId,f);
+  if(data.success)showToast('Group photo updated.','success');
+}
+function removeGroupPhoto(){
+  document.getElementById('headerMenu').classList.remove('show');
+  showConfirm('Remove Group Photo','This will reset the group to the default avatar.',async()=>{
+    const res=await fetch(`/api/v01/chat/groups/${activeConvId}/photo`,{method:'DELETE'});
+    const data=await res.json();
+    if(!data.success)showToast(data.message||'Failed to remove group photo.','error');
+  },false);
 }
 
 async function exitGroup(){
@@ -1455,7 +1507,11 @@ async function respondRequest(connId,action,btn){
 }
 
 function openGroupModal(){selectedGroupMembers={};document.getElementById('groupModal').classList.add('show');}
-function closeGroupModal(){document.getElementById('groupModal').classList.remove('show');document.getElementById('groupName').value='';document.getElementById('groupMemberSearch').value='';document.getElementById('groupMemberResults').innerHTML='';document.getElementById('selectedMembers').innerHTML='';selectedGroupMembers={};}
+function closeGroupModal(){
+  document.getElementById('groupModal').classList.remove('show');document.getElementById('groupName').value='';document.getElementById('groupMemberSearch').value='';document.getElementById('groupMemberResults').innerHTML='';document.getElementById('selectedMembers').innerHTML='';selectedGroupMembers={};
+  _pendingGroupPhotoFile=null;document.getElementById('groupPhotoCreateInput').value='';
+  document.getElementById('groupPhotoPreview').innerHTML=`<i class="fas fa-camera"></i><span class="gp-badge"><i class="fas fa-plus"></i></span>`;
+}
 
 let groupSearchDebounce=null;
 async function searchGroupMembers(){
@@ -1483,13 +1539,38 @@ function addGroupMember(u){
   tag.innerHTML=`${u.full_name||u.username} <i class="fas fa-times" style="font-size:.65rem"></i>`;
   tag.onclick=()=>{delete selectedGroupMembers[u.id];tag.remove();};container.appendChild(tag);
 }
+let _pendingGroupPhotoFile=null;
+function pickGroupPhoto(){document.getElementById('groupPhotoCreateInput').click();}
+function onGroupPhotoCreateSelected(e){
+  const f=e.target.files[0];if(!f)return;
+  _pendingGroupPhotoFile=f;
+  const reader=new FileReader();
+  reader.onload=ev=>{document.getElementById('groupPhotoPreview').innerHTML=`<img src="${ev.target.result}" alt="">`;};
+  reader.readAsDataURL(f);
+}
+
+async function uploadGroupPhotoFile(convId,file){
+  const fd=new FormData();fd.append('photo',file);
+  try{
+    const res=await fetch(`/api/v01/chat/groups/${convId}/photo`,{method:'POST',body:fd});
+    const data=await res.json();
+    if(!data.success)showToast(data.message||'Failed to set group photo.','error');
+    return data;
+  }catch(e){showToast('Failed to set group photo.','error');return{success:false};}
+}
+
 async function createGroup(){
   const name=document.getElementById('groupName').value.trim();const ids=Object.keys(selectedGroupMembers).map(Number);
   if(!name){showToast('Please enter a group name.','warning');return;}
   if(!ids.length){showToast('Add at least one member.','warning');return;}
   const res=await fetch('/api/v01/chat/groups',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name,member_ids:ids})});
   const data=await res.json();
-  if(data.success){closeGroupModal();showToast(`Group "${name}" created!`,'success');await loadConversations();openConversation(data.conv_id,name,null,true,{{ session.get('user_id',0) }});}
+  if(data.success){
+    const convId=data.conv_id,photoFile=_pendingGroupPhotoFile;
+    closeGroupModal();showToast(`Group "${name}" created!`,'success');
+    if(photoFile)await uploadGroupPhotoFile(convId,photoFile);
+    await loadConversations();openConversation(convId,name,null,true,{{ session.get('user_id',0) }});
+  }
   else showToast(data.message||'Failed to create group.','error');
 }
 
@@ -1519,6 +1600,18 @@ socket.on('msg_edited',d=>{
   if(row){const meta=row.querySelector('.msg-meta');if(meta&&!meta.querySelector('.edited-tag'))meta.insertAdjacentHTML('beforeend','<span class="edited-tag">(edited)</span>');}
 });
 socket.on('msg_deleted',d=>{document.querySelector(`[data-msg-id="${d.msg_id}"]`)?.remove();});
+socket.on('group_photo_updated',d=>{
+  if(window._convCache&&window._convCache[d.conv_id]){
+    window._convCache[d.conv_id].photo_url=d.photo_url;
+    renderConvItem(window._convCache[d.conv_id],document.getElementById('convList'));
+  }
+  if(activeConvId===d.conv_id){
+    const nameEl=document.querySelector('#chatHeader .chat-header-name');
+    const name=nameEl?nameEl.textContent:'';
+    const oldAv=document.querySelector('#chatHeader .conv-avatar');
+    if(oldAv)oldAv.outerHTML=avatarHtml(name,d.photo_url,'width:36px;height:36px;font-size:0.82rem');
+  }
+});
 socket.on('conversation_removed',d=>{
   document.querySelector(`.conv-item[data-conv-id="${d.conv_id}"]`)?.remove();
   if(activeConvId===d.conv_id){activeConvId=null;document.getElementById('activeChat').style.display='none';document.getElementById('emptyState').style.display='flex';showToast('This conversation has been removed.','info');}

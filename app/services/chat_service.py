@@ -23,7 +23,7 @@ import re
 
 from app.utils.datetime_service import now_utc_naive
 import app.db.chat as chat_db
-from app.services.image_storage_service import profile_photo_url_from_key
+from app.services.image_storage_service import profile_photo_url_from_key, group_photo_url_from_key
 
 CHAT_RATE_LIMIT = 2
 MAX_CHAT_MSG_LEN = 1000
@@ -247,6 +247,7 @@ def get_conversations_for_user(uid: int) -> list:
         photo_url = None
         if c['is_group']:
             name = c['group_name'] or 'Group'
+            photo_url = group_photo_url_from_key(c.get('group_photo_key'))
             members_list = [
                 {'id': m, 'name': 'You' if m == uid else (user_cache.get(m, {}).get('full_name') or user_cache.get(m, {}).get('username') or '?'),
                  'photo_url': None if m == uid else profile_photo_url_from_key(user_cache.get(m, {}).get('profile_photo_key'))}

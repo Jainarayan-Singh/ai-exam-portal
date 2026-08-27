@@ -32,6 +32,8 @@ Endpoints:
   POST   /api/v01/chat/groups
   POST   /api/v01/chat/groups/<conv_id>/members
   DELETE /api/v01/chat/groups/<conv_id>/members/<target_uid>
+  POST   /api/v01/chat/groups/<conv_id>/photo
+  DELETE /api/v01/chat/groups/<conv_id>/photo
   GET    /api/v01/chat/unread-count
   GET    /api/v01/chat/online-status
 """
@@ -84,6 +86,43 @@ def _emit(event, data, room, skip_uid=None):
         socketio.emit(event, data, room=room, skip_sid=skip_sid)
     except Exception:
         socketio.emit(event, data, room=room)
+
+
+def _insert_system_message(conv_id: int, text: str) -> int:
+    """Persist + broadcast a system/event row in a group's chat (e.g. a
+    photo change). Reuses the exact chat_messages schema and the same
+    'chat_message' socket event normal messages use, so the existing
+    client-side message list picks it up with zero new socket wiring —
+    only buildMsgEl() needs an is_system rendering branch. Deliberately
+    does NOT call chat_service.buffer_unread(): this is a metadata event,
+    not an interpersonal message, so it shouldn't bump the unread badge
+    or surface as a "new message" in the global notification popup —
+    consistent with how member_joined/member_left never touch unread
+    state today. It still becomes each conversation's most-recent row,
+    so the conversation list's last-message preview naturally reflects
+    it with no extra code."""
+    now = now_utc_naive().isoformat()
+    uid = _uid()
+    name = _uname()
+    record = {
+        'conversation_id': conv_id, 'sender_id': uid, 'sender_name': name,
+        'message': text, 'created_at': now, 'is_system': True,
+    }
+    res = chat_db.insert_message(record)
+    msg_id = res['id']
+    broadcast = {
+        'id': msg_id, 'sender_name': name, 'message': text, 'created_at': now,
+        'is_own': False, 'conv_id': conv_id, 'is_deleted_account': False,
+        'is_system': True, 'reply_to_id': None, 'reply_to_text': None, 'reply_to_name': None,
+    }
+    _emit('chat_message', broadcast, room=f'conv_{conv_id}')
+    return msg_id
+
+
+def _can_manage_group(conv: dict, uid: int) -> bool:
+    if conv['created_by'] == uid:
+        return True
+    return chat_db.get_member_role(conv['id'], uid) == 'admin'
 
 
 @chat_api_bp.route('/users/search')
@@ -216,6 +255,11 @@ def get_messages(conv_id):
         msgs = [chat_service.normalize_message(m, uid) for m in msgs]
 
         chat_db.reset_unread(uid, conv_id)
+        # Piggyback on the membership lookup already done above (no extra
+        # query) to mark any "added to this group" notification seen —
+        # opening the conversation is the natural view action for it.
+        from app.db.dashboard_events import mark_event_seen
+        mark_event_seen(uid, 'group_added', conv_id)
         return jsonify({'success': True, 'messages': msgs})
     except Exception:
         return jsonify({'success': False}), 500
@@ -479,6 +523,75 @@ def remove_group_member(conv_id, target_uid):
         return jsonify({'success': True})
     except Exception:
         return jsonify({'success': False}), 500
+
+
+@chat_api_bp.route('/groups/<int:conv_id>/photo', methods=['POST'])
+def upload_group_photo(conv_id):
+    if not _uid():
+        return jsonify({'success': False}), 401
+    uid = _uid()
+    conv = chat_db.get_conversation(conv_id)
+    if not conv or not conv.get('is_group'):
+        return jsonify({'success': False, 'message': 'Group not found'}), 404
+    if not _can_manage_group(conv, uid):
+        return jsonify({'success': False, 'message': 'Only the group creator or an admin can change the group photo'}), 403
+
+    file = request.files.get('photo')
+    if not file or not file.filename:
+        return jsonify({'success': False, 'message': 'No file provided.'}), 400
+    ext = os.path.splitext(secure_filename(file.filename))[1].lower()
+    if ext not in CHAT_BG_ALLOWED_EXTS:
+        return jsonify({'success': False, 'message': f'Unsupported image type ({ext or "unknown"}).'}), 400
+    file.seek(0, os.SEEK_END)
+    size_kb = file.tell() / 1024
+    if size_kb > config.MAX_PROFILE_PHOTO_SIZE_KB:
+        return jsonify({'success': False, 'message': f'Image exceeds the {config.MAX_PROFILE_PHOTO_SIZE_KB} KB size limit.'}), 400
+    file.seek(0)
+
+    filename = f"{uuid.uuid4().hex[:12]}{ext}"
+    mime = mimetypes.guess_type(filename)[0] or 'application/octet-stream'
+    content = file.read()
+    old_key = conv.get('group_photo_key')
+
+    try:
+        key, url = image_storage_service.upload_group_photo(conv_id, content, filename, mime)
+    except Exception as e:
+        print(f'[Chat] group photo upload error: {e}')
+        return jsonify({'success': False, 'message': 'Photo upload failed. Please try again.'}), 500
+
+    chat_db.update_group_photo(conv_id, key)
+    if old_key and old_key != key:
+        image_storage_service.delete_group_photo(old_key)
+
+    verb = 'changed' if old_key else 'added'
+    _insert_system_message(conv_id, f'{_uname()} {verb} the group profile photo.')
+    _emit('group_photo_updated', {'conv_id': conv_id, 'photo_url': url}, room=f'conv_{conv_id}')
+
+    return jsonify({'success': True, 'photo_url': url})
+
+
+@chat_api_bp.route('/groups/<int:conv_id>/photo', methods=['DELETE'])
+def remove_group_photo(conv_id):
+    if not _uid():
+        return jsonify({'success': False}), 401
+    uid = _uid()
+    conv = chat_db.get_conversation(conv_id)
+    if not conv or not conv.get('is_group'):
+        return jsonify({'success': False, 'message': 'Group not found'}), 404
+    if not _can_manage_group(conv, uid):
+        return jsonify({'success': False, 'message': 'Only the group creator or an admin can change the group photo'}), 403
+
+    old_key = conv.get('group_photo_key')
+    if not old_key:
+        return jsonify({'success': True, 'photo_url': None})
+
+    chat_db.update_group_photo(conv_id, None)
+    image_storage_service.delete_group_photo(old_key)
+
+    _insert_system_message(conv_id, f'{_uname()} removed the group profile photo.')
+    _emit('group_photo_updated', {'conv_id': conv_id, 'photo_url': None}, room=f'conv_{conv_id}')
+
+    return jsonify({'success': True, 'photo_url': None})
 
 
 @chat_api_bp.route('/unread-count')

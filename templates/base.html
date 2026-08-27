@@ -410,6 +410,13 @@
     background:var(--accent); color:var(--accent-on); font-size:.62rem; font-weight:700;
   }
   .ntf-chevron { color:var(--text-3); font-size:.68rem; }
+  .ntf-action { display:flex; align-items:center; gap:.4rem; }
+  .ntf-dismiss {
+    width:22px; height:22px; border-radius:50%; border:none; background:var(--surface-2);
+    color:var(--text-3); font-size:.62rem; cursor:pointer; display:flex; align-items:center; justify-content:center;
+    flex-shrink:0; transition:background .1s,color .1s;
+  }
+  .ntf-dismiss:hover { background:var(--danger-bg); color:var(--danger-text); }
 
   .dash-empty { text-align:center; padding:2.25rem 1.5rem; }
   .dash-empty-icon { width:42px; height:42px; border-radius:12px; background:var(--surface-2); color:var(--text-3); display:flex; align-items:center; justify-content:center; font-size:1.05rem; margin:0 auto .7rem; }
@@ -1166,6 +1173,56 @@ document.addEventListener('DOMContentLoaded',function(){
   };
   var um = document.getElementById('updatesModal');
   if (um) um.addEventListener('click', function(e){ if (e.target === this) closeUpdatesModal(); });
+
+  /* Explicit dismiss for items with no natural "view" page (e.g. a
+     declined connection request never opens a conversation) — this IS a
+     deliberate mark-seen action, unlike closing the popup itself. Removes
+     the row locally (and the section label if it was the last one) so the
+     user gets instant feedback without a full re-fetch; the badge count
+     from the cached response is also decremented to match. */
+  document.getElementById('updatesModalBody').addEventListener('click', function(e){
+    // "Open"-style links that resolve a one-time event (e.g. an accepted
+    // connection request) mark it seen too, not just the explicit dismiss
+    // button — fire-and-forget with keepalive so the request survives the
+    // page navigation the click is about to trigger.
+    var onClickLink = e.target.closest('.ntf-dismiss-on-click');
+    if (onClickLink) {
+      fetch('/api/v01/student/updates/dismiss', {
+        method: 'POST', keepalive: true,
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({event_type: onClickLink.dataset.dismissType, event_key: onClickLink.dataset.dismissKey})
+      }).catch(function(){});
+      return;
+    }
+    var btn = e.target.closest('.ntf-dismiss');
+    if (!btn) return;
+    var row = btn.closest('.ntf-row');
+    var type = row.dataset.dismissType, key = row.dataset.dismissKey;
+    if (!type || !key) return;
+    btn.disabled = true;
+    fetch('/api/v01/student/updates/dismiss', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({event_type: type, event_key: key})
+    }).then(function(){
+      var label = row.previousElementSibling;
+      var isOnlyRowInSection = label && label.classList.contains('ntf-section-label')
+        && (!row.nextElementSibling || row.nextElementSibling.classList.contains('ntf-section-label'));
+      if (isOnlyRowInSection) label.remove();
+      row.remove();
+      var badge = document.getElementById('updatesBadge');
+      if (badge && badge.textContent) {
+        var n = Math.max(0, (parseInt(badge.textContent, 10) || 1) - 1);
+        badge.textContent = n; badge.style.display = n ? 'inline' : 'none';
+      }
+      // Unlike every other mark-seen path (which navigates to a whole new
+      // page, naturally discarding this page's JS state), dismiss acts via
+      // AJAX while staying put — so the cached response's .html would still
+      // contain this now-dismissed row if reused. Drop the cache entirely;
+      // the next open (or badge refresh) just fetches fresh.
+      cache = null;
+    }).catch(function(){ btn.disabled = false; });
+  });
 
   fetchUpdates(function(d){
     var badge = document.getElementById('updatesBadge');

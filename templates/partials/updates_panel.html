@@ -93,12 +93,69 @@
 <div class="ntf-section-label">New Messages</div>
 {% for c in dash.new_messages %}
 <a href="{{ url_for('chat.chat_page') }}" class="ntf-row ntf-row-link">
-  <div class="ntf-icon ntf-avatar">{% if c.photo_url %}<img src="{{ c.photo_url }}" alt="">{% else %}{{ (c.name or '?')[0]|upper }}{% endif %}</div>
+  <div class="ntf-icon {{ 'ntf-avatar' if c.photo_url else ('ntf-icon-info' if c.is_group else 'ntf-avatar') }}">
+    {% if c.photo_url %}<img src="{{ c.photo_url }}" alt="">
+    {% elif c.is_group %}<i class="fas fa-users"></i>
+    {% else %}{{ (c.name or '?')[0]|upper }}{% endif %}
+  </div>
   <div class="ntf-body">
-    <div class="ntf-title">{{ c.name }}</div>
-    {% if c.last_message %}<div class="ntf-meta">{{ c.last_message.message[:70] }}</div>{% endif %}
+    <div class="ntf-title">{{ c.name }}{% if c.is_group %} <span class="ntf-tag">Group</span>{% endif %}</div>
+    {% if c.last_message %}
+    <div class="ntf-meta">{% if c.is_group %}{{ c.last_message.sender_name }}: {% endif %}{{ c.last_message.message[:60] }}</div>
+    {% endif %}
   </div>
   <div class="ntf-action"><span class="ntf-count">{{ c.unread }}</span></div>
+</a>
+{% endfor %}
+{% endif %}
+
+{% if dash.connection_requests %}
+<div class="ntf-section-label">Connection Requests</div>
+{% for r in dash.connection_requests %}
+<a href="{{ url_for('chat.chat_page') }}" class="ntf-row ntf-row-link">
+  <div class="ntf-icon ntf-avatar">{% if r.photo_url %}<img src="{{ r.photo_url }}" alt="">{% else %}{{ (r.requester_name or '?')[0]|upper }}{% endif %}</div>
+  <div class="ntf-body">
+    <div class="ntf-title">{{ r.requester_name }}</div>
+    <div class="ntf-meta">Sent you a connection request</div>
+  </div>
+  <div class="ntf-action"><i class="fas fa-chevron-right ntf-chevron"></i></div>
+</a>
+{% endfor %}
+{% endif %}
+
+{% if dash.connection_responses %}
+<div class="ntf-section-label">Connection Updates</div>
+{% for r in dash.connection_responses %}
+<div class="ntf-row" data-dismiss-type="connection_response" data-dismiss-key="{{ r.connection_id }}">
+  <div class="ntf-icon {{ 'ntf-icon-success' if r.status == 'accepted' else 'ntf-icon-danger' }}">
+    <i class="fas {{ 'fa-user-check' if r.status == 'accepted' else 'fa-user-xmark' }}"></i>
+  </div>
+  <div class="ntf-body">
+    <div class="ntf-title">{{ r.other_name }}</div>
+    <div class="ntf-meta">{% if r.status == 'accepted' %}Accepted your connection request{% else %}Declined your connection request{% endif %}</div>
+  </div>
+  <div class="ntf-action">
+    {% if r.status == 'accepted' %}
+    <a href="{{ url_for('chat.chat_page') }}" class="ntf-btn primary ntf-dismiss-on-click" data-dismiss-type="connection_response" data-dismiss-key="{{ r.connection_id }}">Open</a>
+    {% endif %}
+    <button type="button" class="ntf-dismiss" title="Dismiss"><i class="fas fa-times"></i></button>
+  </div>
+</div>
+{% endfor %}
+{% endif %}
+
+{% if dash.group_additions %}
+<div class="ntf-section-label">Added To Groups</div>
+{% for g in dash.group_additions %}
+<a href="{{ url_for('chat.chat_page') }}" class="ntf-row ntf-row-link">
+  <div class="ntf-icon {{ 'ntf-avatar' if g.photo_url else 'ntf-icon-info' }}">
+    {% if g.photo_url %}<img src="{{ g.photo_url }}" alt="">{% else %}<i class="fas fa-users"></i>{% endif %}
+  </div>
+  <div class="ntf-body">
+    <div class="ntf-title">{{ g.group_name }}</div>
+    <div class="ntf-meta">Added by {{ g.added_by_name }}</div>
+  </div>
+  <div class="ntf-action"><i class="fas fa-chevron-right ntf-chevron"></i></div>
 </a>
 {% endfor %}
 {% endif %}
