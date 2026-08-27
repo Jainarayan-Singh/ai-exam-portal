@@ -502,9 +502,21 @@
 
 /* Mobile */
 @media(max-width:640px){
+  /* .sidebar below is position:absolute; without a positioned ancestor,
+     its top:0 resolves against the viewport (behind the sticky top-nav)
+     instead of .chat-wrap's own box, which already starts below the nav. */
+  .chat-wrap { position:relative; }
   .chat-wrap .sidebar { width:100%; position:absolute; top:0; left:0; height:100%; z-index:10; transition:transform .2s; }
   .chat-wrap .sidebar.hidden-mobile { transform:translateX(-100%); }
   .chat-main.show-mobile { display:flex; }
+  /* .msg-dots-btn (Reply/Edit/Delete trigger) is opacity:0, shown only via
+     :hover — touch has no hover state, so it's otherwise invisible and
+     untappable. Make it always visible on mobile, with a slightly larger
+     touch target. */
+  .msg-dots-btn { opacity:1; width:28px; height:28px; }
+  /* Prevent a tall modal (e.g. many search results) from exceeding a short
+     mobile viewport instead of scrolling. */
+  .modal-overlay .modal-box { max-height:85vh; overflow-y:auto; }
 }
 
 /* Without this, an element that both has [hidden] and a class-based

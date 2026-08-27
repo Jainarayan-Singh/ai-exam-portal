@@ -217,7 +217,7 @@
   .sb-toggle:hover { background:var(--bg); color:var(--text-1); }
 
   /* Nav scroll area */
-  .sb-nav { flex:1; overflow-y:auto; overflow-x:hidden; padding:.3rem; scrollbar-width:none; }
+  .sb-nav { flex:1; overflow-y:auto; overflow-x:hidden; padding:.3rem; scrollbar-width:none; overscroll-behavior:contain; -webkit-overflow-scrolling:touch; }
   .sb-nav::-webkit-scrollbar { display:none; }
 
   /* Section label */
@@ -975,14 +975,22 @@ document.addEventListener('click',function(e){
 function openMobileSb(){
   var sb=document.getElementById('mainSb');
   var ov=document.getElementById('sbOverlay');
-  if(sb) sb.classList.add('mobile-open');
+  // Desktop's collapsed (icon-only) state is a separate, persisted
+  // preference — its centered/no-gap/icon-boxed styling must not leak
+  // into the mobile drawer, which always shows the full expanded layout.
+  if(sb){ sb.classList.remove('collapsed'); sb.classList.add('mobile-open'); }
   if(ov) ov.classList.add('open');
+  document.body.style.overflow='hidden';
 }
 function closeMobileSb(){
   var sb=document.getElementById('mainSb');
   var ov=document.getElementById('sbOverlay');
-  if(sb) sb.classList.remove('mobile-open');
+  if(sb){
+    sb.classList.remove('mobile-open');
+    if(localStorage.getItem('sbCollapsed')==='1') sb.classList.add('collapsed');
+  }
   if(ov) ov.classList.remove('open');
+  document.body.style.overflow='';
 }
 var mt=document.getElementById('mobToggle');
 if(mt) mt.addEventListener('click', function(){ var sb=document.getElementById('mainSb'); if(sb&&sb.classList.contains('mobile-open')) closeMobileSb(); else openMobileSb(); });

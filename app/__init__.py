@@ -103,11 +103,12 @@ def create_app() -> Flask:
             return redirect(url_for("auth.login"))
 
     # ── Date/time — central service + Jinja filters ────────────────────────
-    from app.utils.datetime_service import now_app_tz, format_display, format_display_date, format_calendar_date
+    from app.utils.datetime_service import now_app_tz, format_display, format_display_date, format_calendar_date, format_calendar_time
 
     app.jinja_env.filters["display_dt"] = format_display
     app.jinja_env.filters["display_date"] = format_display_date
     app.jinja_env.filters["calendar_date"] = format_calendar_date
+    app.jinja_env.filters["calendar_time"] = format_calendar_time
 
     @app.context_processor
     def inject_globals():

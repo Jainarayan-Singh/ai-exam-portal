@@ -18,7 +18,7 @@
   </td>
   <td>
     <div class="meta-pill">{{ exam.date | calendar_date if exam.date else exam.date }}</div>
-    <div style="font-size:.75rem;color:var(--text-3);margin-top:3px">{{ exam.start_time }}</div>
+    <div style="font-size:.75rem;color:var(--text-3);margin-top:3px">{{ exam.start_time | calendar_time }}</div>
   </td>
   <td><span class="meta-pill">{{ exam.duration }} min</span></td>
   <td>
@@ -86,7 +86,7 @@
     {% if exam.category_name %}<span class="cat-pill">{{ exam.category_name }}</span>{% endif %}
     {% if exam.subcategory_name %}<span class="cat-pill" style="opacity:.72">{{ exam.subcategory_name }}</span>{% endif %}
   </div>
-  <div class="egi-row"><i class="fas fa-calendar-days"></i> {{ exam.date | calendar_date if exam.date else exam.date }} &nbsp;·&nbsp; {{ exam.start_time }}</div>
+  <div class="egi-row"><i class="fas fa-calendar-days"></i> {{ exam.date | calendar_date if exam.date else exam.date }} &nbsp;·&nbsp; {{ exam.start_time | calendar_time }}</div>
   <div class="egi-row"><i class="fas fa-hourglass-half"></i> {{ exam.duration }} min &nbsp;·&nbsp; <i class="fas fa-list-ol"></i> {{ exam.total_questions }}Q</div>
   <div class="egi-actions">
     <button class="icon-btn" title="Edit" data-bs-toggle="modal" data-bs-target="#editExamModal{{ exam.id }}">
@@ -124,7 +124,7 @@
             <div class="col-md-3 col-sm-6 col-12">
               <label class="form-label">Start Time</label>
               <div class="dt-field">
-                <input type="text" class="form-control dt-time-input" name="start_time" value="{{ exam.start_time }}" placeholder="Select time" readonly autocomplete="off" required>
+                <input type="text" class="form-control dt-time-input" name="start_time" value="{{ exam.start_time | calendar_time }}" data-value="{{ exam.start_time }}" placeholder="Select time" readonly autocomplete="off" required>
                 <i class="fas fa-clock dt-field-icon"></i>
               </div>
             </div>
