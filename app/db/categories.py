@@ -3,6 +3,31 @@ from app.db import fetch_one, fetch_all, execute, set_clause, insert_returning
 from app.utils.pagination import paginate_params, pagination_meta
 
 
+def get_categories_count() -> int:
+    """Total category count via COUNT query — no data fetch."""
+    try:
+        row = fetch_one("SELECT COUNT(*) AS count FROM categories")
+        return row["count"] if row else 0
+    except Exception as e:
+        print(f"[db.categories] get_categories_count error: {e}")
+        return 0
+
+
+def get_exams_per_category(limit: int = 8) -> List[Dict]:
+    """Exam count per category (top N by count) — one aggregate JOIN query,
+    for the dashboard's Exams-per-Category chart."""
+    try:
+        return fetch_all(
+            "SELECT c.name AS name, COUNT(e.id) AS count FROM categories c "
+            "LEFT JOIN exams e ON e.category_id = c.id "
+            "GROUP BY c.id, c.name ORDER BY count DESC, c.name LIMIT %s",
+            (limit,),
+        )
+    except Exception as e:
+        print(f"[db.categories] get_exams_per_category error: {e}")
+        return []
+
+
 def get_all_categories() -> List[Dict]:
     try:
         return fetch_all("SELECT * FROM categories ORDER BY name")

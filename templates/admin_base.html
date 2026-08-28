@@ -552,6 +552,13 @@
             <span class="nav-label">Object Storage</span>
           </a>
         </li>
+        <li>
+          <a class="nav-link {% if request.endpoint and request.endpoint.startswith('admin.ai_command_centre') %}active{% endif %}"
+             href="{{ url_for('admin.ai_command_centre') }}" data-tooltip="AI Command Centre" aria-label="AI Command Centre">
+            <span class="nav-icon"><i class="fas fa-robot"></i></span>
+            <span class="nav-label">AI Command Centre</span>
+          </a>
+        </li>
 
         <li><span class="section-label">Management</span></li>
 
@@ -580,14 +587,16 @@
             <span class="nav-label">Users Analytics</span>
           </a>
         </li>
+
+        <li><span class="section-label">Account</span></li>
+
         <li>
-          <a class="nav-link {% if request.endpoint and request.endpoint.startswith('admin.ai_command_centre') %}active{% endif %}"
-             href="{{ url_for('admin.ai_command_centre') }}" data-tooltip="AI Command Centre" aria-label="AI Command Centre">
-            <span class="nav-icon"><i class="fas fa-robot"></i></span>
-            <span class="nav-label">AI Command Centre</span>
+          <a class="nav-link {% if request.endpoint == 'admin.guide' %}active{% endif %}"
+             href="{{ url_for('admin.guide') }}" data-tooltip="Admin Guide" aria-label="Admin Guide">
+            <span class="nav-icon"><i class="fas fa-book-open"></i></span>
+            <span class="nav-label">Admin Guide</span>
           </a>
         </li>
-
         <li>
           <a class="nav-link {% if request.endpoint == 'admin.profile' %}active{% endif %}"
              href="{{ url_for('admin.profile') }}" data-tooltip="Profile &amp; Account" aria-label="Profile &amp; Account">

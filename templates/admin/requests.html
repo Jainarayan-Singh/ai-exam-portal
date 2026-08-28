@@ -291,6 +291,18 @@
    on its very first line and never reaching the modal-close/list-refresh
    code after it, which is what made Approve/Deny look like they weren't
    doing anything) ── */
+/* ── Last Updated column — compact 2-line date/time instead of one long
+   inline string (was visually an oversized rectangle among short cells),
+   and dropped entirely below the existing 768px mobile breakpoint (see
+   admin_base.html) since it's secondary info that isn't needed to act on
+   a row — User/Email/Role/Update stay fully accessible on mobile. ── */
+.col-updated { white-space: nowrap; }
+.ts-date { font-size: .75rem; color: var(--text-2); font-weight: 500; line-height: 1.3; }
+.ts-time { font-size: .68rem; color: var(--text-3); line-height: 1.3; }
+@media (max-width: 768px) {
+  .col-updated { display: none; }
+}
+
 #toastContainer { position:fixed;bottom:1.5rem;right:1.5rem;z-index:10000;display:flex;flex-direction:column;gap:0.5rem;pointer-events:none; }
 .toast-item { display:flex;align-items:center;gap:0.65rem;padding:0.75rem 1.1rem;border-radius:12px;font-size:0.83rem;font-weight:600;color:#fff;box-shadow:0 6px 24px rgba(0,0,0,0.35);min-width:240px;max-width:340px;pointer-events:all;animation:toastIn 0.25s cubic-bezier(.34,1.56,.64,1); }
 @keyframes toastIn { from{opacity:0;transform:translateX(40px)} to{opacity:1;transform:translateX(0)} }
@@ -432,7 +444,7 @@
               <input type="checkbox" id="selectAllChk" class="e-checkbox" onchange="handleSelectAll(this)">
             </th>
             <th>User</th><th>Email</th><th>Current Role</th>
-            <th>New Role</th><th>Update</th><th>Last Updated</th>
+            <th>New Role</th><th>Update</th><th class="col-updated">Last Updated</th>
           </tr>
         </thead>
         <tbody id="usersTbody">
@@ -726,6 +738,20 @@ function umFetch(page) {
     });
 }
 
+// Compact 2-line rendering for a "DD Month YYYY HH:MM AM/PM" timestamp —
+// splits the trailing "HH:MM AM/PM" onto its own muted line instead of one
+// long inline string.
+function _fmtTs(raw) {
+  if (!raw) return '<span class="ts-date">—</span>';
+  const parts = String(raw).trim().split(' ');
+  if (parts.length >= 2) {
+    const time = parts.slice(-2).join(' ');
+    const date = parts.slice(0, -2).join(' ');
+    if (date) return `<div class="ts-date">${date}</div><div class="ts-time">${time}</div>`;
+  }
+  return `<span class="ts-date">${raw}</span>`;
+}
+
 function renderUsers(users) {
   const tbody = document.getElementById('usersTbody');
   if (!users.length) {
@@ -769,7 +795,7 @@ function renderUsers(users) {
           <i class="fas fa-save me-1"></i>Update
         </button>
       </td>
-      <td><span class="ts" style="font-size:.75rem;color:var(--text-3)">${u.updated_at||u.created_at||'—'}</span></td>
+      <td class="col-updated">${_fmtTs(u.updated_at||u.created_at)}</td>
     </tr>`;
   }).join('');
   syncSelectAll();

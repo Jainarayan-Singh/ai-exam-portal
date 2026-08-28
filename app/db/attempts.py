@@ -10,6 +10,32 @@ from app.db import fetch_one, fetch_all, execute, set_clause, insert_returning
 _COLS = "id,student_id,exam_id,attempt_number,status,start_time,end_time"
 
 
+def get_attempts_status_counts() -> Dict[str, int]:
+    """Attempt count per status (completed / in_progress / ...) — one
+    aggregate query, for the admin dashboard's Attempts chart."""
+    try:
+        rows = fetch_all("SELECT status, COUNT(*) AS count FROM exam_attempts GROUP BY status")
+        return {r["status"]: r["count"] for r in rows}
+    except Exception as e:
+        print(f"[db.attempts] get_attempts_status_counts error: {e}")
+        return {}
+
+
+def get_top_attempted_exams(limit: int = 5) -> List[Dict]:
+    """Most-attempted exams (top N by attempt count) — one aggregate JOIN
+    query, for the dashboard's Most Attempted Exams chart."""
+    try:
+        return fetch_all(
+            "SELECT ex.name AS name, COUNT(a.id) AS count FROM exam_attempts a "
+            "JOIN exams ex ON ex.id = a.exam_id "
+            "GROUP BY ex.id, ex.name ORDER BY count DESC LIMIT %s",
+            (limit,),
+        )
+    except Exception as e:
+        print(f"[db.attempts] get_top_attempted_exams error: {e}")
+        return []
+
+
 def get_active_attempt(user_id: int, exam_id: int) -> Optional[Dict]:
     """Return the most recent in_progress attempt for this user+exam."""
     try:

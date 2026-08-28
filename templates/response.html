@@ -554,6 +554,9 @@ hr { border-color:var(--border); margin:1rem 0; opacity:1; }
             </div>
 
             <div class="card-body">
+              {% if response.question.metadata and response.question.metadata.source_tag %}
+              <span style="display:inline-flex;align-items:center;gap:.3rem;background:rgba(45,91,227,0.12);color:#2d5be3;border:1px solid rgba(45,91,227,0.35);border-radius:20px;padding:.15rem .65rem;font-size:.72rem;font-weight:700;margin-bottom:.5rem"><i class="fas fa-bookmark" style="font-size:.62rem"></i>{{ response.question.metadata.source_tag }}</span>
+              {% endif %}
               <h6><strong>Question:</strong></h6>
               <p data-raw="{{ response.question.question_text | e }}"></p>
 

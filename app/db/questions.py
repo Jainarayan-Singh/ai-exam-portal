@@ -24,6 +24,42 @@ _ALL_COLS = (
 )
 
 
+def get_questions_by_type_counts() -> Dict[str, int]:
+    """Question count per question_type — one aggregate query, not a row
+    fetch, for the dashboard's Questions-by-Type chart."""
+    try:
+        rows = fetch_all("SELECT question_type, COUNT(*) AS count FROM questions GROUP BY question_type")
+        return {r["question_type"]: r["count"] for r in rows}
+    except Exception as e:
+        print(f"[db.questions] get_questions_by_type_counts error: {e}")
+        return {}
+
+
+def get_top_exams_by_question_count(limit: int = 5) -> List[Dict]:
+    """Exams with the most questions (top N) — one aggregate JOIN query,
+    for the dashboard's Exams by Question Count chart."""
+    try:
+        return fetch_all(
+            "SELECT ex.name AS name, COUNT(q.id) AS count FROM questions q "
+            "JOIN exams ex ON ex.id = q.exam_id "
+            "GROUP BY ex.id, ex.name ORDER BY count DESC LIMIT %s",
+            (limit,),
+        )
+    except Exception as e:
+        print(f"[db.questions] get_top_exams_by_question_count error: {e}")
+        return []
+
+
+def get_questions_count() -> int:
+    """Total question count (across all exams) via COUNT query — no data fetch."""
+    try:
+        row = fetch_one("SELECT COUNT(*) AS count FROM questions")
+        return row["count"] if row else 0
+    except Exception as e:
+        print(f"[db.questions] get_questions_count error: {e}")
+        return 0
+
+
 def get_question_by_id(question_id: int) -> Optional[Dict]:
     try:
         return fetch_one(f"SELECT {_ALL_COLS} FROM questions WHERE id=%s", (question_id,))

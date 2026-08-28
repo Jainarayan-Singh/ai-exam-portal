@@ -12,6 +12,16 @@ from app.utils.pagination import paginate_params, pagination_meta
 # Subjects
 # ─────────────────────────────────────────────
 
+def get_subjects_count() -> int:
+    """Total subject count via COUNT query — no data fetch."""
+    try:
+        row = fetch_one("SELECT COUNT(*) AS count FROM subjects")
+        return row["count"] if row else 0
+    except Exception as e:
+        print(f"[db.misc] get_subjects_count error: {e}")
+        return 0
+
+
 def get_all_subjects() -> List[Dict]:
     try:
         return fetch_all(
@@ -96,6 +106,17 @@ def delete_subject(subject_id: int) -> bool:
 # ─────────────────────────────────────────────
 # Access Requests
 # ─────────────────────────────────────────────
+
+def get_requests_status_counts() -> Dict[str, int]:
+    """Access-request count per request_status — one aggregate query, for
+    the admin dashboard's Requests chart."""
+    try:
+        rows = fetch_all("SELECT request_status, COUNT(*) AS count FROM requests_raised GROUP BY request_status")
+        return {r["request_status"]: r["count"] for r in rows}
+    except Exception as e:
+        print(f"[db.misc] get_requests_status_counts error: {e}")
+        return {}
+
 
 def get_pending_requests() -> List[Dict]:
     try:
