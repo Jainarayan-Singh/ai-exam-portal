@@ -755,7 +755,14 @@ def google_callback():
         flash(f'Welcome {user.get("full_name")}!', "success")
         return redirect(url_for("admin.dashboard"))
 
-    # Regular user session
+    # Regular user session — Google authentication succeeding is NOT the
+    # same as this app's session being switched: same existing-active-
+    # session gate as the password login path, so an account already
+    # logged in elsewhere gets the confirm-then-OTP flow here too instead
+    # of silently kicking out the other device.
+    if has_active_session(int(user["id"])):
+        return _pending_session_conflict(user, role, admin=False)
+
     _create_user_session(user, role, admin=False)
     flash(f'Welcome {user.get("full_name")}!', "success")
     return redirect(url_for("dashboard.dashboard"))
