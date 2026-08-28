@@ -121,6 +121,19 @@ BASE_URL              = os.environ.get("BASE_URL", "https://your-domain.com")
 LOGO_ASSET_URL     = os.environ.get("LOGO_ASSET_URL", "")
 
 # ─────────────────────────────────────────────
+# OTP — "Existing Active Session" login verification. When a user logs in
+# correctly but already has another active session, they must verify a
+# mailed one-time code before the old session is invalidated. See
+# app/routes/web/auth.py (verify_session / verify_session_resend).
+# ─────────────────────────────────────────────
+OTP_LENGTH = int(os.environ.get("OTP_LENGTH", 6))
+OTP_EXPIRY_SECONDS = int(os.environ.get("OTP_EXPIRY_SECONDS", 600))
+OTP_MAX_REQUESTS = int(os.environ.get("OTP_MAX_REQUESTS", 5))
+OTP_RATE_LIMIT_WINDOW_SECONDS = int(os.environ.get("OTP_RATE_LIMIT_WINDOW_SECONDS", 900))
+OTP_RESEND_COOLDOWN_SECONDS = int(os.environ.get("OTP_RESEND_COOLDOWN_SECONDS", 60))
+OTP_MAX_VERIFY_ATTEMPTS = int(os.environ.get("OTP_MAX_VERIFY_ATTEMPTS", 5))
+
+# ─────────────────────────────────────────────
 # Image upload — single shared cap for every image upload path (category
 # images, subject/question bulk images, Notes attachments), so the limit
 # can't drift out of sync between features.

@@ -41,6 +41,17 @@ def get_session_by_token(token: str) -> Optional[Dict]:
     return None
 
 
+def has_active_session(user_id: int) -> bool:
+    """True if this user has any active session row — used to detect an
+    "already logged in on another device" situation at login time."""
+    try:
+        row = fetch_one("SELECT id FROM sessions WHERE user_id=%s AND active=%s LIMIT 1", (user_id, True))
+        return row is not None
+    except Exception as e:
+        print(f"[db.sessions] has_active_session error: {e}")
+        return False
+
+
 def invalidate_session(user_id: int, token: Optional[str] = None) -> bool:
     try:
         if token:
