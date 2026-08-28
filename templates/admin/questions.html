@@ -561,7 +561,12 @@ window.MathJax = {
               data-question-id="{{ q.id }}">
             <td><input class="row-checkbox enhanced-checkbox" data-id="{{ q.id }}" type="checkbox"></td>
             <td><span class="question-id-badge">{{ q.id }}</span></td>
-            <td><div class="question-text" data-raw="{{ q.question_text | e }}"></div></td>
+            <td>
+              <div class="question-text" data-raw="{{ q.question_text | e }}"></div>
+              {% if q.source_tag %}
+              <span style="display:inline-flex;align-items:center;gap:.25rem;background:var(--accent-subtle);color:var(--accent);border:1px solid var(--accent);border-radius:12px;padding:.05rem .5rem;font-size:.68rem;font-weight:700;margin-top:.25rem"><i class="fas fa-bookmark" style="font-size:.6rem"></i>{{ q.source_tag }}</span>
+              {% endif %}
+            </td>
             <td>
               <span class="question-type-badge {% if q.question_type == 'MCQ' %}type-mcq{% elif q.question_type == 'MSQ' %}type-msq{% else %}type-num{% endif %}">
                 {{ q.question_type }}
@@ -780,6 +785,16 @@ window.MathJax = {
               <label class="form-label">Image Path <span style="font-weight:400;color:var(--text-3)">(optional)</span></label>
               <input name="image_path" id="qf-image-path" class="form-control" placeholder="e.g. physics/ph-1.png">
               <div class="form-hint"><i class="fas fa-info-circle"></i> Format: SubjectName/filename.ext</div>
+            </div>
+          </div>
+
+          <!-- Metadata -->
+          <div class="modal-section-title"><i class="fas fa-tag"></i>Metadata</div>
+          <div class="row g-2">
+            <div class="col-md-6">
+              <label class="form-label">Source / Previous Year Tag <span style="font-weight:400;color:var(--text-3)">(optional)</span></label>
+              <input name="source_tag" id="qf-source-tag" class="form-control" placeholder="e.g. ESE 2021">
+              <div class="form-hint"><i class="fas fa-info-circle"></i> Shown as a small badge above the question on the exam page. Leave blank to remove it.</div>
             </div>
           </div>
 
@@ -1339,6 +1354,7 @@ function _qResetForm() {
   _qField('qf-positive-marks').value  = '4';
   _qField('qf-negative-marks').value  = '1';
   _qField('qf-image-path').value      = '';
+  _qField('qf-source-tag').value      = '';
   _qField('qModalError').style.display = 'none';
   _toggleToleranceField();
   /* Pre-select the currently loaded exam */
@@ -1400,6 +1416,7 @@ async function openEditQuestionModal(questionId) {
     _qField('qf-positive-marks').value = q.positive_marks != null ? q.positive_marks : '4';
     _qField('qf-negative-marks').value = q.negative_marks != null ? q.negative_marks : '1';
     _qField('qf-image-path').value     = q.image_path     || '';
+    _qField('qf-source-tag').value     = (q.metadata && q.metadata.source_tag) || '';
     _toggleToleranceField();
   } catch (err) {
     _qField('qModalError').textContent    = err.message;
@@ -1439,6 +1456,7 @@ async function submitQuestionModal() {
   form.append('positive_marks', _qField('qf-positive-marks').value);
   form.append('negative_marks', _qField('qf-negative-marks').value);
   form.append('image_path',     _qField('qf-image-path').value);
+  form.append('source_tag',     _qField('qf-source-tag').value);
 
   const url = _qModalMode === 'add'
     ? '/api/v01/admin/questions'

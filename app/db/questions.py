@@ -20,7 +20,7 @@ from app.db import fetch_one, fetch_all, execute, set_clause, insert_returning, 
 
 _ALL_COLS = (
     "id,exam_id,question_text,option_a,option_b,option_c,option_d,"
-    "correct_answer,question_type,image_path,positive_marks,negative_marks,tolerance"
+    "correct_answer,question_type,image_path,positive_marks,negative_marks,tolerance,metadata"
 )
 
 
@@ -64,6 +64,54 @@ def update_question(question_id: int, updates: Dict) -> bool:
         return True
     except Exception as e:
         print(f"[db.questions] update_question error: {e}")
+        return False
+
+
+# ─────────────────────────────────────────────
+# Optional per-question metadata (questions.metadata JSONB) — e.g. a
+# previous-year source tag like "ESE 2021". Deliberately open-ended: no
+# separate column per metadata kind, just keys inside this one JSONB blob.
+# ─────────────────────────────────────────────
+
+def build_question_metadata(source_tag: Optional[str]) -> Optional[Dict]:
+    """Canonical shape for the metadata this app currently understands —
+    the ONE place that decides what a "source tag" value becomes in
+    storage. Every create path (single add, batch add, CSV import) should
+    build its metadata column value through this, not by hand, so the
+    representation never drifts between callers. Returns None for a blank
+    tag (nothing to store) — a fresh row's metadata column simply stays NULL."""
+    tag = (source_tag or "").strip()
+    return {"source_tag": tag} if tag else None
+
+
+def merge_question_metadata(question_id: int, patch: Dict) -> bool:
+    """Shallow-merge `patch` into an EXISTING question's metadata, leaving
+    every other key already stored there untouched — e.g. a question saved
+    with {"difficulty": "medium", "source_tag": "ESE 2021"} keeps its
+    difficulty if only source_tag is edited afterward. A key whose patch
+    value is falsy/None is REMOVED from metadata rather than stored as an
+    empty string, so clearing the Source Tag field deletes 'source_tag'
+    instead of leaving clutter behind. This is the only function that
+    should ever mutate metadata after a row already exists — every editor
+    (admin single-edit today, anything else later) should call this
+    instead of writing `metadata` through update_question() directly,
+    which would replace the whole JSONB value."""
+    try:
+        set_keys = {k: v for k, v in patch.items() if v not in (None, "")}
+        remove_keys = [k for k, v in patch.items() if v in (None, "")]
+        if set_keys:
+            execute(
+                "UPDATE questions SET metadata = COALESCE(metadata,'{}'::jsonb) || %s::jsonb WHERE id=%s",
+                (set_keys, question_id),
+            )
+        for k in remove_keys:
+            execute(
+                "UPDATE questions SET metadata = COALESCE(metadata,'{}'::jsonb) - %s WHERE id=%s",
+                (k, question_id),
+            )
+        return True
+    except Exception as e:
+        print(f"[db.questions] merge_question_metadata error: {e}")
         return False
 
 

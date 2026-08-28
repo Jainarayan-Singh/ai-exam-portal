@@ -46,6 +46,7 @@ def questions_index():
                 "positive_marks":q.get("positive_marks","4"),
                 "negative_marks":q.get("negative_marks","1"),
                 "tolerance":     q.get("tolerance",""),
+                "source_tag":    (q.get("metadata") or {}).get("source_tag",""),
             })
 
     return render_template("admin/questions.html", exams=exams_list,
@@ -77,9 +78,16 @@ def export_questions_csv(exam_id):
         return redirect(url_for("admin.questions_index", exam_id=exam_id))
 
     cols = ["exam_id","question_text","option_a","option_b","option_c","option_d",
-            "correct_answer","question_type","image_path","positive_marks","negative_marks","tolerance"]
-    rows = [{c: q.get(c,"") for c in cols} for q in qs]
-    df   = pd.DataFrame(rows)[cols]
+            "correct_answer","question_type","image_path","positive_marks","negative_marks",
+            "tolerance","source_tag"]
+    rows = []
+    for q in qs:
+        row = {c: q.get(c,"") for c in cols if c != "source_tag"}
+        # source_tag is pulled out of the metadata JSONB specifically —
+        # never dump the raw JSON object into a CSV cell.
+        row["source_tag"] = (q.get("metadata") or {}).get("source_tag","")
+        rows.append(row)
+    df = pd.DataFrame(rows)[cols]
 
     out  = io.StringIO()
     df.to_csv(out, index=False, encoding="utf-8")

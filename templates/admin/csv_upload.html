@@ -413,6 +413,7 @@
                   <p class="mb-4" style="font-size:0.82rem;color:var(--text-3)">
                     Required columns:
                     <code style="background:var(--input-bg);color:var(--accent);padding:2px 5px;border-radius:4px;font-size:0.78rem;">exam_id, question_text, option_a–d, correct_answer, question_type, image_path, positive_marks, negative_marks, tolerance</code>
+                    <br>Optional: <code style="background:var(--input-bg);color:var(--text-2);padding:2px 5px;border-radius:4px;font-size:0.78rem;">source_tag</code> (e.g. "ESE 2021") — leave blank or omit the column if not applicable.
                   </p>
 
                   <label id="csvDropZone" for="csvFileInput"
@@ -719,9 +720,9 @@
   }
 
   window.csvDownloadSample=function(){
-    const hdr='exam_id,question_text,option_a,option_b,option_c,option_d,correct_answer,question_type,image_path,positive_marks,negative_marks,tolerance';
-    const r1='1,"$\\\\large\\\\text{A particle moves with velocity }v$","$\\\\large\\\\text{10 m/s}$","$\\\\large\\\\text{20 m/s}$","$\\\\large\\\\text{30 m/s}$","$\\\\large\\\\text{40 m/s}$",B,MCQ,,4,1,0';
-    const r2='1,"$\\\\large\\\\text{Numeric: What is } 2+2?$","","","","",4,NUMERIC,,3,0,0.01';
+    const hdr='exam_id,question_text,option_a,option_b,option_c,option_d,correct_answer,question_type,image_path,positive_marks,negative_marks,tolerance,source_tag';
+    const r1='1,"$\\\\large\\\\text{A particle moves with velocity }v$","$\\\\large\\\\text{10 m/s}$","$\\\\large\\\\text{20 m/s}$","$\\\\large\\\\text{30 m/s}$","$\\\\large\\\\text{40 m/s}$",B,MCQ,,4,1,0,"ESE 2021"';
+    const r2='1,"$\\\\large\\\\text{Numeric: What is } 2+2?$","","","","",4,NUMERIC,,3,0,0.01,';
     _download(new Blob([[hdr,r1,r2].join('\n')],{type:'text/csv'}),'sample_questions.csv');
   };
 
@@ -775,7 +776,7 @@
     }
     const headers=rows[0].map(h=>h.trim());
     const FIELDS=['exam_id','question_text','option_a','option_b','option_c','option_d',
-                  'correct_answer','question_type','image_path','positive_marks','negative_marks','tolerance'];
+                  'correct_answer','question_type','image_path','positive_marks','negative_marks','tolerance','source_tag'];
     const parsed=[]; let skipped=0;
     for(let i=1;i<rows.length;i++){
       const vals=rows[i];
@@ -826,6 +827,9 @@
       positive_marks: String(q.positive_marks ?? 4),
       negative_marks: String(q.negative_marks ?? 1),
       tolerance:      String(q.tolerance ?? 0),
+      // AI generation never invents a source — this is always '' unless a
+      // future generation request explicitly supplies one.
+      source_tag:     (q.metadata && q.metadata.source_tag) || q.source_tag || '',
     };
   }
 
@@ -953,6 +957,7 @@
           <span class="badge rounded-pill px-3 py-1 ${badgeCls}" style="font-size:.72rem;">${q.question_type}</span>
           <span class="badge" style="background:var(--surface-2);border:1px solid var(--border);color:var(--text-2);font-size:.72rem;">+${pm} / -${nm}</span>
           <small style="color:var(--text-3)">Exam ID: ${q.exam_id}</small>
+          ${q.source_tag ? `<span class="badge" style="background:var(--accent-subtle);border:1px solid var(--accent);color:var(--accent);font-size:.68rem;"><i class="fas fa-bookmark" style="font-size:.6rem"></i> ${_esc(q.source_tag)}</span>` : ''}
           <div class="csv-size-wrap">
             <i class="fas fa-text-height" style="color:var(--accent);font-size:.68rem;"></i>
             <select onchange="csvChangeSize(${i},this.value)">
@@ -1006,6 +1011,9 @@
           <div class="col-2"><label class="form-label">Tolerance:</label><input type="number" step="0.01" class="form-control form-control-sm" id="cetol-${i}" value="${q.tolerance||0}"></div>
           <div class="col-2"><label class="form-label">Image Path:</label><input class="form-control form-control-sm" id="ceimg-${i}" value="${_esc(q.image_path||'')}"></div>
         </div>
+        <div class="row g-2 mb-3">
+          <div class="col-4"><label class="form-label">Source / Previous Year Tag <span style="font-weight:400;color:var(--text-3)">(optional)</span>:</label><input class="form-control form-control-sm" id="cetag-${i}" placeholder="e.g. ESE 2021" value="${_esc(q.source_tag||'')}"></div>
+        </div>
         <div class="d-flex gap-2">
           <button class="btn btn-primary btn-sm" onclick="csvSaveEdit(${i})"><i class="fas fa-save me-1"></i>Save</button>
           <button class="btn btn-secondary btn-sm" onclick="csvCancelEdit(${i})">Cancel</button>
@@ -1054,6 +1062,7 @@
     q.negative_marks=document.getElementById(`cenm-${i}`).value;
     q.tolerance=document.getElementById(`cetol-${i}`).value;
     q.image_path=document.getElementById(`ceimg-${i}`).value;
+    q.source_tag=document.getElementById(`cetag-${i}`).value;
     if(q.question_type!=='NUMERIC'){
       q.option_a=document.getElementById(`ceoa-${i}`).value;
       q.option_b=document.getElementById(`ceob-${i}`).value;
@@ -1104,8 +1113,8 @@
   window.csvExecuteExport=function(){
     document.getElementById('csvExportModal').style.display='none';
 
-    const hdr='exam_id,question_text,option_a,option_b,option_c,option_d,correct_answer,question_type,image_path,positive_marks,negative_marks,tolerance';
-    const rows=_csvRows.map(q=>[q.exam_id,`"${(q.question_text||'').replace(/"/g,'""')}"`,`"${(q.option_a||'').replace(/"/g,'""')}"`,`"${(q.option_b||'').replace(/"/g,'""')}"`,`"${(q.option_c||'').replace(/"/g,'""')}"`,`"${(q.option_d||'').replace(/"/g,'""')}"`,`"${(q.correct_answer||'').replace(/"/g,'""')}"`,`"${(q.question_type||'').replace(/"/g,'""')}"`,`"${(q.image_path||'').replace(/"/g,'""')}"`,q.positive_marks||4,q.negative_marks||1,q.tolerance||0].join(',')).join('\n');
+    const hdr='exam_id,question_text,option_a,option_b,option_c,option_d,correct_answer,question_type,image_path,positive_marks,negative_marks,tolerance,source_tag';
+    const rows=_csvRows.map(q=>[q.exam_id,`"${(q.question_text||'').replace(/"/g,'""')}"`,`"${(q.option_a||'').replace(/"/g,'""')}"`,`"${(q.option_b||'').replace(/"/g,'""')}"`,`"${(q.option_c||'').replace(/"/g,'""')}"`,`"${(q.option_d||'').replace(/"/g,'""')}"`,`"${(q.correct_answer||'').replace(/"/g,'""')}"`,`"${(q.question_type||'').replace(/"/g,'""')}"`,`"${(q.image_path||'').replace(/"/g,'""')}"`,q.positive_marks||4,q.negative_marks||1,q.tolerance||0,`"${(q.source_tag||'').replace(/"/g,'""')}"`].join(',')).join('\n');
 
     _download(new Blob([hdr+'\n'+rows],{type:'text/csv'}),'edited_questions.csv');
 
@@ -1120,8 +1129,8 @@
 
   window.csvSaveToDB=async function(){
     document.getElementById('csvConfirmModal').style.display='none';
-    const hdr='exam_id,question_text,option_a,option_b,option_c,option_d,correct_answer,question_type,image_path,positive_marks,negative_marks,tolerance';
-    const rows=_csvRows.map(q=>[q.exam_id,`"${(q.question_text||'').replace(/"/g,'""')}"`,`"${(q.option_a||'').replace(/"/g,'""')}"`,`"${(q.option_b||'').replace(/"/g,'""')}"`,`"${(q.option_c||'').replace(/"/g,'""')}"`,`"${(q.option_d||'').replace(/"/g,'""')}"`,`"${(q.correct_answer||'').replace(/"/g,'""')}"`,`"${(q.question_type||'').replace(/"/g,'""')}"`,`"${(q.image_path||'').replace(/"/g,'""')}"`,q.positive_marks||4,q.negative_marks||1,q.tolerance||0].join(',')).join('\n');
+    const hdr='exam_id,question_text,option_a,option_b,option_c,option_d,correct_answer,question_type,image_path,positive_marks,negative_marks,tolerance,source_tag';
+    const rows=_csvRows.map(q=>[q.exam_id,`"${(q.question_text||'').replace(/"/g,'""')}"`,`"${(q.option_a||'').replace(/"/g,'""')}"`,`"${(q.option_b||'').replace(/"/g,'""')}"`,`"${(q.option_c||'').replace(/"/g,'""')}"`,`"${(q.option_d||'').replace(/"/g,'""')}"`,`"${(q.correct_answer||'').replace(/"/g,'""')}"`,`"${(q.question_type||'').replace(/"/g,'""')}"`,`"${(q.image_path||'').replace(/"/g,'""')}"`,q.positive_marks||4,q.negative_marks||1,q.tolerance||0,`"${(q.source_tag||'').replace(/"/g,'""')}"`].join(',')).join('\n');
     const fd=new FormData();
     fd.append('csv_file',new Blob([hdr+'\n'+rows],{type:'text/csv'}),'questions.csv');
     try {

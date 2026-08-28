@@ -13,27 +13,51 @@ html, body { overflow:hidden !important; height:100% !important; }
 .exam-topbar {
   display:flex; align-items:center; justify-content:space-between;
   padding:.6rem 1.25rem; border-bottom:1px solid var(--border);
-  background:var(--surface); flex-shrink:0; gap:1rem; flex-wrap:wrap;
+  background:var(--surface); flex-shrink:0; gap:.75rem; flex-wrap:wrap;
 }
-.exam-name { font-size:.92rem; font-weight:700; color:var(--text-1); display:flex; align-items:center; gap:.45rem; }
-.exam-name i { color:var(--accent); }
+.exam-name { font-size:.92rem; font-weight:700; color:var(--text-1); display:flex; align-items:center; gap:.45rem; min-width:0; flex:1 1 auto; }
+.exam-name i { color:var(--accent); flex-shrink:0; }
+.exam-name-text { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; min-width:0; }
 .exam-qcounter {
-  display:inline-flex; align-items:center;
+  display:inline-flex; align-items:center; flex-shrink:0;
   background:var(--accent-subtle); color:var(--accent);
   border:1px solid var(--border); border-radius:20px;
   padding:.2rem .65rem; font-size:.75rem; font-weight:700;
 }
-.exam-timer {
-  display:flex; align-items:center; gap:.5rem;
-  background:var(--surface-2); border:1px solid var(--border);
-  border-radius:var(--radius); padding:.35rem .85rem;
-  font-size:.88rem; font-weight:700; color:var(--text-1);
-  transition:background .3s, color .3s;
+.exam-topbar-right { display:flex; align-items:center; gap:.5rem; flex-shrink:0; }
+.exam-secure-badge {
+  display:inline-flex; align-items:center; gap:.3rem; flex-shrink:0;
+  padding:.3rem .6rem; border-radius:20px; font-size:.72rem; font-weight:700;
+  white-space:nowrap; pointer-events:none; transition:background .2s,color .2s;
 }
-.exam-timer i { color:var(--accent); }
+.exam-secure-badge:empty { display:none; }
+.exam-timer {
+  display:flex; align-items:center; gap:.4rem; flex-shrink:0;
+  background:var(--surface-2); border:1px solid var(--border);
+  border-radius:var(--radius); padding:.35rem .75rem;
+  font-size:.88rem; font-weight:700; color:var(--text-1);
+  transition:background .3s, color .3s; white-space:nowrap;
+}
+.exam-timer i { color:var(--accent); flex-shrink:0; }
 .exam-timer.warn   { background:var(--warning-bg); border-color:var(--warning-border); color:var(--warning-text); }
 .exam-timer.danger { background:var(--danger-bg);  border-color:var(--danger-border);  color:var(--danger-text); animation:timerPulse 1s infinite; }
 @keyframes timerPulse{0%,100%{opacity:1}50%{opacity:.5}}
+@media (max-width:560px) {
+  .exam-topbar { padding:.5rem .75rem; gap:.5rem; }
+  .exam-name { font-size:.82rem; }
+  .exam-timer-label, .exam-secure-badge .badge-text { display:none; }
+  .exam-timer { padding:.3rem .55rem; font-size:.82rem; }
+  .exam-qcounter { padding:.15rem .5rem; font-size:.68rem; }
+}
+
+/* Question source/previous-year metadata badge */
+.question-source-tag {
+  display:inline-flex; align-items:center; gap:.35rem;
+  background:var(--accent-subtle); color:var(--accent);
+  border:1px solid var(--accent); border-radius:20px;
+  padding:.2rem .65rem; font-size:.7rem; font-weight:700;
+  letter-spacing:.01em; margin:0 0 .75rem;
+}
 
 /* Body split */
 .exam-body { display:flex; width:100%; align-items:flex-start; }
@@ -118,15 +142,17 @@ html, body { overflow:hidden !important; height:100% !important; }
 
 /* Nav buttons */
 .exam-navigation-btn {
-  padding:.45rem .9rem; border-radius:var(--radius); font-size:.8rem;
-  font-weight:600; font-family:inherit; cursor:pointer; transition:all .12s;
-  display:inline-flex; align-items:center; gap:.35rem; border:1px solid var(--border);
+  padding:.55rem 1rem; min-height:44px; border-radius:var(--radius); font-size:.82rem;
+  font-weight:700; font-family:inherit; cursor:pointer; transition:all .12s;
+  display:inline-flex; align-items:center; gap:.4rem; border:1.5px solid var(--border);
 }
-.btn-outline-secondary.exam-navigation-btn { background:var(--surface-2); color:var(--text-2); }
-.btn-outline-secondary.exam-navigation-btn:hover { border-color:var(--accent); color:var(--accent); }
-.btn-outline-secondary.exam-navigation-btn:disabled { opacity:.35; cursor:not-allowed; }
+.btn-outline-secondary.exam-navigation-btn { background:var(--surface); color:var(--text-1); }
+.btn-outline-secondary.exam-navigation-btn:hover:not(:disabled) { border-color:var(--accent); color:var(--accent); background:var(--accent-subtle); }
+.btn-outline-secondary.exam-navigation-btn:disabled { opacity:.4; cursor:not-allowed; background:var(--surface-2); }
 .btn-warning.exam-navigation-btn  { background:var(--warning-bg); color:var(--warning-text); border-color:var(--warning-border); }
 .btn-warning.exam-navigation-btn:hover { background:var(--warning); color:#fff; }
+.btn-warning.exam-navigation-btn.marked { background:var(--success); color:#fff; border-color:var(--success); }
+.btn-warning.exam-navigation-btn.marked:hover { opacity:.88; }
 .btn-primary.exam-navigation-btn  { background:var(--accent); color:var(--accent-on); border-color:var(--accent); }
 .btn-primary.exam-navigation-btn:hover { background:var(--accent-hover); }
 .btn-success.exam-navigation-btn  { background:var(--success); color:#fff; border-color:var(--success); }
@@ -203,6 +229,7 @@ html, body { overflow:hidden !important; height:100% !important; }
 .sidebar-toggle-btn:active {
   transform:scale(0.95);
 }
+.sidebar-backdrop { display:none; }
 .exam-sidebar .card {
   background:var(--surface-2); border:1px solid var(--border);
   border-radius:var(--radius); overflow:hidden;
@@ -388,6 +415,13 @@ html, body { overflow:hidden !important; height:100% !important; }
   .sco-btn { width:100%; justify-content:center; }
 }
 
+.exam-nav-bar {
+  position:fixed; bottom:0; left:0; right:0; padding:.85rem 1.5rem;
+  background:var(--surface-2); border-top:1px solid var(--border);
+  display:flex; justify-content:space-between; align-items:center;
+  flex-wrap:wrap; gap:.6rem; z-index:50; box-shadow:0 -2px 8px rgba(0,0,0,.1);
+}
+
 /* Image modal */
 .modal-content { background:var(--surface); border:1px solid var(--border); border-radius:calc(var(--radius)+4px); }
 .modal-header  { border-bottom:1px solid var(--border); padding:.85rem 1.1rem; }
@@ -420,13 +454,40 @@ html, body { overflow:hidden !important; height:100% !important; }
 @media(max-width:992px){
   .col-lg-8{flex:0 0 100%;max-width:100%;}
   .col-lg-4{flex:0 0 100%;max-width:100%;}
-  .exam-sidebar{width:100%;border-left:none;border-top:1px solid var(--border);}
   .exam-body{flex-direction:column;}
+
+  /* Question navigator becomes a slide-in drawer instead of stacked
+     inline content — otherwise it sat below the full question list,
+     requiring a long scroll past every question to reach it. */
+  .exam-sidebar{
+    position:fixed; top:0; right:0; height:100%; max-height:100%;
+    width:88%; max-width:340px; z-index:300;
+    border-left:1px solid var(--border); border-top:none;
+    box-shadow:-10px 0 30px rgba(0,0,0,.3);
+    transform:translateX(100%); transition:transform .25s ease;
+    padding:.85rem;
+  }
+  .exam-sidebar.sidebar-collapsed{
+    transform:translateX(100%); width:88%; max-width:340px; padding:.85rem;
+    border-left:1px solid var(--border); overflow:hidden;
+  }
+  .exam-sidebar:not(.sidebar-collapsed){ transform:translateX(0); overflow-y:auto; }
+  .sidebar-toggle-btn{ top:auto; bottom:96px; }
+  .sidebar-backdrop{
+    display:block; position:fixed; inset:0; background:rgba(0,0,0,.5);
+    z-index:290; opacity:0; pointer-events:none; transition:opacity .25s ease;
+  }
+  .sidebar-backdrop.show{ opacity:1; pointer-events:auto; }
 }
 @media(max-width:768px){
-  .exam-content{padding:.85rem;}
+  .exam-content{padding:.85rem .85rem 140px;}
+  .question-card{padding:1.1rem;}
   .col-md-8,.col-md-4{flex:0 0 100%;max-width:100%;}
   .text-md-end{text-align:left;}
+}
+@media(max-width:600px){
+  .exam-nav-bar{padding:.6rem .75rem;gap:.4rem;}
+  .exam-navigation-btn{padding:.5rem .75rem;font-size:.78rem;}
 }
 </style>
 
@@ -434,13 +495,16 @@ html, body { overflow:hidden !important; height:100% !important; }
 <div class="exam-topbar">
   <div class="exam-name">
     <i class="fas fa-file-alt"></i>
-    {{ exam.name }}
+    <span class="exam-name-text">{{ exam.name }}</span>
     <span class="exam-qcounter">Q <span id="questionCounter">{{ current_index + 1 }}</span> / {{ total_questions }}</span>
   </div>
-  <div class="exam-timer" id="timerBox">
-    <i class="fas fa-clock"></i>
-    <span>Time Left:</span>
-    <strong id="timer">{{ exam.duration }}:00</strong>
+  <div class="exam-topbar-right">
+    <span id="fullscreenStatus" class="exam-secure-badge"></span>
+    <div class="exam-timer" id="timerBox">
+      <i class="fas fa-clock"></i>
+      <span class="exam-timer-label">Time Left:</span>
+      <strong id="timer">{{ exam.duration }}:00</strong>
+    </div>
   </div>
 </div>
 
@@ -457,6 +521,9 @@ html, body { overflow:hidden !important; height:100% !important; }
   <button class="sidebar-toggle-btn" id="sidebarToggleBtn" title="Collapse sidebar">
     <i class="fas fa-chevron-right"></i>
   </button>
+
+  {# Backdrop — mobile only (CSS), closes the drawer on tap #}
+  <div class="sidebar-backdrop" id="sidebarBackdrop"></div>
 
   {# Sidebar #}
   <div class="exam-sidebar">
@@ -501,7 +568,7 @@ html, body { overflow:hidden !important; height:100% !important; }
 </div>
 
 {# Fixed Navigation Bar #}
-<div id="examNavBar" style="position:fixed;bottom:0;left:0;right:0;padding:1rem 1.5rem;background:var(--surface-2);border-top:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:.6rem;z-index:50;box-shadow:0 -2px 8px rgba(0,0,0,.1)"></div>
+<div id="examNavBar" class="exam-nav-bar"></div>
 
 {# Submit Confirmation Overlay — kept dark always for focus #}
 <div id="submitConfirmationOverlay" class="sco-overlay">
@@ -621,22 +688,27 @@ init() {
 setupSidebarToggle() {
   const sidebar = document.querySelector('.exam-sidebar');
   const toggleBtn = document.getElementById('sidebarToggleBtn');
+  const backdrop = document.getElementById('sidebarBackdrop');
+  const isMobile = () => window.innerWidth <= 992;
 
   if (!sidebar || !toggleBtn) return;
 
   const updateIcon = () => {
     if (this.sidebarCollapsed) {
-      toggleBtn.innerHTML = '<i class="fas fa-chevron-right"></i>';
-      toggleBtn.title = 'Expand sidebar';
+      toggleBtn.innerHTML = isMobile() ? '<i class="fas fa-list-ol"></i>' : '<i class="fas fa-chevron-right"></i>';
+      toggleBtn.title = isMobile() ? 'Open question navigator' : 'Expand sidebar';
     } else {
-      toggleBtn.innerHTML = '<i class="fas fa-chevron-left"></i>';
-      toggleBtn.title = 'Collapse sidebar';
+      toggleBtn.innerHTML = isMobile() ? '<i class="fas fa-xmark"></i>' : '<i class="fas fa-chevron-left"></i>';
+      toggleBtn.title = isMobile() ? 'Close question navigator' : 'Collapse sidebar';
     }
+    if (backdrop) backdrop.classList.toggle('show', !this.sidebarCollapsed);
   };
 
-  // Restore saved state from localStorage
+  // Restore saved state from localStorage — default closed on mobile
+  // (a drawer covering the question on load would be worse than useless)
+  // and open on desktop, matching the original default.
   const saved = localStorage.getItem('exam_sidebar_collapsed');
-  this.sidebarCollapsed = saved === 'true';
+  this.sidebarCollapsed = saved !== null ? saved === 'true' : isMobile();
   if (this.sidebarCollapsed) {
     sidebar.classList.add('sidebar-collapsed');
   }
@@ -648,6 +720,8 @@ setupSidebarToggle() {
     updateIcon();
     localStorage.setItem('exam_sidebar_collapsed', this.sidebarCollapsed);
   });
+
+  if (backdrop) backdrop.addEventListener('click', () => { if (!this.sidebarCollapsed) toggleBtn.click(); });
 }
 
 preloadAllImages() {
@@ -777,14 +851,13 @@ handleSecurityViolation(reason) {
 }
 
 showFullscreenStatus(isFs) {
-  let el = document.getElementById('fullscreenStatus');
-  if (!el) {
-    el = document.createElement('div'); el.id='fullscreenStatus';
-    el.style.cssText='position:fixed;top:10px;left:50%;transform:translateX(-50%);z-index:10000;padding:7px 12px;border-radius:6px;font-size:.82rem;font-weight:600;pointer-events:none;transition:all .3s';
-    document.body.appendChild(el);
-  }
-  if (isFs) { el.innerHTML='<i class="fas fa-shield-halved"></i> Secure Mode Active'; el.style.background='linear-gradient(90deg,#10b981,#059669)'; el.style.color='#fff'; }
-  else       { el.innerHTML='<i class="fas fa-exclamation-triangle"></i> Security Alert'; el.style.background='linear-gradient(90deg,#ef4444,#dc2626)'; el.style.color='#fff'; }
+  // Lives inside .exam-topbar (see HTML) as a normal flex child — never an
+  // independent fixed-position overlay, so it can never cover the exam
+  // name/timer/other topbar content regardless of viewport width.
+  const el = document.getElementById('fullscreenStatus');
+  if (!el) return;
+  if (isFs) { el.innerHTML='<i class="fas fa-shield-halved"></i><span class="badge-text"> Secure Mode</span>'; el.style.background='linear-gradient(90deg,#10b981,#059669)'; el.style.color='#fff'; }
+  else       { el.innerHTML='<i class="fas fa-exclamation-triangle"></i><span class="badge-text"> Alert</span>'; el.style.background='linear-gradient(90deg,#ef4444,#dc2626)'; el.style.color='#fff'; }
 }
 
 showFullscreenRestorePrompt() {
@@ -846,21 +919,35 @@ saveSessionData() {
   } catch(e) {}
 }
 
+// this.palette tracks ONLY "has this question been opened" (visited /
+// not-visited) — answered/review are never stored redundantly here, they
+// are derived below from this.answers / this.markedForReview (the actual
+// source of truth) so a question's displayed status can never drift out
+// of sync with its real answer/review state, and so it can be BOTH
+// answered AND marked for review without one silently overwriting the other.
+isAnswered(qid) {
+  const v = this.answers[qid];
+  if (v===undefined||v===null||v==='') return false;
+  return Array.isArray(v) ? v.length>0 : true;
+}
+
+getStatus(index) {
+  const qid = String(this.questions[index].id);
+  if (this.markedForReview.includes(qid)) return 'review';
+  if (this.isAnswered(qid)) return 'answered';
+  return this.palette[index]==='visited' ? 'visited' : 'not-visited';
+}
+
 initializePalette() {
-  for (let i=0;i<this.totalQuestions;i++) {
-    const qid=String(this.questions[i].id);
-    if (this.markedForReview.includes(qid)) this.palette[i]='review';
-    else if (this.answers[qid]) this.palette[i]='answered';
-    else this.palette[i]='not-visited';
-  }
-  if (this.palette[this.currentIndex]==='not-visited') this.palette[this.currentIndex]='visited';
+  for (let i=0;i<this.totalQuestions;i++) this.palette[i]='not-visited';
+  this.palette[this.currentIndex]='visited';
   this.renderPalette();
 }
 
 renderPalette() {
   const c=document.getElementById('questionPalette'); c.innerHTML='';
   for (let i=0;i<this.totalQuestions;i++) {
-    const q=this.questions[i], status=this.palette[i]||'not-visited', qtype=q.question_type||'MCQ';
+    const q=this.questions[i], status=this.getStatus(i), qtype=q.question_type||'MCQ';
     const link=document.createElement('div');
     link.className=`palette-link ${status}${i===this.currentIndex?' current':''}`;
     link.setAttribute('data-question-index',i);
@@ -871,7 +958,13 @@ renderPalette() {
     const ti=document.createElement('div'); ti.style.cssText='position:absolute;bottom:1px;left:50%;transform:translateX(-50%);font-size:6px;line-height:1';
     const sym={'MCQ':['●','#28a745'],'MSQ':['■','#007bff'],'NUMERIC':['▲','#ffc107']}[qtype]||['?','#6c757d'];
     ti.innerHTML=`<span style="color:${sym[1]};font-weight:900">${sym[0]}</span>`; link.appendChild(ti);
-    link.addEventListener('click',()=>this.navigateToQuestion(i)); c.appendChild(link);
+    link.addEventListener('click',()=>{
+      this.navigateToQuestion(i);
+      // Mobile drawer: return smoothly to the question instead of leaving
+      // the navigator open over it.
+      if (window.innerWidth<=992 && !this.sidebarCollapsed) document.getElementById('sidebarToggleBtn')?.click();
+    });
+    c.appendChild(link);
   }
 }
 
@@ -945,7 +1038,11 @@ renderQuestion(question) {
     r=r.replace(/\x00L(\d+)\x00/g,(_,idx)=>lz[+idx]);
     return r;
   };
-  let html=`<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:1rem;gap:1rem">
+  // Optional per-question source/previous-year tag (question.metadata.source_tag,
+  // e.g. "ESE 2021") — shown only when present, never a hardcoded value.
+  const sourceTag = question.metadata && question.metadata.source_tag ? String(question.metadata.source_tag).trim() : '';
+  let html = sourceTag ? `<div class="question-source-tag"><i class="fas fa-bookmark"></i> ${sourceTag.replace(/</g,'&lt;').replace(/>/g,'&gt;')}</div>` : '';
+  html+=`<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:1rem;gap:1rem">
     <div style="flex:1"><h5 style="margin:0;font-size:.95rem;color:var(--text-1);line-height:1.5"><span class="badge bg-primary me-2">Q${this.currentIndex+1}</span>${p(question.question_text)||''}</h5></div>
     <div style="text-align:right;flex-shrink:0">
       <span class="badge ${this.getQTypeBadge(question.question_type)} fs-6">${this.getQTypeDisplay(question.question_type)}</span>
@@ -1044,11 +1141,23 @@ renderNavButtonsExternal() {
   if (!container) return;
   const html = `<button type="button" class="btn-outline-secondary exam-navigation-btn" onclick="examPortal.navigatePrevious()" ${this.currentIndex===0?'disabled':''}><i class="fas fa-chevron-left"></i> Previous</button>
     <div style="display:flex;gap:.5rem;flex-wrap:wrap;justify-content:center">
-      <button type="button" class="btn-warning exam-navigation-btn" onclick="examPortal.markForReview()"><i class="fas fa-flag"></i> Mark for Review</button>
+      <button type="button" id="markReviewBtn" class="btn-warning exam-navigation-btn" onclick="examPortal.markForReview()"><i class="fas fa-flag"></i> Mark for Review</button>
       ${this.currentIndex<this.totalQuestions-1?'<button type="button" class="btn-primary exam-navigation-btn" onclick="examPortal.navigateNext()">Save &amp; Next <i class="fas fa-chevron-right"></i></button>':''}
       <button type="button" class="btn-success exam-navigation-btn" onclick="examPortal.submitExam()"><i class="fas fa-paper-plane"></i> Submit Exam</button>
     </div>`;
   container.innerHTML = html;
+  this.updateMarkReviewButton();
+}
+
+updateMarkReviewButton() {
+  const btn = document.getElementById('markReviewBtn');
+  if (!btn) return;
+  const qid = String(this.questions[this.currentIndex].id);
+  const marked = this.markedForReview.includes(qid);
+  btn.classList.toggle('marked', marked);
+  btn.innerHTML = marked
+    ? '<i class="fas fa-flag-checkered"></i> Marked — Unmark'
+    : '<i class="fas fa-flag"></i> Mark for Review';
 }
 
 attachQListeners(question) {
@@ -1114,13 +1223,25 @@ saveCurrentAnswer(){
   this.saveSessionData();
 }
 
-markForReview(){ const qid=String(this.questions[this.currentIndex].id);if(!this.markedForReview.includes(qid))this.markedForReview.push(qid);this.saveSessionData();this.updatePaletteStatus('review');if(this.currentIndex<this.totalQuestions-1)this.navigateNext(); }
+markForReview(){
+  const qid=String(this.questions[this.currentIndex].id);
+  const idx=this.markedForReview.indexOf(qid);
+  const wasMarked = idx>-1;
+  if (wasMarked) this.markedForReview.splice(idx,1);
+  else this.markedForReview.push(qid);
+  this.saveSessionData();
+  this.updatePaletteStatus();
+  this.updateMarkReviewButton();
+  // Only auto-advance on mark (matches the original "mark and move on"
+  // flow) — unmarking keeps the user on the question so they can act on it.
+  if (!wasMarked && this.currentIndex<this.totalQuestions-1) this.navigateNext();
+}
 
 clearSelection(){
   const qid=String(this.questions[this.currentIndex].id);
   delete this.answers[qid];
   const ri=this.markedForReview.indexOf(qid);if(ri>-1)this.markedForReview.splice(ri,1);
-  this.saveSessionData();this.updatePaletteStatus('visited');
+  this.saveSessionData();this.updatePaletteStatus();this.updateMarkReviewButton();
   document.querySelectorAll('input[name="answer"]').forEach(i=>i.checked=false);
   document.querySelectorAll('.option-container').forEach(c=>c.classList.remove('selected','selected-msq'));
   if(this.questions[this.currentIndex].question_type==='NUMERIC'){this.currentValue='';this.hasDecimal=false;this.updateDisplay();}
@@ -1128,13 +1249,28 @@ clearSelection(){
   if(btn){btn.innerHTML='<i class="fas fa-check me-1"></i>Cleared!';btn.style.background='var(--success)';btn.style.color='#fff';btn.style.borderColor='var(--success)';setTimeout(()=>{btn.innerHTML='<i class="fas fa-times-circle me-1"></i>Clear Selection';btn.style.background='';btn.style.color='';btn.style.borderColor='';},1500);}
 }
 
-updatePaletteStatus(s){ this.palette[this.currentIndex]=s;this.renderPalette();this.updateMetricsCounts(); }
+// Status (answered/review/visited/not-visited) is derived, not stored, so
+// this only needs to mark the current question visited and re-render —
+// there is no longer a status string to overwrite.
+updatePaletteStatus(){
+  if (this.palette[this.currentIndex]!=='visited') this.palette[this.currentIndex]='visited';
+  this.renderPalette();
+  this.updateMetricsCounts();
+}
 
+// Always recomputed from this.answers / this.markedForReview / this.palette
+// (visited) across every question index — never incrementally patched —
+// so the four counts are mutually exclusive, always sum to totalQuestions,
+// and can never drift or "reset" from a stale partial update.
 updateMetricsCounts(){
+  const c=this.getStatusCounts();
+  Object.entries({answeredCount:c.answered,reviewCount:c.review,visitedCount:c.visited,notVisitedCount:c['not-visited']}).forEach(([id,v])=>{const el=document.getElementById(id);if(el)el.textContent=v;});
+}
+
+getStatusCounts(){
   const c={answered:0,review:0,visited:0,'not-visited':0};
-  Object.values(this.palette).forEach(s=>{c[s]=(c[s]||0)+1;});
-  const visitedCount = this.totalQuestions - c['not-visited'];
-  Object.entries({answeredCount:c.answered,reviewCount:c.review,visitedCount:visitedCount,notVisitedCount:c['not-visited']}).forEach(([id,v])=>{const el=document.getElementById(id);if(el)el.textContent=v;});
+  for (let i=0;i<this.totalQuestions;i++) { const s=this.getStatus(i); c[s]=(c[s]||0)+1; }
+  return c;
 }
 
 handleImageLoad(i){ document.getElementById(`imageLoading${i}`)?.style.setProperty('display','none');document.getElementById(`imageError${i}`)?.style.setProperty('display','none');const co=document.getElementById(`imageContainer${i}`);if(co){co.style.display='block';const img=document.getElementById(`questionImage${i}`);if(img&&this.imageCache)this.imageCache[img.src]={status:'loaded',element:img};} }
@@ -1159,8 +1295,7 @@ updateTimer(){
 submitExam(){ if(this.submissionInProgress)return;this.saveCurrentAnswer();this.showSubmissionConfirmation(); }
 
 showSubmissionConfirmation(){
-  const c={answered:0,review:0,visited:0,'not-visited':0};
-  Object.values(this.palette).forEach(s=>{c[s]=(c[s]||0)+1;});
+  const c=this.getStatusCounts();
   document.getElementById('confirmAnsweredCount').textContent=c.answered;
   document.getElementById('confirmReviewCount').textContent=c.review;
   document.getElementById('confirmVisitedCount').textContent=c.visited;

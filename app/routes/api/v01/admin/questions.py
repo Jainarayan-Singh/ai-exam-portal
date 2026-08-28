@@ -32,6 +32,7 @@ from app.db.questions import (
     get_question_by_id, get_questions_by_exam,
     create_question, create_questions_bulk,
     update_question, update_questions_by_type, delete_questions_bulk,
+    build_question_metadata, merge_question_metadata,
 )
 from app.utils.helpers import safe_float, safe_int
 
@@ -53,6 +54,7 @@ def add_question_ajax():
         "tolerance":      safe_float(d.get("tolerance"), 0),
         "positive_marks": safe_int(d.get("positive_marks"), 4),
         "negative_marks": safe_float(d.get("negative_marks"), 1),
+        "metadata":       build_question_metadata(d.get("source_tag")),
     })
     if result:
         return jsonify({"success": True, "message": "Question added."})
@@ -89,6 +91,13 @@ def edit_question_ajax(question_id):
         "positive_marks": safe_int(d.get("positive_marks"), 4),
         "negative_marks": safe_float(d.get("negative_marks"), 1),
     })
+    # Merge-only: only ever touches the 'source_tag' key, leaving any other
+    # metadata this question already carries (e.g. a future 'difficulty'
+    # key) untouched. Only runs when the form actually sent the field, so
+    # an older/other client that omits it entirely can't accidentally wipe
+    # an existing tag.
+    if "source_tag" in d:
+        merge_question_metadata(question_id, {"source_tag": d.get("source_tag","").strip() or None})
     return jsonify({"success": ok, "message": "Updated." if ok else "Failed."})
 
 
@@ -123,6 +132,12 @@ def questions_batch_add():
             "positive_marks": safe_int(it.get("positive_marks"),4),
             "negative_marks": safe_float(it.get("negative_marks"),1),
             "tolerance":      safe_float(it.get("tolerance"),0),
+            # A caller that already has a structured metadata object (e.g. a
+            # future JSON importer) wins as-is; otherwise build the
+            # canonical shape from a flat source_tag field. Always present
+            # (even as None) — insert_many() derives its column list from
+            # the first row, so every row dict must share the same keys.
+            "metadata":       it.get("metadata") if isinstance(it.get("metadata"), dict) else build_question_metadata(it.get("source_tag")),
         }
         for it in items if (it.get("question_text") or "").strip()
     ]
@@ -202,6 +217,11 @@ def import_questions_csv():
             "positive_marks": int(float(row.get("positive_marks",4))) if pd.notna(row.get("positive_marks")) else 4,
             "negative_marks": float(row.get("negative_marks", 1) or 1) if pd.notna(row.get("negative_marks")) else 1.0,
             "tolerance":      float(row.get("tolerance", 0) or 0) if pd.notna(row.get("tolerance")) else 0.0,
+            # Optional column — absent entirely in old CSVs/templates (df.get
+            # then returns None, same as any other missing pandas column),
+            # blank cells, and files that never heard of this feature all
+            # import exactly as before.
+            "metadata":       build_question_metadata(str(row.get("source_tag","")).strip() if pd.notna(row.get("source_tag")) else ""),
         })
 
     inserted = 0

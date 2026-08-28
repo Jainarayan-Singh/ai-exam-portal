@@ -183,6 +183,7 @@ def preload_exam_data(exam_id: int) -> Tuple[bool, str]:
             "image_path":     q.get("image_path", ""),
             "has_image":      False,
             "image_url":      None,
+            "metadata":       q.get("metadata") or None,
         }
 
         image_path = q.get("image_path", "")
