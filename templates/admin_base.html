@@ -148,26 +148,6 @@
     font-size: .75rem;
     color: var(--text-3);
   }
-  .footer-social {
-    display: flex;
-    gap: .6rem;
-  }
-  .footer-social a {
-    width: 26px; height: 26px;
-    border-radius: 6px;
-    background: var(--surface-2);
-    border: 1px solid var(--border);
-    color: var(--text-3);
-    display: flex; align-items: center; justify-content: center;
-    font-size: .68rem;
-    text-decoration: none;
-    transition: background .15s, color .15s, border-color .15s;
-  }
-  .footer-social a:hover {
-    background: var(--accent-subtle);
-    color: var(--accent);
-    border-color: var(--accent);
-  }
 
   .admin-wrapper { display: flex; min-height: 100vh; position: relative; }
 
@@ -656,14 +636,7 @@
         <a href="{{ url_for('misc.contact') }}">Contact</a>
         <a href="{{ url_for('misc.about') }}">About</a>
       </div>
-      <div style="display:flex;align-items:center;gap:1rem">
-        <span class="footer-copy">&copy; {{ CURRENT_YEAR }} SmartAIExam Admin</span>
-        <div class="footer-social">
-          <a href="#" title="Facebook"><i class="fab fa-facebook-f"></i></a>
-          <a href="#" title="Twitter"><i class="fab fa-twitter"></i></a>
-          <a href="#" title="LinkedIn"><i class="fab fa-linkedin-in"></i></a>
-        </div>
-      </div>
+      <span class="footer-copy">&copy; {{ CURRENT_YEAR }} SmartAIExam Admin</span>
     </div>
   </div>
 </footer>

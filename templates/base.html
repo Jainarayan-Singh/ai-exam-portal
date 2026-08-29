@@ -217,7 +217,13 @@
   .sb-toggle:hover { background:var(--bg); color:var(--text-1); }
 
   /* Nav scroll area */
-  .sb-nav { flex:1; overflow-y:auto; overflow-x:hidden; padding:.3rem; scrollbar-width:none; overscroll-behavior:contain; -webkit-overflow-scrolling:touch; }
+  /* min-height:0 is required here — a flex child defaults to min-height:auto,
+     which refuses to shrink below its natural content height, so with
+     enough nav items this list silently grows past .sb's fixed height
+     instead of scrolling, and .sb's overflow:hidden then clips whatever
+     didn't fit — including .sb-foot (Profile & Logout) below it. Same fix
+     as templates/admin_base.html's .sb-nav-wrap. */
+  .sb-nav { flex:1; min-height:0; overflow-y:auto; overflow-x:hidden; padding:.3rem; scrollbar-width:none; overscroll-behavior:contain; -webkit-overflow-scrolling:touch; }
   .sb-nav::-webkit-scrollbar { display:none; }
 
   /* Section label */
