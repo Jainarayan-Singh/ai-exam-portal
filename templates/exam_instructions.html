@@ -177,12 +177,19 @@
           <a id="resumeBtn" href="{{ url_for('exam.exam_page', exam_id=exam.id) }}?secure=1&resume=1" class="ei-btn resume"><i class="fas fa-redo"></i> Resume Exam</a>
         {% elif can_start %}
           <button id="startExamBtn" class="ei-btn start" type="button"><i class="fas fa-play"></i> Start Exam Now</button>
+        {% elif not has_started %}
+          <div class="ei-btn disabled"><i class="fas fa-clock"></i> Exam hasn't started yet</div>
+        {% elif has_ended %}
+          <div class="ei-btn disabled"><i class="fas fa-flag-checkered"></i> Exam has ended</div>
         {% else %}
           <div class="ei-btn disabled"><i class="fas fa-info-circle"></i> Exam Not Available</div>
         {% endif %}
         <a href="{{ url_for('dashboard.dashboard') }}" class="ei-btn back"><i class="fas fa-arrow-left"></i> Back to Dashboard</a>
       </div>
 
+      {% if not can_start and not active_attempt and not attempts_exhausted and not has_started and window and window.start_dt %}
+      <div class="attempts-info">Scheduled for: <strong>{{ exam.date | calendar_date }} at {{ window.start_time_ampm }}</strong></div>
+      {% endif %}
       {% if attempts_left is not none and attempts_left >= 0 %}
       <div class="attempts-info">Attempts left: <strong>{{ attempts_left }}</strong> / {{ max_attempts }}</div>
       {% elif max_attempts == 0 %}

@@ -111,6 +111,9 @@ def exam_instructions(exam_id):
         max_attempts=state["max_attempts"],
         attempts_exhausted=state["attempts_exhausted"],
         can_start=state["can_start"],
+        has_started=state["has_started"],
+        has_ended=state["has_ended"],
+        window=state["window"],
     )
 
 

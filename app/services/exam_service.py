@@ -226,9 +226,31 @@ def preload_exam_data(exam_id: int) -> Tuple[bool, str]:
 # apply the exact same Start/Resume/attempts-exhausted rules)
 # ─────────────────────────────────────────────
 
+def is_exam_window_open(exam: Dict) -> bool:
+    """Single authoritative "may a fresh attempt start right now" check —
+    reused by compute_exam_action_state() and the /start API's backend
+    enforcement (app/routes/api/v01/exams.py), so there is exactly one
+    place this rule is defined. Same formula already used by the Today's
+    Exams dashboard widget (app/services/dashboard_service.py
+    _build_today_exams): an explicit admin status of "ongoing" always
+    allows starting (manual override); otherwise the exam's real scheduled
+    window (date+start_time+duration) decides — never the status label
+    alone, which this app never flips automatically."""
+    status = str(exam.get("status", "")).lower().strip()
+    window = get_exam_time_window(exam)
+    return status == "ongoing" or (bool(window.get("has_started")) and not bool(window.get("has_ended")))
+
+
 def compute_exam_action_state(user_id: int, exam: Dict) -> Dict:
     """Start/Resume/attempts-exhausted decision, extracted from the logic
-    that used to be inlined in app/routes/web/exams.py:exam_instructions()."""
+    that used to be inlined in app/routes/web/exams.py:exam_instructions().
+
+    SECURITY: can_start now also requires is_exam_window_open(exam) — an
+    exam that hasn't reached its scheduled start time yet, or whose window
+    has already closed, must never offer a Start button, regardless of
+    attempts remaining. This mirrors the backend gate in the /start API
+    (app/routes/api/v01/exams.py) so the UI and the enforcement it depends
+    on can never disagree."""
     from app.db.attempts import get_active_attempt, get_completed_attempts_count
 
     exam_id = int(exam["id"])
@@ -245,6 +267,13 @@ def compute_exam_action_state(user_id: int, exam: Dict) -> Dict:
         attempts_exhausted = False
         can_start = True
 
+    window = get_exam_time_window(exam)
+    has_started = bool(window.get("has_started"))
+    has_ended = bool(window.get("has_ended"))
+
+    if not active_attempt and not is_exam_window_open(exam):
+        can_start = False
+
     if active_attempt:
         can_start = False
 
@@ -254,6 +283,9 @@ def compute_exam_action_state(user_id: int, exam: Dict) -> Dict:
         "max_attempts": max_attempts,
         "attempts_exhausted": attempts_exhausted,
         "can_start": can_start,
+        "has_started": has_started,
+        "has_ended": has_ended,
+        "window": window,
     }
 
 

@@ -72,6 +72,30 @@ def start_exam(exam_id):
             "attempt_id":   active["id"],
         })
 
+    # ── SECURITY: authoritative time-window gate (fresh-start only) ─────────
+    # Resuming an existing in-progress attempt (handled above) is always
+    # allowed — it was legitimately created while the window was open.
+    # Starting a NEW attempt requires the exam to genuinely be open right
+    # now. This is the real backend enforcement point: the UI in
+    # exam_instructions.html hides the Start button for the same reason,
+    # but that alone is not enforcement — this endpoint can be called
+    # directly, so it must independently re-verify eligibility here rather
+    # than trusting the caller. Same rule as compute_exam_action_state()
+    # (app/services/exam_service.py) — one authoritative definition, reused.
+    from app.services.exam_service import is_exam_window_open, get_exam_time_window
+    if not is_exam_window_open(exam):
+        window = get_exam_time_window(exam)
+        if not window.get("has_started"):
+            message = (
+                f"This exam hasn't started yet. Scheduled for "
+                f"{window.get('start_time_ampm') or exam.get('start_time','')} on {exam.get('date','')}."
+            )
+        else:
+            message = "This exam has ended and can no longer be started."
+        log.warning("[exam] Blocked fresh-start outside window: user=%s exam=%s status=%s",
+                    user_id, exam_id, exam.get("status"))
+        return jsonify({"success": False, "message": message}), 403
+
     # ── Fresh-start path ────────────────────────────────────────────────────
     # Guarantee a completely clean slate before creating the new attempt.
     # This handles the case where submit_exam() succeeded in the DB but the
@@ -134,6 +158,19 @@ def start_exam(exam_id):
 @exam_api_bp.route("/<int:exam_id>/preload")
 @require_user_role
 def preload_exam_route(exam_id):
+    # SECURITY: same window gate as /start — an active attempt (resume) is
+    # always allowed to preload; otherwise the exam must genuinely be open.
+    # Without this, a direct call here could pre-cache question data for an
+    # exam that isn't open yet.
+    user_id = session["user_id"]
+    exam = get_exam_by_id(exam_id)
+    if not exam:
+        return jsonify({"success": False, "message": "Exam not found."}), 404
+    if not get_active_attempt(user_id, exam_id):
+        from app.services.exam_service import is_exam_window_open
+        if not is_exam_window_open(exam):
+            return jsonify({"success": False, "message": "This exam is not currently open."}), 403
+
     cached = get_cached_exam_data(exam_id)
     if cached:
         return jsonify({"success": True, "cached": True,
