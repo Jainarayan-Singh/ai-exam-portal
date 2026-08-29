@@ -6,6 +6,7 @@ PostgreSQL queries for subjects and requests_raised tables.
 from typing import Optional, List, Dict
 from app.db import fetch_one, fetch_all, execute, set_clause, insert_returning
 from app.utils.pagination import paginate_params, pagination_meta
+from app.utils.datetime_service import now_utc_naive
 
 
 # ─────────────────────────────────────────────
@@ -165,4 +166,20 @@ def update_request(request_id: int, updates: Dict) -> bool:
         return True
     except Exception as e:
         print(f"[db.misc] update_request error: {e}")
+        return False
+
+
+def soft_delete_request(request_id: int, deleted_by: str) -> bool:
+    """Hide a request/history row from every list view while keeping the row
+    (and its append-only `reason` audit trail) intact in the DB — never
+    touches users.role, so removing a request from the UI can never look
+    like an approved access grant being revoked."""
+    try:
+        execute(
+            "UPDATE requests_raised SET is_deleted=TRUE, deleted_at=%s, deleted_by=%s WHERE request_id=%s",
+            (now_utc_naive().isoformat(), deleted_by, request_id),
+        )
+        return True
+    except Exception as e:
+        print(f"[db.misc] soft_delete_request error: {e}")
         return False

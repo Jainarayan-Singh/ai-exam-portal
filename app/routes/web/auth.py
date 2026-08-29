@@ -110,7 +110,7 @@ def login():
             return _pending_session_conflict(user, role, admin=False)
 
         _create_user_session(user, role, admin=False)
-        flash(f'Welcome {user.get("full_name")}!', "success")
+        flash(f'Welcome back, {user.get("full_name")}!', "success")
         return redirect(url_for("dashboard.dashboard"))
 
     return render_template("login.html")
@@ -168,7 +168,7 @@ def _pending_session_conflict(user, role, admin):
     if the account has no email on file to verify with."""
     if not user.get("email"):
         _create_user_session(user, role, admin=admin)
-        flash(f'Welcome {user.get("full_name")}!', "success")
+        flash(f'Welcome back, {user.get("full_name")}!', "success")
         return redirect(url_for("admin.dashboard" if admin else "dashboard.dashboard"))
 
     session.pop("otp_challenge_id", None)
@@ -269,7 +269,7 @@ def verify_session():
         admin = bool(session.get("otp_admin"))
         _clear_otp_session()
         _create_user_session(user, role, admin=admin)
-        flash(f'Welcome {user.get("full_name")}!', "success")
+        flash(f'Welcome back, {user.get("full_name")}!', "success")
         return redirect(url_for("admin.dashboard" if admin else "dashboard.dashboard"))
 
     # GET — confirmation stage (no challenge issued yet) or OTP-entry stage.
@@ -391,10 +391,10 @@ def select_portal():
         _create_user_session(user, role, admin=is_admin)
 
         if is_admin:
-            flash(f"Welcome {full_name}! You are in the Admin Portal.", "success")
+            flash(f"Welcome back, {full_name}!", "success")
             return redirect(url_for("admin.dashboard"))
 
-        flash(f"Welcome {full_name}! You are in the User Portal.", "success")
+        flash(f"Welcome back, {full_name}!", "success")
         return redirect(url_for("dashboard.dashboard"))
 
     return render_template("select_portal.html")
@@ -752,7 +752,7 @@ def google_callback():
     if has_admin and not has_user:
         # Admin-only account — send to admin portal
         _create_user_session(user, role, admin=True)
-        flash(f'Welcome {user.get("full_name")}!', "success")
+        flash(f'Welcome back, {user.get("full_name")}!', "success")
         return redirect(url_for("admin.dashboard"))
 
     # Regular user session — Google authentication succeeding is NOT the
@@ -764,7 +764,7 @@ def google_callback():
         return _pending_session_conflict(user, role, admin=False)
 
     _create_user_session(user, role, admin=False)
-    flash(f'Welcome {user.get("full_name")}!', "success")
+    flash(f'Welcome back, {user.get("full_name")}!', "success")
     return redirect(url_for("dashboard.dashboard"))
 
 

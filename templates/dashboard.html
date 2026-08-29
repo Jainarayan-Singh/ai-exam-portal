@@ -161,7 +161,8 @@
 
   <div class="ud-topbar">
     <div class="ud-greeting">
-      <h1>{{ greeting }}, {{ session.get('full_name','').split()[0] }}</h1>
+      <h1><span id="dashGreetWord">{{ greeting }}</span>, {{ session.get('full_name','').split()[0] }}</h1>
+      <p>Here's what's happening today.</p>
     </div>
     <div class="portal-crumb" id="portalCrumb">
       <button type="button" class="pc-seg" data-kind="category" title="Switch category">
@@ -251,6 +252,7 @@
 
 </main>
 
+<script src="{{ url_for('static', filename='shared/greeting.js') }}"></script>
 <script src="{{ url_for('static', filename='shared/view-toggle.js') }}"></script>
 <script src="{{ url_for('static', filename='admin/list-controller.js') }}"></script>
 <script>

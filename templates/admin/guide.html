@@ -3,18 +3,55 @@
 
 {% block content %}
 <style>
-.gd-header { margin-bottom: 1.75rem; }
+.gd-header {
+  margin-bottom: 1.75rem;
+  padding: 1.25rem 1.5rem;
+  border-radius: calc(var(--radius) + 4px);
+  border: 1px solid var(--border);
+  background:
+    radial-gradient(120% 180% at 0% 0%, var(--accent-subtle) 0%, transparent 55%),
+    var(--surface);
+}
 .gd-header h1 {
   font-size: 1.4rem; font-weight: 700; color: var(--text-1);
   letter-spacing: -.02em; margin-bottom: .3rem;
   display: flex; align-items: center; gap: .6rem;
 }
-.gd-header h1 i { color: var(--accent); font-size: 1.1rem; }
+.gd-header h1 i {
+  color: var(--accent-on); font-size: 1rem;
+  width: 30px; height: 30px; display: flex; align-items: center; justify-content: center;
+  border-radius: 9px; background: linear-gradient(135deg, var(--accent), var(--accent-hover));
+  box-shadow: var(--shadow-sm);
+}
 .gd-header p { font-size: .83rem; color: var(--text-3); max-width: 640px; line-height: 1.55; }
 
-.gd-toc {
-  display: flex; flex-wrap: wrap; gap: .5rem; margin-bottom: 2rem;
+/* ── Connected workflow timeline (horizontal desktop / vertical mobile) ── */
+.gd-flow-wrap { margin-bottom: 2rem; }
+.gd-flow-title { font-size: .8rem; font-weight: 700; color: var(--text-1); margin-bottom: .2rem; display: flex; align-items: center; gap: .4rem; }
+.gd-flow-title i { color: var(--accent); }
+.gd-flow-sub { font-size: .74rem; color: var(--text-3); margin-bottom: .9rem; }
+.gd-flow { display: flex; align-items: stretch; gap: .4rem; }
+.gd-flow-step {
+  flex: 1; min-width: 0; background: var(--surface); border: 1px solid var(--border);
+  border-top: 3px solid var(--fc, var(--accent)); border-radius: var(--radius);
+  padding: .9rem .6rem; text-align: center; display: flex; flex-direction: column;
+  align-items: center; gap: .35rem; transition: transform .15s, box-shadow .15s;
 }
+.gd-flow-step:hover { transform: translateY(-2px); box-shadow: var(--shadow-sm); }
+.gd-flow-icon {
+  width: 36px; height: 36px; border-radius: 10px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center; font-size: .9rem;
+  background: var(--fc-bg, var(--accent-subtle)); color: var(--fc, var(--accent));
+}
+.gd-flow-label { font-size: .76rem; font-weight: 700; color: var(--text-1); }
+.gd-flow-desc { font-size: .66rem; color: var(--text-3); line-height: 1.3; }
+.gd-flow-arrow { display: flex; align-items: center; justify-content: center; color: var(--text-3); font-size: .8rem; flex-shrink: 0; width: 1rem; }
+@media (max-width: 900px) {
+  .gd-flow { flex-direction: column; }
+  .gd-flow-arrow { transform: rotate(90deg); width: auto; height: 1rem; margin: -.1rem 0; }
+}
+
+.gd-toc { display: flex; flex-wrap: wrap; gap: .5rem; margin-bottom: 2rem; }
 .gd-toc a {
   font-size: .74rem; font-weight: 600; color: var(--text-2);
   background: var(--surface); border: 1px solid var(--border);
@@ -65,10 +102,7 @@
 }
 
 .gd-steps { counter-reset: gd-step; list-style: none; padding-left: 0; margin: 0 0 .9rem; }
-.gd-steps li {
-  counter-increment: gd-step; position: relative; padding-left: 2.4rem;
-  margin-bottom: .85rem;
-}
+.gd-steps li { counter-increment: gd-step; position: relative; padding-left: 2.4rem; margin-bottom: .85rem; }
 .gd-steps li::before {
   content: counter(gd-step); position: absolute; left: 0; top: -.05rem;
   width: 1.7rem; height: 1.7rem; border-radius: 50%;
@@ -95,14 +129,12 @@
 .gd-hier .lbl { color: var(--accent); font-weight: 700; }
 
 .gd-table { width: 100%; border-collapse: collapse; font-size: .8rem; margin: .5rem 0 .9rem; }
-.gd-table th, .gd-table td {
-  text-align: left; padding: .5rem .7rem; border-bottom: 1px solid var(--border);
-}
+.gd-table th, .gd-table td { text-align: left; padding: .5rem .7rem; border-bottom: 1px solid var(--border); }
 .gd-table th { color: var(--text-3); font-size: .68rem; text-transform: uppercase; letter-spacing: .05em; font-weight: 700; }
 .gd-table td { color: var(--text-2); }
 .gd-table code { font-size: .74rem; }
 
-.gd-link-row { display: flex; align-items: center; gap: .5rem; margin-top: .75rem; }
+.gd-link-row { display: flex; align-items: center; gap: .5rem; margin-top: .75rem; flex-wrap: wrap; }
 .gd-link-row a {
   display: inline-flex; align-items: center; gap: .4rem; font-size: .78rem; font-weight: 700;
   color: var(--accent); text-decoration: none; background: var(--accent-subtle);
@@ -110,7 +142,30 @@
 }
 .gd-link-row a:hover { opacity: .85; }
 
+/* ── Question-creation paths — 4 parallel mini-flows converging ── */
+.gd-paths { display: grid; grid-template-columns: repeat(4, 1fr); gap: .75rem; margin: .75rem 0 .5rem; }
+.gd-path-card {
+  background: var(--surface); border: 1px solid var(--border);
+  border-top: 3px solid var(--pc, var(--accent)); border-radius: var(--radius);
+  padding: .9rem .8rem; display: flex; flex-direction: column; gap: .5rem;
+}
+.gd-path-hdr { display: flex; align-items: center; gap: .4rem; font-size: .8rem; font-weight: 700; color: var(--text-1); }
+.gd-path-hdr i { color: var(--pc, var(--accent)); font-size: .8rem; }
+.gd-path-chain { display: flex; flex-direction: column; gap: .3rem; }
+.gd-path-node {
+  font-size: .7rem; font-weight: 600; color: var(--text-2);
+  background: var(--surface-2); border: 1px solid var(--border); border-radius: 7px;
+  padding: .3rem .55rem;
+}
+.gd-path-node-arrow { text-align: center; color: var(--text-3); font-size: .65rem; }
+.gd-path-note { font-size: .66rem; color: var(--text-3); line-height: 1.4; margin-top: auto; }
+.gd-converge { display: flex; align-items: center; justify-content: center; gap: .5rem; margin: .5rem 0 1rem; font-size: .76rem; color: var(--text-3); }
+.gd-converge i { color: var(--accent); }
+@media (max-width: 900px) { .gd-paths { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 560px) { .gd-paths { grid-template-columns: 1fr; } }
+
 @media (max-width: 700px) {
+  .gd-header { padding: 1rem 1.1rem; }
   .gd-body { padding: 1rem; }
   .gd-section summary { padding: .8rem .9rem; }
   .gd-hier { font-size: .74rem; }
@@ -119,7 +174,26 @@
 
 <div class="gd-header">
   <h1><i class="fas fa-book-open"></i> Admin Guide</h1>
-  <p>Everything you need to run the Exam Portal — how exams are organized, how to build one from scratch, and how to manage questions, images and users. Click a section to expand it.</p>
+  <p>Everything you need to run the Exam Portal — how exams are organized, how to build one from scratch, and how to manage questions, images and users. Click a section below to expand it.</p>
+</div>
+
+<!-- ══ MASTER WORKFLOW ══ -->
+<div class="gd-flow-wrap">
+  <div class="gd-flow-title"><i class="fas fa-route"></i> The Complete Content Workflow</div>
+  <div class="gd-flow-sub">Every exam you publish follows this path, top to bottom</div>
+  <div class="gd-flow">
+    <div class="gd-flow-step" style="--fc:#2d5be3"><div class="gd-flow-icon"><i class="fas fa-layer-group"></i></div><div class="gd-flow-label">Category</div><div class="gd-flow-desc">e.g. "SSC JE"</div></div>
+    <div class="gd-flow-arrow"><i class="fas fa-arrow-right"></i></div>
+    <div class="gd-flow-step" style="--fc:#0891b2"><div class="gd-flow-icon"><i class="fas fa-sitemap"></i></div><div class="gd-flow-label">Subcategory</div><div class="gd-flow-desc">e.g. "Civil"</div></div>
+    <div class="gd-flow-arrow"><i class="fas fa-arrow-right"></i></div>
+    <div class="gd-flow-step" style="--fc:#16a34a"><div class="gd-flow-icon"><i class="fas fa-file-alt"></i></div><div class="gd-flow-label">Exam</div><div class="gd-flow-desc">Name, duration, marks</div></div>
+    <div class="gd-flow-arrow"><i class="fas fa-arrow-right"></i></div>
+    <div class="gd-flow-step" style="--fc:#7c3aed"><div class="gd-flow-icon"><i class="fas fa-book"></i></div><div class="gd-flow-label">Subject</div><div class="gd-flow-desc">Image folder (if needed)</div></div>
+    <div class="gd-flow-arrow"><i class="fas fa-arrow-right"></i></div>
+    <div class="gd-flow-step" style="--fc:#f59e0b"><div class="gd-flow-icon"><i class="fas fa-question-circle"></i></div><div class="gd-flow-label">Questions</div><div class="gd-flow-desc">Manual, Bulk, CSV or AI</div></div>
+    <div class="gd-flow-arrow"><i class="fas fa-arrow-right"></i></div>
+    <div class="gd-flow-step" style="--fc:#dc2626"><div class="gd-flow-icon"><i class="fas fa-check-circle"></i></div><div class="gd-flow-label">Publish</div><div class="gd-flow-desc">Visible to students</div></div>
+  </div>
 </div>
 
 <div class="gd-toc">
@@ -156,7 +230,7 @@
     <p>This guide, and your own <strong>Profile &amp; Account</strong> settings.</p>
     <div class="gd-callout tip">
       <i class="fas fa-lightbulb"></i>
-      <span>New here? Read <strong>Exam Structure</strong> below first — it explains how everything fits together — then follow <strong>Creating an Exam</strong> step by step.</span>
+      <span>New here? The <strong>Complete Content Workflow</strong> diagram above shows the whole path at a glance. Read <strong>Exam Structure</strong> next for the "why", then follow <strong>Creating an Exam</strong> step by step.</span>
     </div>
   </div>
 </details>
@@ -226,23 +300,40 @@
     <span class="gd-section-icon"><i class="fas fa-list-check"></i></span>
     <span style="flex:1">
       <span class="gd-section-title">Adding Questions</span>
-      <span class="gd-section-sub" style="display:block">Every way to get questions into an exam</span>
+      <span class="gd-section-sub" style="display:block">Four ways to get questions into an exam — all from Manage Questions</span>
     </span>
     <i class="fas fa-chevron-down gd-chevron"></i>
   </summary>
   <div class="gd-body">
-    <p>All of these live on the <strong>Manage Questions</strong> page, once an exam is selected:</p>
-    <h4>Single question</h4>
-    <p>Click <strong>Add Question</strong> to open a form for one question — text, four options, correct answer, type (MCQ / MSQ / Numerical), marks, an optional image path, and an optional Source / Previous Year Tag (e.g. "ESE 2021"). Best for one-off additions or corrections.</p>
-    <h4>Batch Add</h4>
-    <p>The <strong>Batch Add Questions</strong> panel at the bottom of the page lets you add several rows at once, fill in each one, then save them all together with <strong>Add All Questions</strong>. Good for adding a handful of questions without leaving the page.</p>
-    <h4>CSV Import</h4>
-    <p>Click <strong>Import CSV</strong> to open the CSV Upload &amp; Editor. Upload or paste a CSV, preview and edit every row (including LaTeX formatting), then save to the database. Best for adding many questions at once, especially ones already prepared in a spreadsheet.</p>
-    <h4>CSV Export</h4>
-    <p>Click <strong>Export CSV</strong> on Manage Questions to download all of an exam's questions — useful for backups, bulk editing offline, or moving questions between exams.</p>
+    <p>Pick whichever path fits what you're doing — they all end up in the same place: your exam's question list.</p>
+    <div class="gd-paths">
+      <div class="gd-path-card" style="--pc:#2d5be3">
+        <div class="gd-path-hdr"><i class="fas fa-pen"></i> Manual</div>
+        <div class="gd-path-chain"><div class="gd-path-node">Add Question</div></div>
+        <div class="gd-path-note">One question at a time — best for a single addition or a correction.</div>
+      </div>
+      <div class="gd-path-card" style="--pc:#7c3aed">
+        <div class="gd-path-hdr"><i class="fas fa-layer-group"></i> Bulk</div>
+        <div class="gd-path-chain"><div class="gd-path-node">Batch Add rows</div><div class="gd-path-node-arrow">↓</div><div class="gd-path-node">Add All Questions</div></div>
+        <div class="gd-path-note">A handful of new questions filled in directly on the page.</div>
+      </div>
+      <div class="gd-path-card" style="--pc:#0891b2">
+        <div class="gd-path-hdr"><i class="fas fa-file-csv"></i> CSV</div>
+        <div class="gd-path-chain"><div class="gd-path-node">Import CSV</div><div class="gd-path-node-arrow">↓</div><div class="gd-path-node">Preview &amp; edit</div><div class="gd-path-node-arrow">↓</div><div class="gd-path-node">Save to DB</div></div>
+        <div class="gd-path-note">Large sets, or anything already prepared in a spreadsheet.</div>
+      </div>
+      <div class="gd-path-card" style="--pc:#f59e0b">
+        <div class="gd-path-hdr"><i class="fas fa-robot"></i> AI</div>
+        <div class="gd-path-chain"><div class="gd-path-node">Generate</div><div class="gd-path-node-arrow">↓</div><div class="gd-path-node">Review</div><div class="gd-path-node-arrow">↓</div><div class="gd-path-node">Add to exam</div></div>
+        <div class="gd-path-note">Topic or PDF in, draft questions out — always reviewed before saving. See <a href="#gd-ai">AI Question Generation</a>.</div>
+      </div>
+    </div>
+    <div class="gd-converge"><i class="fas fa-arrow-down"></i> All four save into the exam you selected on Manage Questions</div>
+    <h4>What each field means</h4>
+    <p>Every method captures the same core fields: question text, up to four options, the correct answer, type (<strong>MCQ</strong> single-choice / <strong>MSQ</strong> multi-choice / <strong>Numerical</strong>), positive &amp; negative marks, an optional image path, and an optional Source / Previous Year Tag (e.g. "ESE 2021") shown as a small badge to students.</p>
     <div class="gd-callout tip">
       <i class="fas fa-lightbulb"></i>
-      <span>Use single-add for corrections, Batch Add for a handful of new questions, and CSV Import for large sets or anything prepared outside the portal.</span>
+      <span>Use single-add for corrections, Bulk for a handful of new questions, and CSV Import for large sets or anything prepared outside the portal.</span>
     </div>
     <div class="gd-link-row">
       <a href="{{ url_for('admin.questions_index') }}"><i class="fas fa-question-circle"></i> Manage Questions</a>
@@ -256,16 +347,16 @@
     <span class="gd-section-icon"><i class="fas fa-robot"></i></span>
     <span style="flex:1">
       <span class="gd-section-title">AI Question Generation</span>
-      <span class="gd-section-sub" style="display:block">Generate, review and save questions with AI</span>
+      <span class="gd-section-sub" style="display:block">Generate, review and add questions with AI</span>
     </span>
     <i class="fas fa-chevron-down gd-chevron"></i>
   </summary>
   <div class="gd-body">
     <ol class="gd-steps">
-      <li><strong>Start a generation job</strong><span>Open the <strong>AI Command Centre</strong>, give it a topic (or a source PDF) and start generation. It runs in the background with live progress.</span></li>
-      <li><strong>Review the generated questions</strong><span>Once complete, the questions load into the same CSV Editor used for CSV import — each one shown as a card with raw/rendered LaTeX views.</span></li>
+      <li><strong>Start a generation job</strong><span><strong>What to do:</strong> give it a topic or a source PDF. <strong>Where:</strong> the AI Command Centre. <strong>Then:</strong> it runs in the background with live progress — you can keep working while it generates.</span></li>
+      <li><strong>Review the generated questions</strong><span><strong>What happens next:</strong> once complete, the questions load into the same CSV Editor used for CSV import — each one shown as a card with raw and rendered (LaTeX) views.</span></li>
       <li><strong>Edit anything that needs it</strong><span>Fix wording, adjust marks or tolerance, change the LaTeX size, delete a question you don't want, or add a Source / Previous Year Tag — the AI never invents one on its own.</span></li>
-      <li><strong>Save to the exam</strong><span>Click <strong>Save to DB</strong> to add the reviewed questions to the selected exam, or <strong>Export CSV</strong> to keep them as a file instead.</span></li>
+      <li><strong>Add to the exam</strong><span>Click <strong>Save to DB</strong> to add the reviewed questions to the selected exam, or <strong>Export CSV</strong> to keep them as a file instead.</span></li>
     </ol>
     <div class="gd-callout tip">
       <i class="fas fa-lightbulb"></i>
@@ -289,9 +380,9 @@
   </summary>
   <div class="gd-body">
     <ol class="gd-steps">
-      <li><strong>Upload the image</strong><span>Open <strong>Upload Images</strong> and upload the file under the appropriate subject.</span></li>
+      <li><strong>Upload the image</strong><span><strong>Where to go:</strong> Upload Images. Upload the file under the appropriate subject.</span></li>
       <li><strong>Reference it in a question</strong><span>In the question's Image Path field (single-add, batch-add, or CSV), enter <code>SubjectName/filename.ext</code> — matching the subject you uploaded it under.</span></li>
-      <li><strong>It appears automatically</strong><span>Once saved, the image renders with the question wherever it's shown — the question form, exam page, and response review.</span></li>
+      <li><strong>What happens next</strong><span>Once saved, the image renders with the question wherever it's shown — the question form, the exam page, and response review.</span></li>
     </ol>
     <p>For direct browsing or cleanup of stored files, use <strong>Object Storage</strong>, which shows the underlying folders and files as uploaded.</p>
     <div class="gd-link-row">
@@ -364,7 +455,7 @@
   </summary>
   <div class="gd-body">
     <h4>Users &amp; Requests</h4>
-    <p>New account access requests appear here for approval or rejection, with a history of past requests.</p>
+    <p>New account access requests appear here for approval or rejection, with a history of past requests, plus user role management.</p>
     <h4>Manage Attempts</h4>
     <p>Every exam attempt taken across the portal, for monitoring and troubleshooting.</p>
     <h4>Users Analytics</h4>

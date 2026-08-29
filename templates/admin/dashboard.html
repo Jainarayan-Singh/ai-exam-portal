@@ -210,8 +210,8 @@
 
 <!-- ── Header ── -->
 <div class="dash-header">
-  <h1><i class="fas fa-home"></i> Dashboard</h1>
-  <p>Welcome back - here's what's happening on your portal.</p>
+  <h1><i class="fas fa-home"></i> <span id="dashGreetWord">{{ greeting }}</span>, {{ session.get('full_name','').split()[0] }}</h1>
+  <p>Here's what's happening today.</p>
 </div>
 
 <!-- ── Primary KPIs ── -->
@@ -473,5 +473,7 @@ document.addEventListener('DOMContentLoaded', function () {
   }
 })();
 </script>
+
+<script src="{{ url_for('static', filename='shared/greeting.js') }}"></script>
 
 {% endblock %}

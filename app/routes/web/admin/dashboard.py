@@ -17,6 +17,7 @@ from app.db.questions import (
     get_questions_count, get_questions_by_type_counts, get_top_exams_by_question_count,
 )
 from app.db.attempts import get_attempts_status_counts, get_top_attempted_exams
+from app.services.dashboard_service import get_greeting
 
 # Canonical registry of every Admin module — this list, plus the sidebar in
 # templates/admin_base.html, are the ONLY two places Admin modules are
@@ -69,6 +70,7 @@ def dashboard():
 
     return render_template(
         "admin/dashboard.html",
+        greeting=get_greeting(),
         # Only what the 4 primary KPI cards need — everything else now
         # lives in the analytics charts below instead of being repeated
         # a second time in a separate stats list.

@@ -272,7 +272,14 @@
   .is-collapsed .sb-toggle { transform: rotate(180deg); margin-left: 0; }
 
   /* Nav scroll area */
-  .sb-nav-wrap { flex: 1; overflow-y: auto; overflow-x: hidden; padding: 8px; scrollbar-width: none; }
+  /* min-height:0 is required here — a flex child defaults to min-height:auto,
+     which refuses to shrink below its natural content height, so with enough
+     nav items this wrapper silently grows past the sidebar's 100vh instead of
+     scrolling; the parent's overflow:hidden (needed for the width-collapse
+     transition) then clips whatever didn't fit. This was always latent and
+     only became visible once mobile's shorter viewport + more nav items
+     pushed content past the fold. */
+  .sb-nav-wrap { flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden; padding: 8px; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
   .sb-nav-wrap::-webkit-scrollbar { display: none; }
   .is-collapsed .sb-nav-wrap { padding: 6px; }
 

@@ -48,12 +48,20 @@ def should_auto_show_updates() -> bool:
 
 
 def get_greeting() -> str:
+    """Server-time fallback for the dashboard greeting — used for the
+    initial render only. static/shared/greeting.js immediately overrides
+    this client-side using the viewer's actual local clock, since the
+    server's configured APP_TIMEZONE can differ from where they actually
+    are; this keeps the greeting sensible even before that JS runs (or if
+    it's disabled)."""
     hour = now_app_tz().hour
     if 5 <= hour < 12:
-        return "Good Morning"
+        return "Good morning"
     if 12 <= hour < 17:
-        return "Good Afternoon"
-    return "Good Evening"
+        return "Good afternoon"
+    if 17 <= hour < 21:
+        return "Good evening"
+    return "Good night"
 
 
 def get_today_display() -> str:
