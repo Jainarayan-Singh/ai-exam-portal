@@ -107,6 +107,15 @@ def guide():
     return render_template("admin/guide.html")
 
 
+@admin_bp.route("/guide/scheduled-exams")
+@require_admin_role
+def guide_scheduled_exams():
+    # Dedicated deep-dive page for the Scheduled Exam feature, linked from
+    # admin/guide.html — kept separate rather than folded into the main
+    # guide since it's long enough to need its own sidebar/TOC.
+    return render_template("admin/guide_scheduled_exams.html")
+
+
 @admin_bp.route("/publish", methods=["GET", "POST"])
 @require_admin_role
 def publish():

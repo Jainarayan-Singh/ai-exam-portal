@@ -18,7 +18,7 @@ from app.routes.api.v01.admin import admin_api_bp
 from app.middleware.session_guard import require_admin_role
 from app.db.misc import update_request, soft_delete_request
 from app.db import fetch_one, fetch_all, execute
-from app.utils.pagination import paginate_params, pagination_meta
+from app.utils.pagination import paginate_params, pagination_meta, attach_row_numbers
 
 _VALID_ROLES  = ("user", "admin", "user,admin")
 _VALID_STATUS = ("pending", "completed", "denied")
@@ -75,6 +75,7 @@ def api_requests_list():
         f"SELECT * FROM requests_raised WHERE {where_sql} ORDER BY request_date DESC LIMIT %s OFFSET %s",
         params + [per_page, offset],
     )
+    attach_row_numbers(reqs, page, per_page)
 
     return jsonify({"requests": [_fmt(r) for r in reqs], **pagination_meta(total, page, per_page)})
 
@@ -93,6 +94,7 @@ def _raw_iso_utc(value):
 def _fmt(r):
     return {
         "request_id":       int(r.get("request_id", 0)),
+        "row_no":           r.get("row_no"),
         "username":         r.get("username", ""),
         "email":            r.get("email", ""),
         "current_access":   r.get("current_access", ""),

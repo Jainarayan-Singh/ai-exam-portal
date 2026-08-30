@@ -104,6 +104,11 @@ def ai_generate_questions():
         mode    = request.form.get("mode")
         exam_id = int(request.form.get("exam_id") or 0)
 
+        from app.db.exams import get_exam_by_id
+        target_exam = get_exam_by_id(exam_id) if exam_id else None
+        if not target_exam:
+            return jsonify({"success": False, "message": "Select a valid exam first."}), 400
+
         def _int(key, default):
             return int(request.form.get(key) or default)
 
@@ -162,6 +167,15 @@ def ai_generate_questions():
                 "percent": 0,
                 "questions": [],
                 "error": None,
+                # The admin's OWN selection at generation time — not the
+                # exam_id each generated question echoes back in its own
+                # JSON (that value comes from the LLM's output, which the
+                # model is only asked, not guaranteed, to get right — see
+                # QuestionModel's docstring in app/services/ai_question_generator.py).
+                # The CSV Editor page reads this field, not the per-question
+                # one, as the authoritative target exam for Save to DB.
+                "exam_id":   exam_id,
+                "exam_name": target_exam.get("name", ""),
             }
 
         thread = threading.Thread(

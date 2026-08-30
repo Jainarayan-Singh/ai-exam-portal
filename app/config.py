@@ -44,6 +44,16 @@ DB_POOL_MIN = int(os.environ.get("DB_POOL_MIN", 1))
 DB_POOL_MAX = int(os.environ.get("DB_POOL_MAX", 10))
 
 # ─────────────────────────────────────────────
+# Auto-submit sweep (Scheduled Exam deadline enforcement) — see
+# app/services/auto_submit_service.py. Each tick claims and finalizes up
+# to AUTO_SUBMIT_BATCH_SIZE overdue attempts using short, independent DB
+# round trips (never one long-held connection/transaction for the whole
+# batch), so raising the batch size mainly trades sweep-tick duration for
+# fewer ticks — it does not hold the pool open for longer per attempt.
+AUTO_SUBMIT_SWEEP_INTERVAL_SECONDS = int(os.environ.get("AUTO_SUBMIT_SWEEP_INTERVAL_SECONDS", 5))
+AUTO_SUBMIT_BATCH_SIZE = int(os.environ.get("AUTO_SUBMIT_BATCH_SIZE", 200))
+
+# ─────────────────────────────────────────────
 # Object storage — provider selected by STORAGE_BACKEND (local | s3).
 # S3 backend works with any S3-compatible provider (AWS S3, Cloudflare R2,
 # MinIO, Supabase Storage's S3 interface, ...) via boto3, never a vendor SDK.

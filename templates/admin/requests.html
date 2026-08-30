@@ -750,7 +750,7 @@ function renderPendingRows(reqs) {
   }
   tbody.innerHTML = reqs.map(r => `
     <tr>
-      <td><span style="font-size:.78rem;font-weight:700;color:var(--text-muted)">#${r.request_id}</span></td>
+      <td><span style="font-size:.78rem;font-weight:700;color:var(--text-muted)">#${r.row_no ?? r.request_id}</span></td>
       <td>${userCell(r.username)}</td>
       <td><span style="font-size:.8rem;color:var(--text-muted)">${escHtml(r.email)}</span></td>
       <td>${accessBadge(r.current_access)}</td>
@@ -805,7 +805,7 @@ function renderHistoryRows(reqs) {
     const [sbC, sbL] = STATUS_MAP[r.status] || ['sb-pending', r.status || '—'];
     return `
     <tr>
-      <td><span style="font-size:.78rem;font-weight:700;color:var(--text-muted)">#${r.request_id}</span></td>
+      <td><span style="font-size:.78rem;font-weight:700;color:var(--text-muted)">#${r.row_no ?? r.request_id}</span></td>
       <td>${userCell(r.username)}</td>
       <td><span style="font-size:.8rem;color:var(--text-muted)">${escHtml(r.email)}</span></td>
       <td>${accessBadge(r.current_access)}</td>

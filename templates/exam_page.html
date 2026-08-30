@@ -296,6 +296,10 @@ html, body { overflow:hidden !important; height:100% !important; }
   margin:0 auto 1.1rem; font-size:1.4rem; color:var(--accent);
 }
 .exam-gate-icon.warn { background:var(--warning-bg); border-color:var(--warning-border); color:var(--warning); }
+.exam-gate-icon.success { background:var(--success-bg); border-color:var(--success-border); color:var(--success); }
+.exam-gate-btn.success { background:var(--success); color:#fff; }
+.exam-gate-btn[disabled] { opacity:.6; cursor:not-allowed; }
+.exam-gate-btn[disabled]:hover { transform:none; box-shadow:0 8px 24px rgba(0,0,0,.15); }
 .exam-gate-title { font-size:1.15rem; font-weight:700; margin-bottom:.5rem; letter-spacing:-.01em; }
 .exam-gate-desc  { font-size:.86rem; line-height:1.6; color:var(--text-2); margin-bottom:1.4rem; }
 .exam-gate-features {
@@ -421,6 +425,12 @@ html, body { overflow:hidden !important; height:100% !important; }
   display:flex; justify-content:space-between; align-items:center;
   flex-wrap:wrap; gap:.6rem; z-index:50; box-shadow:0 -2px 8px rgba(0,0,0,.1);
 }
+.no-manual-submit-notice {
+  display:inline-flex; align-items:center; gap:.4rem;
+  font-size:.78rem; font-weight:600; color:var(--text-3);
+  background:var(--surface); border:1px solid var(--border); border-radius:var(--radius);
+  padding:.5rem .85rem;
+}
 
 /* Image modal */
 .modal-content { background:var(--surface); border:1px solid var(--border); border-radius:calc(var(--radius)+4px); }
@@ -503,7 +513,14 @@ html, body { overflow:hidden !important; height:100% !important; }
     <div class="exam-timer" id="timerBox">
       <i class="fas fa-clock"></i>
       <span class="exam-timer-label">Time Left:</span>
-      <strong id="timer">{{ exam.duration }}:00</strong>
+      {# Static pre-fullscreen-gate display — JS overwrites this the instant
+         startTimer() runs (after "Enter Secure Mode"), but until then this
+         must show the actual remaining_seconds (already correctly
+         resume-aware and, for a Scheduled Exam, capped at the official end
+         via get_effective_deadline()) rather than the exam's raw nominal
+         duration, or a resumed/late-started attempt would flash a
+         too-generous time on this screen. #}
+      <strong id="timer">{{ '%d:%02d' % (remaining_seconds // 60, remaining_seconds % 60) }}</strong>
     </div>
   </div>
 </div>
@@ -628,6 +645,24 @@ html, body { overflow:hidden !important; height:100% !important; }
   </div>
 </div>
 
+{# Auto-submit / forced-submit notice — replaces the previous
+   alert('Time is up! Auto-submitting exam...') and the confirm() shown on
+   a security violation. Reused for both (see showAutoSubmitNotice() in
+   the script below): the exam-time-expired case and the security-
+   violation forced-submit case are the same underlying event from the
+   student's point of view — "your exam is being submitted automatically,
+   right now, without further action from you" — just with different
+   wording. Not user-dismissible: it's showing while the actual submit
+   request is in flight and the page is about to navigate away regardless. #}
+<div id="autoSubmitNoticeOverlay" class="exam-gate-overlay" style="display:none;z-index:20010">
+  <div class="exam-gate-card">
+    <div class="exam-gate-icon success" id="autoSubmitNoticeIcon"><i class="fas fa-check-circle"></i></div>
+    <div class="exam-gate-title" id="autoSubmitNoticeTitle">Time's Up</div>
+    <div class="exam-gate-desc" id="autoSubmitNoticeDesc">Your exam time has ended. Your attempt is being submitted automatically and your responses will be saved.</div>
+    <div class="exam-gate-meta" id="autoSubmitNoticeStatus"><i class="fas fa-spinner fa-spin me-1"></i> Finalizing your submission…</div>
+  </div>
+</div>
+
 {# Image Modal #}
 <div id="imageModal" style="display:none;position:fixed;inset:0;z-index:19999;background:rgba(0,0,0,.85);align-items:center;justify-content:center;" onclick="if(event.target===this)document.getElementById('imageModal').style.display='none'">
   <div style="background:var(--surface);border:1px solid var(--border);border-radius:calc(var(--radius)+4px);max-width:90vw;max-height:90vh;overflow:auto;display:flex;flex-direction:column;">
@@ -669,6 +704,22 @@ class ExamPortal {
     this.fullscreenCheckInterval = null;
     this.isSubmitting = false;
     this.submissionInProgress = false;
+    // Feature: Scheduled Exam manual-submission control — server-computed,
+    // never inferred client-side (see is_manual_submission_allowed() in
+    // app/services/exam_service.py). Only ever false for a Scheduled Exam
+    // whose admin explicitly disabled early submission; always true for
+    // every Manual Exam.
+    this.manualSubmissionAllowed = {{ 'true' if manual_submission_allowed else 'false' }};
+    this.autoSyncInterval = null;
+    // Scheduled Exam, launched in-place inside the still-fullscreen
+    // preparation page (see templates/exam_instructions.html) instead of a
+    // separate popup window — this frame never owns the real fullscreen
+    // session itself (the PARENT document does), so every fullscreen check/
+    // request below is redirected accordingly. See initializeFullscreen(),
+    // isTopFullscreen(), and notifyParentFullscreenNeeded(). Manual Exams
+    // never set this — they keep the original popup-window + own-fullscreen
+    // flow completely unchanged.
+    this.isEmbedded = new URLSearchParams(location.search).get('embedded') === '1';
     this.init();
   }
 
@@ -741,7 +792,46 @@ preloadAllImages() {
   });
 }
 
-async initializeFullscreen() { this.showFullscreenInitModal(); }
+async initializeFullscreen() {
+  // Scheduled Exam embedded launch: fullscreen was already established on
+  // the PARENT document during preparation, and a fresh requestFullscreen()
+  // call from THIS frame would need a user gesture this frame never
+  // received (and would just reintroduce the gate/popup the embedded path
+  // exists to remove) — reuse the parent's fullscreen state instead of
+  // asking for our own. Every other exam entry point (Manual, or a
+  // Scheduled Exam that lost fullscreen before launch and fell back to the
+  // popup path — see launchExamWindow() in exam_instructions.html) is
+  // unaffected and keeps showing this gate exactly as before.
+  if (this.isEmbedded) { this.startEmbeddedSecurity(); return; }
+  this.showFullscreenInitModal();
+}
+
+// Only the top (parent) document actually owns the real fullscreen
+// session — a click inside this iframe cannot itself re-request
+// fullscreen on an ancestor document, so ask the parent to do it instead
+// of showing a same-frame prompt that could never succeed.
+notifyParentFullscreenNeeded() {
+  try { window.parent.postMessage({ type: 'exam-fullscreen-restore-needed' }, window.location.origin); } catch (e) {}
+}
+
+isTopFullscreen() {
+  try {
+    const d = window.top.document;
+    return !!(d.fullscreenElement || d.webkitFullscreenElement || d.mozFullScreenElement || d.msFullscreenElement);
+  } catch (e) {
+    return false;
+  }
+}
+
+startEmbeddedSecurity() {
+  this.isFullscreenEnabled = this.isTopFullscreen();
+  this.showFullscreenStatus(this.isFullscreenEnabled);
+  this.setupFullscreenMonitoring();
+  this.setupVisibilityMonitoring();
+  this.preventTabSwitching();
+  this.startFullscreenMonitoring();
+  this.startExamAfterFullscreen();
+}
 
 showFullscreenInitModal() {
   const modal = document.createElement('div');
@@ -787,6 +877,7 @@ async actuallyEnterFullscreen() {
 }
 
 async enterFullscreen() {
+  if (this.isEmbedded) { this.notifyParentFullscreenNeeded(); return; }
   try {
     const e = document.documentElement;
     await (e.requestFullscreen||e.webkitRequestFullscreen||e.msRequestFullscreen||e.mozRequestFullScreen).call(e);
@@ -795,7 +886,8 @@ async enterFullscreen() {
 }
 
 checkFullscreenStatus() {
-  const isFs = !!(document.fullscreenElement||document.webkitFullscreenElement||document.mozFullScreenElement||document.msFullscreenElement);
+  const isFs = this.isEmbedded ? this.isTopFullscreen()
+    : !!(document.fullscreenElement||document.webkitFullscreenElement||document.mozFullScreenElement||document.msFullscreenElement);
   this.isFullscreenEnabled = isFs;
   this.showFullscreenStatus(isFs);
   if (!isFs && !this.isSubmitting) this.handleFullscreenExit();
@@ -806,8 +898,14 @@ startFullscreenMonitoring() {
 }
 
 setupFullscreenMonitoring() {
+  // Embedded (Scheduled Exam): the real fullscreenchange events fire on
+  // the PARENT document, not this iframe's own — see isEmbedded above.
+  let target = document;
+  if (this.isEmbedded) {
+    try { target = window.top.document; } catch (e) { target = document; }
+  }
   ['fullscreenchange','webkitfullscreenchange','mozfullscreenchange','MSFullscreenChange'].forEach(ev => {
-    document.addEventListener(ev, () => setTimeout(() => this.checkFullscreenStatus(), 100));
+    target.addEventListener(ev, () => setTimeout(() => this.checkFullscreenStatus(), 100));
   });
 }
 
@@ -846,7 +944,9 @@ handleSecurityViolation(reason) {
   this.saveCurrentAnswer(); this.isSubmitting = true;
   if (this.fullscreenCheckInterval) clearInterval(this.fullscreenCheckInterval);
   if (this.timerInterval) clearInterval(this.timerInterval);
-  confirm(`Security violation: ${reason}\n\nYour exam will be submitted automatically.`);
+  if (this.autoSyncInterval) { clearInterval(this.autoSyncInterval); this.autoSyncInterval = null; }
+  this.showAutoSubmitNotice('Security Violation Detected',
+    `${reason}. Your exam is being submitted automatically and your responses will be saved.`);
   this.forceSubmitExam(reason);
 }
 
@@ -861,6 +961,11 @@ showFullscreenStatus(isFs) {
 }
 
 showFullscreenRestorePrompt() {
+  // Embedded: a click in this iframe can't itself re-request fullscreen on
+  // the parent document — ask the parent to show its own restore prompt
+  // instead (see notifyParentFullscreenNeeded()). Warning-counting and the
+  // eventual auto-submit via handleSecurityViolation() are unchanged.
+  if (this.isEmbedded) { this.notifyParentFullscreenNeeded(); return; }
   this.closeSecurityModal();
   this.createSecurityModal('Security Alert — Return to Fullscreen',
     `<div class="text-center"><i class="fas fa-expand-arrows-alt fa-3x" style="color:#fbbf24;margin-bottom:.75rem"></i><h5 style="color:#fff">Fullscreen Mode Required</h5><p style="color:rgba(255,255,255,.6)">You must return to fullscreen to continue securely.</p><p style="font-size:.8rem;color:#fb7185">Warning ${this.fullscreenWarnings} of ${this.maxWarnings} — exam auto-submits after ${this.maxWarnings}!</p></div>`,
@@ -892,7 +997,14 @@ forceSubmitExam(reason) {
   this.saveCurrentAnswer(); this.isSubmitting = true; this.isNavigating = true;
   if (this.fullscreenCheckInterval) clearInterval(this.fullscreenCheckInterval);
   if (this.timerInterval) clearInterval(this.timerInterval);
-  this.syncAnswersToServer().then(()=>this.performActualSubmission()).catch(()=>this.performActualSubmission());
+  if (this.autoSyncInterval) { clearInterval(this.autoSyncInterval); this.autoSyncInterval = null; }
+  this.syncAnswersToServer()
+    .then(()=>this.performActualSubmission())
+    .catch(()=>this.performActualSubmission())
+    .catch((e)=>{
+      console.error('Forced submit failed:',e);
+      this.setAutoSubmitNoticeStatus('<i class="fas fa-triangle-exclamation me-1"></i> We could not confirm your submission — your answers are saved on our server and will be finalized automatically shortly. You may safely close this page.', true);
+    });
 }
 
 addAnimationStyles() {
@@ -1139,11 +1251,21 @@ renderNavButtons() {
 renderNavButtonsExternal() {
   const container = document.getElementById('examNavBar');
   if (!container) return;
+  // Feature: Scheduled Exam manual-submission control — when disabled,
+  // the student has no way to voluntarily end the attempt (see
+  // is_manual_submission_allowed() in app/services/exam_service.py); the
+  // exam only ends when the timer reaches zero or the server's own
+  // deadline sweep finalizes it. This is a UX nicety only — submit_exam()
+  // independently re-enforces the same rule server-side regardless of
+  // whether this button exists.
+  const submitBtnHtml = this.manualSubmissionAllowed
+    ? '<button type="button" class="btn-success exam-navigation-btn" onclick="examPortal.submitExam()"><i class="fas fa-paper-plane"></i> Submit Exam</button>'
+    : '<span class="no-manual-submit-notice"><i class="fas fa-lock"></i> Ends automatically at time up</span>';
   const html = `<button type="button" class="btn-outline-secondary exam-navigation-btn" onclick="examPortal.navigatePrevious()" ${this.currentIndex===0?'disabled':''}><i class="fas fa-chevron-left"></i> Previous</button>
-    <div style="display:flex;gap:.5rem;flex-wrap:wrap;justify-content:center">
+    <div style="display:flex;gap:.5rem;flex-wrap:wrap;justify-content:center;align-items:center">
       <button type="button" id="markReviewBtn" class="btn-warning exam-navigation-btn" onclick="examPortal.markForReview()"><i class="fas fa-flag"></i> Mark for Review</button>
       ${this.currentIndex<this.totalQuestions-1?'<button type="button" class="btn-primary exam-navigation-btn" onclick="examPortal.navigateNext()">Save &amp; Next <i class="fas fa-chevron-right"></i></button>':''}
-      <button type="button" class="btn-success exam-navigation-btn" onclick="examPortal.submitExam()"><i class="fas fa-paper-plane"></i> Submit Exam</button>
+      ${submitBtnHtml}
     </div>`;
   container.innerHTML = html;
   this.updateMarkReviewButton();
@@ -1282,6 +1404,27 @@ startTimer(){
   if(this.timerInterval) clearInterval(this.timerInterval);
   this.updateTimer();
   this.timerInterval=setInterval(()=>{this.duration--;this.updateTimer();if(this.duration<=0){clearInterval(this.timerInterval);this.autoSubmitExam();}},1000);
+  this.startAutoSync();
+}
+
+// Durable, server-side answer persistence during the exam — previously
+// the server only ever learned the student's answers at the very final
+// submit request (saveCurrentAnswer()/saveSessionData() are purely
+// client-side, sessionStorage only). This periodic sync is what makes
+// the server-side auto-submit deadline sweep (and a crashed/closed
+// browser) able to score from real, recent answers instead of nothing —
+// see sync_exam_answers() in app/routes/api/v01/exams.py, which now also
+// writes exam_attempts.answers_draft on every call. Errors are swallowed
+// deliberately: this is a best-effort background safety net, not the
+// only thing standing between the student and a lost answer — the final
+// submit (manual or auto) always syncs once more before finalizing.
+startAutoSync(){
+  if(this.autoSyncInterval) clearInterval(this.autoSyncInterval);
+  this.autoSyncInterval=setInterval(()=>{
+    if(this.isSubmitting) return;
+    this.saveCurrentAnswer();
+    this.syncAnswersToServer().catch(()=>{});
+  },20000);
 }
 
 updateTimer(){
@@ -1319,13 +1462,39 @@ setSubmitStep(n){
   });
 }
 
+// Best-effort final sync fired from beforeunload/unload — the URL used to
+// point at a route that was never actually implemented server-side
+// (a 404, silently swallowed), so a tab close never actually persisted
+// anything beyond whatever the last real autosave (syncAnswersToServer /
+// the periodic this.autoSyncInterval) had already saved. Now points at
+// the real, DB-durable answers endpoint (see sync_exam_answers() in
+// app/routes/api/v01/exams.py, which writes exam_attempts.answers_draft)
+// — this is genuine defense-in-depth on top of the periodic sync, not
+// the only thing standing between a closed tab and lost answers.
 emergencySyncAnswers(){
-  try{const d=JSON.stringify({answers:this.answers,markedForReview:this.markedForReview,currentIndex:this.currentIndex,timeRemaining:this.duration});if(navigator.sendBeacon)navigator.sendBeacon(`/api/emergency-sync-exam/${this.examId}`,d);else{const x=new XMLHttpRequest();x.open('POST',`/api/emergency-sync-exam/${this.examId}`,false);x.setRequestHeader('Content-Type','application/json');x.send(d);}}catch(e){}
+  try{
+    const url=`/api/v01/exams/${this.examId}/answers`;
+    const body=JSON.stringify({answers:this.answers,markedForReview:this.markedForReview});
+    if(navigator.sendBeacon){
+      // sendBeacon sets Content-Type from the Blob's own type — a plain
+      // string defaults to text/plain, which the server's JSON parser
+      // would reject; an explicit application/json Blob is required.
+      navigator.sendBeacon(url,new Blob([body],{type:'application/json'}));
+    }else{
+      const x=new XMLHttpRequest();
+      x.open('POST',url,false);
+      x.setRequestHeader('Content-Type','application/json');
+      x.send(body);
+    }
+  }catch(e){}
 }
 
 handlePageVisibilityChange(){ if(!this.isFullscreenEnabled&&!this.isSubmitting) this.showResumeModal(); }
 
 showResumeModal(){
+  // Embedded: same reasoning as showFullscreenRestorePrompt() — only the
+  // parent document can actually restore fullscreen here.
+  if (this.isEmbedded) { this.notifyParentFullscreenNeeded(); return; }
   const m=document.createElement('div');
   m.id='resumeExamModal';
   m.className='exam-gate-overlay';
@@ -1345,6 +1514,7 @@ async confirmSubmission(){
   if(this.submissionInProgress)return;
   this.submissionInProgress=true;this.isSubmitting=true;this.isNavigating=true;
   if(this.fullscreenCheckInterval)clearInterval(this.fullscreenCheckInterval);
+  if(this.autoSyncInterval){clearInterval(this.autoSyncInterval);this.autoSyncInterval=null;}
   document.getElementById('submitConfirmationButtons').style.display='none';
   document.getElementById('submitProgressSection').style.display='block';
   const icon0=document.getElementById('submitProgressIcon');
@@ -1398,19 +1568,75 @@ showSubmissionError(msg){
   },3000);
 }
 
+// Embedded (Scheduled Exam Kiosk): the exam owning the completion UI is
+// the KIOSK window (it's the one holding real fullscreen, and the one
+// that must stop enforcing it now that the attempt is over) — this frame
+// hands off the result URL via postMessage instead of navigating itself.
+// See exam_kiosk.html's 'exam-completed' listener, which exits
+// fullscreen, tears down every guard, and shows the completion screen.
+notifyParentExamCompleted(redirectUrl){
+  try { window.parent.postMessage({ type: 'exam-completed', redirect: redirectUrl }, window.location.origin); } catch (e) {}
+}
+
 async performActualSubmission(){
   try{
     const r=await fetch(`/submit-exam/${this.examId}`,{method:'POST',credentials:'same-origin',headers:{'X-Requested-With':'XMLHttpRequest','Content-Type':'application/x-www-form-urlencoded'},body:new URLSearchParams()});
-    if(r.redirected){window.location.href=r.url;return;}
-    if(r.ok){const ct=r.headers.get('content-type')||'';if(ct.includes('application/json')){const j=await r.json();if(j&&j.success&&j.redirect){window.location.href=j.redirect;return;}}window.location.href=`/result/${this.examId}`;}
-    else throw new Error(`Server ${r.status}`);
+    let redirectUrl;
+    if(r.redirected){ redirectUrl = r.url; }
+    else if(r.ok){
+      const ct=r.headers.get('content-type')||'';
+      if(ct.includes('application/json')){
+        const j=await r.json();
+        redirectUrl = (j && j.success && j.redirect) ? j.redirect : `/result/${this.examId}`;
+      } else {
+        redirectUrl = `/result/${this.examId}`;
+      }
+    } else {
+      throw new Error(`Server ${r.status}`);
+    }
+    if (this.isEmbedded) { this.notifyParentExamCompleted(redirectUrl); return; }
+    window.location.href = redirectUrl;
   }catch(e){console.error('Submission failed:',e);throw e;}
+}
+
+// ── Feature: HTML/CSS auto-submit notice (replaces alert()/confirm()) ──
+// Shown for BOTH the timer-expiry auto-submit and a security-violation
+// forced submit — from the student's point of view these are the same
+// event ("your exam is ending automatically, right now"), just with
+// different copy. Not dismissible by the student: the real submit
+// request is in flight underneath it and the page is about to navigate
+// away on success regardless.
+showAutoSubmitNotice(title, desc){
+  const overlay=document.getElementById('autoSubmitNoticeOverlay');
+  if(!overlay) return;
+  const t=document.getElementById('autoSubmitNoticeTitle'), d=document.getElementById('autoSubmitNoticeDesc');
+  if(t) t.textContent=title;
+  if(d) d.textContent=desc;
+  this.setAutoSubmitNoticeStatus('<i class="fas fa-spinner fa-spin me-1"></i> Finalizing your submission…', false);
+  overlay.style.display='flex';
+}
+
+setAutoSubmitNoticeStatus(html, isError){
+  const el=document.getElementById('autoSubmitNoticeStatus');
+  if(!el) return;
+  el.innerHTML=html;
+  el.style.color=isError?'var(--danger-text)':'';
+  el.style.background=isError?'var(--danger-bg)':'';
+  el.style.borderColor=isError?'var(--danger-border)':'';
 }
 
 autoSubmitExam(){
   this.saveCurrentAnswer();this.isSubmitting=true;this.isNavigating=true;
-  alert('Time is up! Auto-submitting exam...');
-  this.syncAnswersToServer().then(()=>this.performActualSubmission()).catch(()=>this.performActualSubmission());
+  if(this.autoSyncInterval){clearInterval(this.autoSyncInterval);this.autoSyncInterval=null;}
+  this.showAutoSubmitNotice('Time\'s Up — Exam Submitted',
+    'Your exam time has ended. Your attempt is being submitted automatically and your responses will be saved.');
+  this.syncAnswersToServer()
+    .then(()=>this.performActualSubmission())
+    .catch(()=>this.performActualSubmission())
+    .catch((e)=>{
+      console.error('Auto-submit failed:',e);
+      this.setAutoSubmitNoticeStatus('<i class="fas fa-triangle-exclamation me-1"></i> We could not confirm your submission — your answers are saved on our server and will be finalized automatically shortly. You may safely close this page.', true);
+    });
 }
 
 async syncAnswersToServer(){
@@ -1421,10 +1647,24 @@ async syncAnswersToServer(){
 }
 
 let examPortal;
-document.addEventListener('DOMContentLoaded',()=>{try{examPortal=new ExamPortal();}catch(e){console.error('Init failed:',e);alert('Failed to initialize. Please refresh.');}});
+document.addEventListener('DOMContentLoaded',()=>{
+  try{
+    examPortal=new ExamPortal();
+  }catch(e){
+    console.error('Init failed:',e);
+    // No JS alert() — ExamPortal itself failed to construct, so this
+    // can't rely on any of its own modal helpers; a small self-contained
+    // banner (same visual language as the rest of the app, just inlined
+    // since the exam UI never finished initializing) instead.
+    const el=document.createElement('div');
+    el.style.cssText='position:fixed;inset:0;z-index:20002;background:rgba(0,0,0,.85);display:flex;align-items:center;justify-content:center;padding:1.5rem;';
+    el.innerHTML='<div style="background:#1f2937;border-radius:16px;padding:2rem;max-width:420px;text-align:center;color:#fff;box-shadow:0 24px 60px rgba(0,0,0,.45)"><i class="fas fa-triangle-exclamation" style="font-size:1.6rem;color:#fbbf24;margin-bottom:.75rem;display:block"></i><div style="font-weight:700;margin-bottom:.5rem">Unable to load the exam</div><div style="font-size:.85rem;opacity:.85;margin-bottom:1.25rem">Something went wrong while preparing this page. Please refresh to try again — your progress so far has not been affected.</div><button onclick="window.location.reload()" style="background:#f97316;border:none;color:#fff;font-weight:700;border-radius:10px;padding:.7rem 1.5rem;cursor:pointer">Refresh Page</button></div>';
+    document.body.appendChild(el);
+  }
+});
 
 window.addEventListener('beforeunload',(e)=>{if(examPortal&&!examPortal.isSubmitting&&!examPortal.isNavigating){examPortal.saveCurrentAnswer();examPortal.emergencySyncAnswers();e.preventDefault();e.returnValue='Your exam progress will be saved. Are you sure you want to leave?';}});
-window.addEventListener('unload',()=>{if(examPortal){examPortal.isSubmitting=true;examPortal.saveCurrentAnswer();examPortal.emergencySyncAnswers();if(examPortal.timerInterval)clearInterval(examPortal.timerInterval);if(examPortal.fullscreenCheckInterval)clearInterval(examPortal.fullscreenCheckInterval);}});
+window.addEventListener('unload',()=>{if(examPortal){examPortal.isSubmitting=true;examPortal.saveCurrentAnswer();examPortal.emergencySyncAnswers();if(examPortal.timerInterval)clearInterval(examPortal.timerInterval);if(examPortal.fullscreenCheckInterval)clearInterval(examPortal.fullscreenCheckInterval);if(examPortal.autoSyncInterval)clearInterval(examPortal.autoSyncInterval);}});
 document.addEventListener('visibilitychange',()=>{if(examPortal&&!document.hidden&&!examPortal.isSubmitting)examPortal.handlePageVisibilityChange();});
 </script>
 {% endblock %}

@@ -200,6 +200,8 @@
   <a href="#gd-start">Getting Started</a>
   <a href="#gd-structure">Exam Structure</a>
   <a href="#gd-create">Creating an Exam</a>
+  <a href="#gd-normal-availability">Normal Exam Availability</a>
+  <a href="#gd-scheduled">Scheduled Exams</a>
   <a href="#gd-questions">Adding Questions</a>
   <a href="#gd-ai">AI Question Generation</a>
   <a href="#gd-images">Images</a>
@@ -290,6 +292,68 @@
     <div class="gd-callout warn">
       <i class="fas fa-triangle-exclamation"></i>
       <span>An exam left in Draft status won't appear to students — if a finished exam still isn't showing up, check its status first.</span>
+    </div>
+  </div>
+</details>
+
+<!-- ══ NORMAL EXAM AVAILABILITY ══ -->
+<details class="gd-section" id="gd-normal-availability">
+  <summary>
+    <span class="gd-section-icon"><i class="fas fa-infinity"></i></span>
+    <span style="flex:1">
+      <span class="gd-section-title">Normal Exam Availability</span>
+      <span class="gd-section-sub" style="display:block">Reusing a Normal Exam after its date/time has passed, without editing the schedule</span>
+    </span>
+    <i class="fas fa-chevron-down gd-chevron"></i>
+  </summary>
+  <div class="gd-body">
+    <p>By default, a Normal Exam's configured date/time is a hard expiry: once that window has passed, students can no longer start it — even if you leave (or set) its Status back to <strong>Ongoing</strong> — until you edit the date/time. <strong>Available After Selected Date/Time</strong> is an optional per-exam toggle on <strong>Manage Exams</strong> (Add Exam and Edit Exam) that removes that expiry, so you can reuse the same exam purely by controlling its Status.</p>
+
+    <p><strong>When ENABLED:</strong></p>
+    <ol class="gd-steps">
+      <li><strong>Status is the only gate</strong><span>The exam stays attemptable for as long as its Status is <strong>Ongoing</strong> — its configured date/time no longer expires it, no matter how long ago that date/time was.</span></li>
+      <li><strong>Reusable without editing the schedule</strong><span>If the exam has drifted to Upcoming/Completed and you want it Live again, just set its Status back to <strong>Ongoing</strong>. Students can attempt it immediately — there is no need to change the date, start time, or duration at all.</span></li>
+      <li><strong>Attempt count still applies</strong><span>This toggle only removes the date/time expiry. Each student's <strong>Max Attempts</strong> limit is completely unaffected — once a student has used all their allowed attempts, they cannot start another one, regardless of this setting.</span></li>
+    </ol>
+
+    <p><strong>When DISABLED (the default):</strong> a Normal Exam behaves exactly as it always has — its configured date/time still determines when it expires, on top of its Status.</p>
+
+    <div class="gd-callout tip">
+      <i class="fas fa-lightbulb"></i>
+      <span>Status (Upcoming/Ongoing/Completed) is what students see labelled on their dashboard either way — this toggle never changes that label. It only changes whether the date/time can additionally block starting an exam whose Status is Ongoing.</span>
+    </div>
+
+    <div class="gd-callout warn">
+      <i class="fas fa-triangle-exclamation"></i>
+      <span>This option applies <strong>only to Normal Exams</strong>. It has no effect on Scheduled Exams — the toggle isn't shown while <strong>Scheduled Exam</strong> is turned on, and a Scheduled Exam's lifecycle always follows its strict scheduled time window (preparation window, official start/end, late-start rules, auto-submit) exactly as described in the <a href="#gd-scheduled">Scheduled Exams</a> section below, with no expiry-toggle equivalent.</span>
+    </div>
+
+    <div class="gd-link-row">
+      <a href="{{ url_for('admin.exams') }}"><i class="fas fa-file-alt"></i> Manage Exams</a>
+    </div>
+  </div>
+</details>
+
+<!-- ══ SCHEDULED EXAMS ══ -->
+<details class="gd-section" id="gd-scheduled">
+  <summary>
+    <span class="gd-section-icon"><i class="fas fa-calendar-check"></i></span>
+    <span style="flex:1">
+      <span class="gd-section-title">Scheduled Exams</span>
+      <span class="gd-section-sub" style="display:block">Auto-opening exams, preparation windows, deadlines and auto-submit</span>
+    </span>
+    <i class="fas fa-chevron-down gd-chevron"></i>
+  </summary>
+  <div class="gd-body">
+    <p>A <strong>Scheduled Exam</strong> is the alternative to a Manual Exam's admin-controlled Status: instead of you flipping it to Ongoing/Completed yourself, you set a date, start time and duration once, and the portal computes its status automatically from the clock from then on — including an optional preparation/preload window before it goes live, a completion buffer right after the deadline, and server-side auto-submit enforcement that works even if a student's browser is closed.</p>
+    <p>This is enough to get you building one, but the full behaviour — every setting, exactly what locks once it's live, cancel/restore, and what a student experiences minute by minute — is covered in its own dedicated guide, linked below.</p>
+    <div class="gd-callout tip">
+      <i class="fas fa-lightbulb"></i>
+      <span>Turn on the <strong>Scheduled Exam</strong> toggle on Manage Exams → Add Exam (or on an existing exam's Edit form) to see the extra fields it adds.</span>
+    </div>
+    <div class="gd-link-row">
+      <a href="{{ url_for('admin.guide_scheduled_exams') }}"><i class="fas fa-book"></i> Open the full Scheduled Exam Guide</a>
+      <a href="{{ url_for('admin.exams') }}"><i class="fas fa-file-alt"></i> Manage Exams</a>
     </div>
   </div>
 </details>

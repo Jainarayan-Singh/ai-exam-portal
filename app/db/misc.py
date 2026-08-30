@@ -5,7 +5,7 @@ PostgreSQL queries for subjects and requests_raised tables.
 
 from typing import Optional, List, Dict
 from app.db import fetch_one, fetch_all, execute, set_clause, insert_returning
-from app.utils.pagination import paginate_params, pagination_meta
+from app.utils.pagination import paginate_params, pagination_meta, attach_row_numbers
 from app.utils.datetime_service import now_utc_naive
 
 
@@ -47,6 +47,7 @@ def get_subjects_page(search: str = "", page=1, per_page=20) -> Dict:
             f"{where_sql} ORDER BY subject_name LIMIT %s OFFSET %s",
             params + [per_page, offset],
         )
+        attach_row_numbers(rows, page, per_page)
         return {"subjects": rows, **pagination_meta(total, page, per_page)}
     except Exception as e:
         print(f"[db.misc] get_subjects_page error: {e}")

@@ -257,7 +257,7 @@ window.MathJax = {
 <div class="page-top">
   <div>
     <h1><i class="fas fa-robot me-2" style="color:var(--accent)"></i>AI Command Centre</h1>
-    <p>Generate high-quality exam questions using Gemini 2.5 Flash AI</p>
+    <p>Generate high-quality exam questions using AI</p>
   </div>
   <div class="d-flex align-items-center gap-2 flex-wrap">
     <div class="status-badge"><span class="status-dot"></span>System Online</div>
@@ -352,14 +352,14 @@ window.MathJax = {
         <div class="tip-card-icon red"><i class="fas fa-clock-rotate-left"></i></div>
         <div class="tip-card-text">
           <h5>Error? Wait &amp; retry</h5>
-          <p>If generation fails with a timeout or overload error, wait <code>30–60 seconds</code> and try again. Gemini API has rate limits that self-reset quickly.</p>
+          <p>If generation fails with a timeout or overload error, wait <code>30–60 seconds</code> and try again. The AI engine has rate limits that self-reset quickly.</p>
         </div>
       </div>
       <div class="tip-card">
         <div class="tip-card-icon blue"><i class="fas fa-file-image"></i></div>
         <div class="tip-card-text">
           <h5>Scanned PDF? AI uses Vision</h5>
-          <p>If your PDF is image-based (scanned paper), the system automatically switches to Gemini Vision mode — no action needed from your side.</p>
+          <p>If your PDF is image-based (scanned paper), the system automatically switches to Vision mode — no action needed from your side.</p>
         </div>
       </div>
       <div class="tip-card">
@@ -442,7 +442,7 @@ window.MathJax = {
         <input type="checkbox" id="pgc5cb" onchange="pgcmToggle('pgc5')">
         <label for="pgc5cb">
           I understand errors may occur - I will wait 30-60s and retry if needed
-          <span>Gemini API has rate limits that reset automatically - no panic needed</span>
+          <span>The AI engine has rate limits that reset automatically - no panic needed</span>
         </label>
       </div>
     </div>
@@ -869,16 +869,16 @@ function _pollJob(jobId) {
           let msg   = 'No questions could be generated. Please try again.';
           if (err.includes('TRUNCATED')) {
             title = 'AI Response Cut Off';
-            msg   = 'Gemini hit its output limit mid-response. '
+            msg   = 'The AI engine hit its output limit mid-response. '
                   + '<strong>Try generating 20 or fewer questions at a time.</strong> '
                   + 'Already-generated questions (if any) were recovered above.';
           } else if (err.includes('503') || err.includes('UNAVAILABLE')) {
-            title = 'Gemini Busy';
-            msg   = 'Gemini API is experiencing high load. '
+            title = 'AI Engine Busy';
+            msg   = 'The AI engine is experiencing high load. '
                   + 'Wait a minute and try again — it\'s a temporary spike.';
           } else if (err.includes('MALFORMED')) {
             title = 'Unexpected AI Response';
-            msg   = 'Gemini returned an unexpected format. Try again — '
+            msg   = 'The AI engine returned an unexpected format. Try again — '
                   + 'this usually resolves itself.';
           } else if (err) {
             msg = err.substring(0, 200);

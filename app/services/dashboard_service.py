@@ -174,28 +174,50 @@ def _get_category_name_map() -> Dict[str, str]:
 
 
 def _build_today_exams(user_id: int, all_exams: List[Dict], cat_names: Dict[str, str]) -> List[Dict]:
-    from app.services.exam_service import compute_exam_action_state, get_exam_time_window
+    from app.services.exam_service import (
+        compute_exam_action_state, get_exam_time_window, get_effective_status, is_exam_window_open,
+    )
 
     today = today_app_date()
     out = []
     for exam in all_exams:
         if exam.get("date") != today:
             continue
-        status = str(exam.get("status", "draft")).lower().strip()
-        if status == "draft":
+        # Effective status: the literal status column for a Manual Exam
+        # (unchanged — status only decides which icon/badge to show and
+        # whether to show a countdown at all, never startability by
+        # itself); for a Scheduled Exam, the live time-computed state, so
+        # it correctly stops appearing "Upcoming" the instant it actually
+        # goes live and a cancelled Scheduled Exam is filtered out
+        # entirely below — no admin action required either way.
+        status = get_effective_status(exam)
+        if status in ("draft", "cancelled"):
             continue
         window = get_exam_time_window(exam)
-        # The exam's REAL scheduled window (not the admin-set status label,
-        # which this app never flips automatically) decides whether it's
-        # actually startable right now — status only decides which icon/
-        # badge to show and whether to show a countdown at all. Once the
-        # window has closed (now past start+duration), it must NOT stay
-        # "live" forever just because it once started — status=='ongoing'
-        # is still trusted as an explicit admin override either way.
         has_started = bool(window.get("has_started"))
         has_ended = bool(window.get("has_ended"))
-        is_startable = status == "ongoing" or (has_started and not has_ended)
-        is_window_ended = status == "upcoming" and has_ended
+        if exam.get("scheduled_mode"):
+            # A Scheduled Exam has no separate admin 'ongoing' override —
+            # its effective status IS the time-based state. The buffer/
+            # "closing" period still reports 'ongoing' here (matching the
+            # badge shown elsewhere) but is no longer startable; can_start
+            # from compute_exam_action_state() below is what actually
+            # gates the Start button — this only affects badge/countdown.
+            is_startable = status == "ongoing" and not has_ended
+            is_window_ended = False
+        else:
+            # FIX: this used to independently recompute "started and not
+            # ended" inline, which had drifted from is_exam_window_open()'s
+            # own rule (a Manual Exam only ever auto-unlocks via an
+            # explicit admin status of 'ongoing' — see that function's
+            # docstring for the full incident this closes). Calling the
+            # same function used everywhere else a Manual Exam's real
+            # startability is decided (the /start endpoint, the
+            # instructions page) is what keeps this notification
+            # consistent with them, instead of showing "Start"/"Live" for
+            # an exam the admin explicitly left "Upcoming".
+            is_startable = is_exam_window_open(exam)
+            is_window_ended = status == "upcoming" and has_ended
         entry = {
             "exam": exam,
             "status": status,
@@ -379,7 +401,11 @@ def _build_new_exams(all_exams: List[Dict], seen: Dict, cat_names: Dict[str, str
 
     candidates = [
         e for e in all_exams
-        if str(e.get("status", "draft")).lower().strip() != "draft"
+        # A cancelled Scheduled Exam (status column holds the literal
+        # 'cancelled' override — see get_effective_status()) must never be
+        # advertised as a "new exam" either, same as it must never become
+        # accessible or startable.
+        if str(e.get("status", "draft")).lower().strip() not in ("draft", "cancelled")
         and str(e.get("created_at") or "") > _BACKFILL_SENTINEL_CUTOFF
         and str(e.get("created_at") or "") > cutoff
         and str(e.get("id")) not in seen_ids

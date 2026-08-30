@@ -110,6 +110,9 @@ def create_app() -> Flask:
     app.jinja_env.filters["calendar_date"] = format_calendar_date
     app.jinja_env.filters["calendar_time"] = format_calendar_time
 
+    from app.utils.instructions_formatter import render_exam_instructions
+    app.jinja_env.filters["format_instructions"] = render_exam_instructions
+
     @app.context_processor
     def inject_globals():
         from flask import session
@@ -129,6 +132,9 @@ def create_app() -> Flask:
 
     # ── Periodic background cache cleanup ──────────────────────────────────
     _start_periodic_cleanup()
+
+    # ── Auto-submit sweep (Scheduled Exam deadline enforcement) ────────────
+    _start_auto_submit_sweep()
 
     return app
 
@@ -265,6 +271,22 @@ def _start_periodic_cleanup() -> None:
                 print(f"[CLEANUP] Error: {e}")
 
     t = threading.Thread(target=_loop, daemon=True)
+    t.start()
+
+
+def _start_auto_submit_sweep() -> None:
+    """Starts the server-side exam-deadline enforcement sweep as an
+    in-process daemon thread — the same threading.Thread(daemon=True)
+    pattern as _start_periodic_cleanup() above, not a new kind of
+    infrastructure. main.py runs this app with use_reloader=False, so
+    create_app() (and this) only ever executes once per process; under a
+    hypothetical multi-process deployment, each process's sweep thread is
+    still safe to run concurrently — see claim_due_attempts_batch() in
+    app/db/attempts.py, which uses FOR UPDATE SKIP LOCKED so two sweeps
+    never claim (or double-finalize) the same attempt."""
+    from app.services.auto_submit_service import run_sweep_loop
+
+    t = threading.Thread(target=run_sweep_loop, daemon=True)
     t.start()
 
 

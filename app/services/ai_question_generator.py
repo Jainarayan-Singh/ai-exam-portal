@@ -91,7 +91,15 @@ def sanitize_latex(text: str) -> str:
 # ========================
 
 class QuestionModel(BaseModel):
-    """Strict validation model for generated questions"""
+    """Strict validation model for generated questions.
+
+    exam_id here is whatever the model echoes back in its own JSON output
+    (it's given the value and asked to repeat it — see _schema_example())
+    — trustworthy for shape validation, but not something calling code
+    should treat as authoritative for where a question actually gets
+    saved. The job's own admin-selected exam_id (stored on the job dict in
+    app/routes/api/v01/admin/ai_centre.py:ai_generate_questions(), not
+    derived from any question) is the real source of truth for that."""
     exam_id: int
     question_text: str
     option_a: str = ""
