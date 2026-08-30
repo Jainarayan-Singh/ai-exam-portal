@@ -131,6 +131,60 @@ BASE_URL              = os.environ.get("BASE_URL", "https://your-domain.com")
 LOGO_ASSET_URL     = os.environ.get("LOGO_ASSET_URL", "")
 
 # ─────────────────────────────────────────────
+# Landing page — "Founder / CEO" section (templates/index.html).
+# CEO_IMAGE_KEY is a STORAGE KEY (e.g. "Profile/founder.jpg"), never a raw
+# URL — resolved server-side and streamed through the app's own public,
+# read-only proxy route (see /assets/ceo-photo in app/routes/web/misc.py),
+# the same "never hand the browser a raw storage/bucket URL" pattern
+# app/services/image_storage_service.py already uses everywhere else.
+# Leave blank until a photo has been uploaded to the storage bucket under
+# this key — the landing page falls back to a placeholder rather than a
+# broken image.
+# ─────────────────────────────────────────────
+CEO_NAME       = os.environ.get("CEO_NAME", "")
+CEO_TITLE      = os.environ.get("CEO_TITLE", "Founder & CEO, SmartAIExam")
+CEO_IMAGE_KEY  = os.environ.get("CEO_IMAGE_KEY", "")
+
+def _public_env(name: str) -> str:
+    """Same as os.environ.get(name, ""), except a value that's just a
+    Python-flavored "empty" placeholder — none/null/undefined/n/a, in any
+    case — is treated as blank too. Guards against exactly the mistake of
+    typing PUBLIC_ADDRESS=None in .env (a real, non-empty string as far as
+    os.environ is concerned) and having every "leave blank to hide this"
+    template literally print the word "None" instead of hiding the field."""
+    val = (os.environ.get(name) or "").strip()
+    if val.lower() in ("none", "null", "undefined", "n/a", "na"):
+        return ""
+    return val
+
+
+# ─────────────────────────────────────────────
+# Public-facing contact / footer info — read by every footer (landing page,
+# user portal, admin portal) and by the legal/contact/about/support pages,
+# via the inject_globals() context processor in app/__init__.py so no
+# template needs its own hardcoded copy. Every field defaults to blank
+# rather than a placeholder-looking value — templates hide the
+# corresponding UI element entirely when a field is blank instead of ever
+# showing a fake email/phone/address/social link. Only set a real value in
+# .env for something that's actually true; leave the rest unset.
+# ─────────────────────────────────────────────
+PUBLIC_SUPPORT_EMAIL   = _public_env("PUBLIC_SUPPORT_EMAIL")
+PUBLIC_CONTACT_PHONE   = _public_env("PUBLIC_CONTACT_PHONE")
+PUBLIC_ADDRESS         = _public_env("PUBLIC_ADDRESS")
+PUBLIC_SOCIAL_TWITTER  = _public_env("PUBLIC_SOCIAL_TWITTER")
+PUBLIC_SOCIAL_LINKEDIN = _public_env("PUBLIC_SOCIAL_LINKEDIN")
+PUBLIC_SOCIAL_GITHUB   = _public_env("PUBLIC_SOCIAL_GITHUB")
+PUBLIC_SOCIAL_INSTAGRAM = _public_env("PUBLIC_SOCIAL_INSTAGRAM")
+
+# Per-policy "Last updated" dates — each policy can genuinely change on its
+# own schedule, so these are independent. Left blank until a real date is
+# known; the templates omit the line entirely rather than show a
+# potentially-misleading date.
+LEGAL_PRIVACY_LAST_UPDATED = _public_env("LEGAL_PRIVACY_LAST_UPDATED")
+LEGAL_TERMS_LAST_UPDATED = _public_env("LEGAL_TERMS_LAST_UPDATED")
+LEGAL_ACCOUNT_DELETION_LAST_UPDATED = _public_env("LEGAL_ACCOUNT_DELETION_LAST_UPDATED")
+
+# ─────────────────────────────────────────────
 # OTP — "Existing Active Session" login verification. When a user logs in
 # correctly but already has another active session, they must verify a
 # mailed one-time code before the old session is invalidated. See

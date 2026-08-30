@@ -125,7 +125,20 @@ def create_app() -> Flask:
                 "DISPLAY_DATETIME_FORMAT": config.DISPLAY_DATETIME_FORMAT,
                 "NAV_AVATAR_URL": nav_avatar_url,
                 "MAX_MESSAGES_PER_CONVERSATION": config.MAX_MESSAGES_PER_CONVERSATION,
-                "BASE_URL": config.BASE_URL}
+                "BASE_URL": config.BASE_URL,
+                # Public contact/footer info — see app/config.py for the
+                # "blank means hide, never fabricate" convention every
+                # footer/legal/about/contact/support template follows.
+                "PUBLIC_SUPPORT_EMAIL": config.PUBLIC_SUPPORT_EMAIL,
+                "PUBLIC_CONTACT_PHONE": config.PUBLIC_CONTACT_PHONE,
+                "PUBLIC_ADDRESS": config.PUBLIC_ADDRESS,
+                "PUBLIC_SOCIAL_TWITTER": config.PUBLIC_SOCIAL_TWITTER,
+                "PUBLIC_SOCIAL_LINKEDIN": config.PUBLIC_SOCIAL_LINKEDIN,
+                "PUBLIC_SOCIAL_GITHUB": config.PUBLIC_SOCIAL_GITHUB,
+                "PUBLIC_SOCIAL_INSTAGRAM": config.PUBLIC_SOCIAL_INSTAGRAM,
+                "LEGAL_PRIVACY_LAST_UPDATED": config.LEGAL_PRIVACY_LAST_UPDATED,
+                "LEGAL_TERMS_LAST_UPDATED": config.LEGAL_TERMS_LAST_UPDATED,
+                "LEGAL_ACCOUNT_DELETION_LAST_UPDATED": config.LEGAL_ACCOUNT_DELETION_LAST_UPDATED}
 
     # ── Error handlers ─────────────────────────────────────────────────────
     _register_error_handlers(app)

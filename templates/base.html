@@ -598,6 +598,15 @@
   .app-toast.warning .app-toast-icon { color:var(--warning-text); }
   .app-toast-msg { font-size:.82rem; font-weight:600; color:var(--text-1); }
   .app-toast-sub { font-size:.72rem; color:var(--text-3); margin-top:.08rem; }
+
+  /* ══ APP FOOTER (user portal) ══ */
+  .app-footer { background:var(--surface); border-top:1px solid var(--border); padding:.75rem 1.5rem; display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:.6rem 1.25rem; font-size:.73rem; }
+  .app-footer-brand { display:flex; align-items:center; gap:.45rem; font-weight:700; color:var(--text-1); }
+  .app-footer-links { display:flex; gap:1.1rem; flex-wrap:wrap; row-gap:.35rem; }
+  .app-footer-link { color:var(--text-3); text-decoration:none; transition:color .12s; }
+  .app-footer-link:hover { color:var(--accent); }
+  .app-footer-copy { color:var(--text-3); }
+  @media(max-width:640px){ .app-footer{ justify-content:center; text-align:center; } }
   </style>
 </head>
 <body>
@@ -786,17 +795,17 @@
 
   {# Footer — hidden on exam/result/response pages #}
   {% if not (request.path.startswith('/exam/') or request.path.startswith('/submit-exam') or request.path == '/result' or request.path.startswith('/response')) %}
-  <footer style="background:var(--surface);border-top:1px solid var(--border);padding:.75rem 1.5rem;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.6rem;font-size:.73rem">
-    <div style="display:flex;align-items:center;gap:.45rem">
+  <footer class="app-footer">
+    <div class="app-footer-brand">
       <video src="{{ url_for('static', filename='logo.mp4') }}" autoplay loop muted playsinline style="height:18px;width:auto"></video>
-      <span style="font-weight:700;color:var(--text-1)">SmartAIExam</span>
+      SmartAIExam
     </div>
-    <div style="display:flex;gap:1.1rem;flex-wrap:wrap">
+    <div class="app-footer-links">
       {% for n,e in [('Privacy','misc.privacy_policy'),('Terms','misc.terms_of_service'),('Data Deletion','misc.account_deletion_policy'),('Support','misc.support'),('Contact','misc.contact'),('About','misc.about')] %}
-      <a href="{{ url_for(e) }}" style="color:var(--text-3);text-decoration:none" onmouseover="this.style.color='var(--text-1)'" onmouseout="this.style.color='var(--text-3)'">{{ n }}</a>
+      <a href="{{ url_for(e) }}" class="app-footer-link">{{ n }}</a>
       {% endfor %}
     </div>
-    <span style="color:var(--text-3)">&copy; {{ CURRENT_YEAR }} SmartAIExam</span>
+    <span class="app-footer-copy">&copy; {{ CURRENT_YEAR }} SmartAIExam</span>
   </footer>
   {% endif %}
 
