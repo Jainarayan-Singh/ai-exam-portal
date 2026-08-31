@@ -990,8 +990,9 @@
           _hideProcessing(); document.getElementById('csvStep1').style.display='block';
           csvToast('No generated questions found for this job.','warning'); return;
         }
-        if(job.status === 'failed'){
-          csvToast('Partial results', 'warning', `${rows.length} question(s) recovered — some batches failed.`);
+        if(job.status === 'partially_completed'){
+          const nFailed = (job.batches || []).filter(b => b.status === 'failed').length;
+          csvToast('Partial results', 'warning', `${rows.length} question(s) recovered — ${nFailed} batch(es) failed. You can retry those from the AI Command Centre.`);
         }
         // The admin's OWN exam selection at generation time (stored on the
         // job itself) — not each question's own echoed exam_id, which is
