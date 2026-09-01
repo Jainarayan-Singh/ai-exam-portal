@@ -81,9 +81,13 @@ def _uname():
 def _emit(event, data, room, skip_uid=None):
     if not socketio:
         return
-    skip_sid = chat_service.get_sid_for(skip_uid) if skip_uid else None
+    # A user can have more than one tab/socket open (see chat_service.set_online);
+    # skip ALL of the sender's own sids, not just one, so a second open tab
+    # doesn't get a duplicate self-echo of a message it already has via the
+    # HTTP response that triggered this emit.
+    skip_sids = chat_service.get_sids_for(skip_uid) if skip_uid else None
     try:
-        socketio.emit(event, data, room=room, skip_sid=skip_sid)
+        socketio.emit(event, data, room=room, skip_sid=skip_sids)
     except Exception:
         socketio.emit(event, data, room=room)
 
@@ -249,6 +253,22 @@ def get_messages(conv_id):
     try:
         cleared_at = membership.get('joined_at')
         before = request.args.get('before')
+        after = request.args.get('after')
+
+        # 'after' is the reconnect-resync path (see templates/chat.html's
+        # socket 'connect' handler): "what landed in this conversation while
+        # my socket was disconnected" — cheap, id-cursor based, and never
+        # touches the normal before=/full-history path below.
+        if after is not None:
+            try:
+                after_id = int(after)
+            except (TypeError, ValueError):
+                return jsonify({'success': False}), 400
+            res = chat_db.get_messages_after(conv_id, after_id)
+            msgs = [chat_service.normalize_message(m, uid) for m in res]
+            if msgs:
+                chat_db.reset_unread(uid, conv_id)
+            return jsonify({'success': True, 'messages': msgs})
 
         res = chat_db.get_messages(conv_id, before, cleared_at)
         msgs = list(reversed(res))
@@ -807,11 +827,14 @@ def register_chat_socketio_events(sio):
     def on_disconnect(reason=None):
         uid = session.get('user_id')
         if uid:
-            chat_service.set_offline(uid)
-            try:
-                sio.emit('user_offline', {'user_id': uid})
-            except Exception:
-                pass
+            # Only this socket goes away — a second open tab for the same
+            # user (if any) must stay marked online. See chat_service.set_offline().
+            chat_service.set_offline(uid, request.sid)
+            if not chat_service.is_online(uid):
+                try:
+                    sio.emit('user_offline', {'user_id': uid})
+                except Exception:
+                    pass
 
     @sio.on('join_conv')
     def on_join_conv(data):

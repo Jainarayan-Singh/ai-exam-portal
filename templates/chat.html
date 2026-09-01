@@ -747,6 +747,17 @@ let activeConvId = null, activeOtherId = null, activeIsGroup = false, activeConv
 let oldestMsgTime = null, typingTimer = null, selectedGroupMembers = {}, confirmCallback = null;
 let editingMsgId = null, replyTo = null;
 
+// Highest message id seen so far, per conversation — the cursor a Socket.IO
+// reconnect uses to ask "what did I miss" (see socket.on('connect') below).
+// Kept for every conversation we've touched this session, not just the
+// active one, so switching back into a conversation later still has an
+// accurate cursor without needing a fresh full fetchMessages().
+const _lastMsgId = {};
+function _bumpLastMsgId(convId, id){
+  if(!convId || !id) return;
+  if(!_lastMsgId[convId] || id > _lastMsgId[convId]) _lastMsgId[convId] = id;
+}
+
 function showToast(msg, type='info', duration=4000){
   const icons={success:'fa-check-circle',error:'fa-times-circle',info:'fa-info-circle',warning:'fa-exclamation-triangle'};
   let c=document.getElementById('toastContainer');
@@ -1211,6 +1222,10 @@ async function fetchMessages(convId,before=null){
   const area=document.getElementById('messagesArea'),loadBtn=document.getElementById('loadMoreBtn');
   if(data.messages.length===40)loadBtn.style.display='block';else loadBtn.style.display='none';
   if(data.messages.length>0)oldestMsgTime=data.messages[0].created_at;
+  // Newest message in this batch becomes (or raises) this conversation's
+  // resync cursor — safe to call for the "before=" older-page batch too,
+  // since _bumpLastMsgId only ever moves the cursor forward.
+  data.messages.forEach(m=>_bumpLastMsgId(convId,m.id));
   if(before){const anchor=loadBtn.nextSibling;data.messages.forEach(m=>area.insertBefore(buildMsgEl(m),anchor));}
   else{data.messages.forEach(m=>area.appendChild(buildMsgEl(m)));scrollBottom();}
 }
@@ -1442,6 +1457,7 @@ async function sendMessage(){
     if(data.message.id)_sentMsgIds.add(data.message.id);
     document.getElementById('messagesArea').appendChild(buildMsgEl(data.message));
     scrollBottom();updateConvPreview(activeConvId,msg);
+    _bumpLastMsgId(activeConvId,data.message.id);
   } else showToast(data.message||'Failed to send message','error');
 }
 
@@ -1603,8 +1619,48 @@ async function loadUnreadCount(){
   }catch(e){}
 }
 
-socket.on('connect',()=>{});
+// Fires on the FIRST connection and on every silent auto-reconnect
+// (network blip, backgrounded tab hitting the ping timeout, etc).
+// Socket.IO room membership lives only in the server's in-memory state for
+// THIS socket id — a reconnect gets a brand new id and is not a member of
+// any conversation room until it explicitly re-joins. Without this, a tab
+// that silently reconnects keeps "working" (still shows connected, still
+// sends fine over HTTP) but permanently stops receiving the other side's
+// messages in real time. See the chat reliability investigation for the
+// full trace of why this reproduced as an asymmetric one-user-only bug.
+socket.on('connect',()=>{
+  if(activeConvId){
+    socket.emit('join_conv',{conv_id:activeConvId});
+    _resyncActiveConv();
+  }
+});
+
+// Reconnect resync: ask for every message with id > our last-known cursor
+// for the active conversation. Cheap (id-indexed, capped) and safe to call
+// on every reconnect — an empty result just means nothing was missed.
+async function _resyncActiveConv(){
+  const convId=activeConvId;
+  const lastId=_lastMsgId[convId];
+  if(!convId||!lastId)return; // nothing to compare against yet — the normal fetchMessages() load covers this case
+  try{
+    const res=await fetch(`/api/v01/chat/conversations/${convId}/messages?after=${lastId}`);
+    const data=await res.json();
+    if(!data.success||!data.messages||!data.messages.length)return;
+    if(convId!==activeConvId)return; // user switched conversations while this was in flight
+    const area=document.getElementById('messagesArea');
+    data.messages.forEach(m=>{
+      _bumpLastMsgId(convId,m.id);
+      if(document.querySelector(`[data-msg-id="${m.id}"]`))return;      // already on screen
+      if(m.id&&_sentMsgIds.has(m.id)){_sentMsgIds.delete(m.id);return;} // our own send already rendered it
+      area.appendChild(buildMsgEl(m));
+      updateConvPreview(convId,m.message);
+    });
+    scrollBottom();
+  }catch(e){ /* transient — the next connect/reconnect will retry */ }
+}
+
 socket.on('chat_message',msg=>{
+  _bumpLastMsgId(msg.conv_id,msg.id);
   if(msg.conv_id===activeConvId){
     if(msg.id&&_sentMsgIds.has(msg.id)){_sentMsgIds.delete(msg.id);return;}
     document.getElementById('messagesArea').appendChild(buildMsgEl(msg));scrollBottom();

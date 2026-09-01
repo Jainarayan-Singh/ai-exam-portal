@@ -148,7 +148,11 @@ def get_last_messages_bulk(conv_ids: list) -> dict:
     rows = fetch_all(
         'SELECT DISTINCT ON (conversation_id) conversation_id, message, sender_name, created_at '
         'FROM chat_messages WHERE conversation_id = ANY(%s) AND is_deleted=%s '
-        'ORDER BY conversation_id, created_at DESC',
+        # id DESC as a tiebreaker: created_at alone can't guarantee a stable
+        # order for two messages landing in the same conversation within the
+        # same microsecond — id (serial PK) always breaks the tie the same
+        # way every time.
+        'ORDER BY conversation_id, created_at DESC, id DESC',
         (conv_ids, False),
     )
     return {r['conversation_id']: r for r in rows}
@@ -166,9 +170,29 @@ def get_messages(conv_id: int, before: str | None, cleared_at: str | None, limit
     if cleared_at:
         query += ' AND created_at > %s'
         params.append(cleared_at)
-    query += ' ORDER BY created_at DESC LIMIT %s'
+    # id DESC as a secondary key — created_at (microsecond Python timestamp)
+    # can't guarantee a stable order on its own for two messages that land
+    # within the same microsecond; id (serial PK) always breaks the tie the
+    # same way every time, so pagination (before=) can't skip or repeat a row.
+    query += ' ORDER BY created_at DESC, id DESC LIMIT %s'
     params.append(limit)
     return fetch_all(query, params)
+
+
+def get_messages_after(conv_id: int, after_id: int, limit: int = 200) -> list:
+    """Lightweight reconnect-resync query: every non-deleted message in this
+    conversation with id > after_id, oldest-first. id is a strictly
+    monotonic serial PK, so this is a reliable "what did I miss" cursor —
+    unlike created_at, it can never tie or go backwards. Used only by the
+    Socket.IO reconnect handler (see templates/chat.html); the existing
+    before=/cleared_at= path above is untouched and still used for normal
+    history loading and Load More pagination."""
+    return fetch_all(
+        'SELECT id,sender_id,sender_name,message,created_at,is_edited,reply_to_id,reply_to_text,reply_to_name,is_system '
+        'FROM chat_messages WHERE conversation_id=%s AND is_deleted=%s AND id > %s '
+        'ORDER BY id ASC LIMIT %s',
+        (conv_id, False, after_id, limit),
+    )
 
 
 def insert_message(record: dict) -> dict | None:
