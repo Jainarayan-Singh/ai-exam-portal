@@ -17,8 +17,8 @@
     {
       "name": "question-generator-default",
       "provider": "gemini",
-      "model": "gemini-2.5-flash",
-      "endpoint": "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent",
+      "model": "gemini-3.5-flash-lite",
+      "endpoint": "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent",
       "api_key_env": "TEXT_MODEL_QUESTIONGEN_API_KEY",
       "auth_header": "x-goog-api-key"
     }
@@ -34,8 +34,8 @@
     {
       "name": "question-generator-vision-default",
       "provider": "gemini",
-      "model": "gemini-2.5-flash",
-      "endpoint": "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent",
+      "model": "gemini-3.5-flash-lite",
+      "endpoint": "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent",
       "upload_endpoint": "https://generativelanguage.googleapis.com/upload/v1beta/files",
       "api_key_env": "VISION_MODEL_QUESTIONGEN_API_KEY",
       "auth_header": "x-goog-api-key"
