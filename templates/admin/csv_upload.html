@@ -1,0 +1,1999 @@
+{% extends "admin_base.html" %}
+{% block title %}CSV Upload &amp; Editor{% endblock %}
+{% block content %}
+
+<style>
+/* ── CSV Upload page ── */
+#csvUploaderModal { background:var(--bg); }
+
+/* Page header */
+.csvpage-header {
+  display:flex; align-items:center; gap:.85rem;
+  margin-bottom:1.5rem;
+}
+.csvpage-back {
+  width:36px; height:36px; flex-shrink:0; border-radius:var(--radius);
+  display:flex; align-items:center; justify-content:center;
+  background:var(--surface-2); border:1px solid var(--border);
+  color:var(--text-2); text-decoration:none; font-size:.85rem;
+  transition:border-color .12s,color .12s;
+}
+.csvpage-back:hover { border-color:var(--accent); color:var(--accent); }
+.csvpage-icon {
+  width:40px; height:40px; flex-shrink:0; border-radius:10px;
+  background:var(--accent-subtle); color:var(--accent);
+  display:flex; align-items:center; justify-content:center; font-size:1.15rem;
+}
+.csvpage-header h1 { font-size:1.15rem; font-weight:700; color:var(--text-1); margin:0 0 .1rem; }
+.csvpage-header p  { font-size:.8rem; color:var(--text-3); margin:0; }
+
+/* Bootstrap Card override */
+#csvUploaderModal .card        { background:var(--surface) !important; border:1px solid var(--border) !important; border-radius:calc(var(--radius)+4px) !important; box-shadow:var(--shadow-md); }
+#csvUploaderModal .card-body   { background:var(--surface) !important; }
+
+/* Drop Zone */
+#csvDropZone { border:2px dashed var(--border); border-radius:calc(var(--radius)+4px); padding:2.25rem; text-align:center; cursor:pointer; background:var(--surface-2); transition:border-color .15s,background .15s; }
+#csvDropZone:hover, #csvDropZone.drag-over { border-color:var(--accent); background:var(--accent-subtle); }
+
+/* Form overrides */
+#csvUploaderModal .form-label    { font-size:.78rem; font-weight:600; color:var(--text-2); margin-bottom:.35rem; }
+#csvUploaderModal .form-control,
+#csvUploaderModal .form-control-sm { background:var(--bg) !important; border:1px solid var(--border) !important; border-radius:var(--radius) !important; color:var(--text-1) !important; font-family:inherit; }
+#csvUploaderModal .form-control:focus { border-color:var(--accent) !important; box-shadow:0 0 0 3px var(--accent-subtle) !important; }
+#csvUploaderModal .form-control::placeholder { color:var(--text-3) !important; }
+
+/* ── Bootstrap overrides (theme sync) ──────────────────
+   Bootstrap's CSS loads after theme.css (see admin_base.html), so its
+   .btn-primary/.btn-secondary/body-color rules win the cascade unless
+   re-asserted here — same pattern already used in ai_command_centre.html,
+   which this page used to inherit for free back when it was included as a
+   modal fragment on that page. Needed again now that it's standalone. */
+#csvUploaderModal .btn { font-family:inherit; border-radius:var(--radius) !important; }
+#csvUploaderModal .btn-primary   { background:var(--accent)    !important; border-color:var(--accent)    !important; color:var(--accent-on) !important; }
+#csvUploaderModal .btn-primary:hover  { background:var(--accent-hover) !important; border-color:var(--accent-hover) !important; }
+#csvUploaderModal .btn-secondary { background:var(--surface-2) !important; border-color:var(--border)    !important; color:var(--text-2)   !important; }
+#csvUploaderModal .btn-secondary:hover { border-color:var(--accent) !important; color:var(--accent) !important; }
+#csvUploaderModal .dropdown-menu { background:var(--surface) !important; border:1px solid var(--border) !important; box-shadow:var(--shadow-lg) !important; }
+#csvUploaderModal .dropdown-item { color:var(--text-2) !important; }
+#csvUploaderModal .dropdown-item:hover { background:var(--accent-subtle) !important; color:var(--accent) !important; }
+
+/* Question Card */
+.csv-q-card { background:var(--surface); border:1px solid var(--border); border-radius:calc(var(--radius)+4px); padding:1.25rem; margin-bottom:.85rem; }
+.csv-q-card:last-child { margin-bottom:0; }
+
+/* Type Badges */
+.csv-badge-mcq     { background:var(--accent-subtle)  !important; color:var(--accent)       !important; border:1px solid var(--border) !important; }
+.csv-badge-msq     { background:var(--info-bg,var(--accent-subtle)) !important; color:var(--info-text,var(--accent)) !important; border:1px solid var(--border) !important; }
+.csv-badge-numeric { background:var(--warning-bg)     !important; color:var(--warning-text) !important; border:1px solid var(--warning-border) !important; }
+
+/* Size Selector */
+.csv-size-wrap { display:inline-flex; align-items:center; gap:.35rem; background:var(--surface-2); border:1px solid var(--border); border-radius:var(--radius); padding:.2rem .5rem; }
+.csv-size-wrap select { background:none; border:none; outline:none; color:var(--text-2); font-size:.72rem; font-family:inherit; cursor:pointer; }
+.csv-size-wrap select option { background:var(--surface); color:var(--text-1); }
+
+/* Raw Code */
+.csv-raw-code { display:block; background:var(--bg); border:1px solid var(--border); border-radius:var(--radius); padding:.45rem .75rem; font-size:.76rem; color:var(--text-1); font-family:'JetBrains Mono',monospace; white-space:pre-wrap; word-break:break-all; }
+
+/* Rendered Option */
+.csv-rend-opt { background:var(--surface-2); border:1px solid var(--border); border-radius:var(--radius); padding:.35rem .7rem; font-size:.83rem; margin-bottom:4px; color:var(--text-1); }
+
+/* MathJax/plain-text rendered content — Bootstrap's body{color:#212529}
+   (loaded after theme.css) otherwise wins here since nothing else in this
+   subtree sets a color, which is why rendered question/option text was
+   unreadable in dark theme: near-black text on a near-black surface. */
+.csv-latex { color:var(--text-1); }
+
+/* Rendered preview box */
+#csvUploaderModal [id^="crend-"] {
+  color:var(--text-1);
+  background:var(--surface-2);
+  border:1px solid var(--border);
+  border-radius:var(--radius);
+  padding:.9rem;
+}
+
+/* ── Sticky Header ───────────────────────────────────── */
+#csvStickyBar{
+  position:sticky;
+  top:0;
+  z-index:1055;
+  background:var(--bg);
+  padding:.75rem 0;
+  transition:all .2s ease;
+}
+
+#csvStickyBar.csv-bar-scrolled{
+  backdrop-filter:blur(10px);
+  box-shadow:var(--shadow-lg);
+}
+
+/* ── Floating Scroll Navigation ─────────────────────── */
+#csvScrollNav{
+  position:fixed;
+  right:18px;
+  bottom:22px;
+  z-index:1065;
+  display:flex;
+  flex-direction:column;
+  gap:.7rem;
+  opacity:0;
+  transform:translateY(20px);
+  pointer-events:none;
+  transition:all .22s ease;
+}
+
+#csvScrollNav.csv-nav-visible{
+  opacity:1;
+  transform:translateY(0);
+  pointer-events:auto;
+}
+
+.csv-scroll-btn{
+  width:58px;
+  height:58px;
+  border-radius:50%;
+  border:1px solid var(--border);
+  background:color-mix(in srgb, var(--surface) 88%, transparent);
+  backdrop-filter:blur(10px);
+  color:var(--text-1);
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  cursor:pointer;
+  position:relative;
+  transition:all .18s ease;
+  box-shadow:
+    var(--shadow-lg),
+    inset 0 1px 0 color-mix(in srgb, var(--text-1) 6%, transparent);
+}
+
+.csv-scroll-btn:hover{
+  transform:translateY(-3px) scale(1.06);
+  border-color:var(--accent);
+  color:var(--accent);
+  background:color-mix(in srgb, var(--surface-2) 92%, transparent);
+  box-shadow:
+    0 14px 34px rgba(0,0,0,.28),
+    0 0 0 4px color-mix(in srgb, var(--accent) 18%, transparent);
+}
+
+.csv-scroll-btn:active{
+  transform:scale(.96);
+}
+
+.csv-scroll-btn i{
+  font-size:1.15rem;
+  pointer-events:none;
+}
+
+/* Tooltip */
+.csv-scroll-btn::after{
+  content:attr(data-tooltip);
+  position:absolute;
+  right:72px;
+  top:50%;
+  transform:translateY(-50%) translateX(10px);
+
+  background:var(--surface);
+  color:var(--text-1);
+
+  padding:.48rem .75rem;
+  border-radius:10px;
+  font-size:.78rem;
+  font-weight:600;
+  white-space:nowrap;
+
+  opacity:0;
+  pointer-events:none;
+
+  transition:all .18s ease;
+
+  border:1px solid var(--border);
+  box-shadow:var(--shadow-lg);
+}
+
+.csv-scroll-btn:hover::after{
+  opacity:1;
+  transform:translateY(-50%) translateX(0);
+}
+
+.csv-scroll-progress{
+  position:absolute;
+  inset:0;
+  transform:rotate(-90deg);
+  pointer-events:none;
+}
+
+.csv-scroll-progress circle{
+  fill:none;
+  stroke-width:3;
+}
+
+.csv-scroll-progress .bg{
+  stroke:var(--border);
+}
+
+.csv-scroll-progress .fg{
+  stroke:var(--accent);
+  stroke-linecap:round;
+  stroke-dasharray:113;
+  stroke-dashoffset:113;
+  transition:stroke-dashoffset .15s linear;
+}
+
+/* Delete btn in card */
+.csv-del-btn { background:var(--danger-bg) !important; color:var(--danger-text) !important; border:1px solid var(--danger-border) !important; }
+
+/* ── Stats row ────────────────────────────────────────── */
+.csv-stats-row { display:flex; gap:.6rem; flex-wrap:wrap; margin-top:.6rem; }
+.csv-stat {
+  display:flex; align-items:baseline; gap:.35rem;
+  background:var(--surface-2); border:1px solid var(--border); border-radius:var(--radius);
+  padding:.3rem .65rem;
+}
+.csv-stat-val { font-size:.9rem; font-weight:800; color:var(--text-1); }
+.csv-stat-lbl { font-size:.68rem; font-weight:600; color:var(--text-3); text-transform:uppercase; letter-spacing:.04em; }
+.csv-stat-err .csv-stat-val { color:var(--warning-text); }
+
+/* ── Load more ────────────────────────────────────────── */
+#csvLoadMoreBar {
+  display:none; flex-direction:column; align-items:center; gap:.6rem;
+  padding:1.5rem 0 .5rem;
+}
+#csvShowingLabel { font-size:.8rem; color:var(--text-3); font-weight:600; }
+#csvLoadMoreBtn {
+  padding:.55rem 1.5rem; border-radius:var(--radius); border:1px solid var(--border);
+  background:var(--surface); color:var(--text-1); font-weight:700; font-size:.85rem;
+  font-family:inherit; cursor:pointer; display:inline-flex; align-items:center; gap:.45rem;
+  transition:border-color .12s,background .12s;
+}
+#csvLoadMoreBtn:hover { border-color:var(--accent); background:var(--accent-subtle); color:var(--accent); }
+
+/* ── Processing / loading state ──────────────────────────── */
+#csvProcessing { display:none; padding:3.5rem 1rem; text-align:center; }
+.csv-proc-spin {
+  width:34px; height:34px; margin:0 auto 1.1rem; border-radius:50%;
+  border:3px solid var(--accent-subtle); border-top-color:var(--accent);
+  animation:csvProcSpin .8s linear infinite;
+}
+@keyframes csvProcSpin { to { transform:rotate(360deg); } }
+.csv-proc-title { font-size:.95rem; font-weight:700; color:var(--text-1); margin-bottom:.3rem; }
+.csv-proc-sub   { font-size:.8rem; color:var(--text-3); }
+
+/* Modal boxes */
+@keyframes csvModalIn { from{opacity:0;transform:scale(.92) translateY(8px);}to{opacity:1;transform:scale(1) translateY(0);} }
+.csv-modal-box {
+  background:var(--surface);
+  border:1px solid var(--border);
+  border-radius:calc(var(--radius)+6px);
+  padding:2rem;
+  max-width:420px; width:90%;
+  box-shadow:var(--shadow-lg);
+  animation:csvModalIn .22s cubic-bezier(.34,1.56,.64,1);
+}
+.csv-modal-icon {
+  width:52px; height:52px; border-radius:50%;
+  display:flex; align-items:center; justify-content:center;
+  margin:0 auto 1rem; font-size:1.4rem; border:1px solid var(--border);
+}
+.csv-modal-icon.success { background:var(--success-bg); color:var(--success-text); border-color:var(--success-border); }
+.csv-modal-icon.danger  { background:var(--danger-bg);  color:var(--danger-text);  border-color:var(--danger-border); }
+.csv-modal-icon.warning { background:var(--warning-bg); color:var(--warning-text); border-color:var(--warning-border); }
+.csv-modal-icon.info    { background:var(--accent-subtle); color:var(--accent); border-color:var(--border); }
+.csv-modal-title { text-align:center; margin:0 0 .5rem; font-size:1rem; font-weight:700; color:var(--text-1); }
+.csv-modal-msg   { text-align:center; margin:0 0 1.25rem; color:var(--text-3); font-size:.84rem; line-height:1.6; }
+.csv-modal-msg strong { color:var(--text-1); }
+.csv-modal-footer { display:flex; gap:.75rem; }
+.csv-modal-footer button { flex:1; padding:.6rem; border-radius:var(--radius); font-weight:600; cursor:pointer; font-size:.85rem; font-family:inherit; border:none; }
+.csv-mf-cancel { background:var(--surface-2); color:var(--text-2); border:1px solid var(--border) !important; }
+.csv-mf-cancel:hover { border-color:var(--accent) !important; color:var(--accent); }
+.csv-mf-success {
+  background:var(--success);
+  color:var(--success-on, var(--text-on-success, var(--text-1)));
+}
+
+.csv-mf-danger {
+  background:var(--danger);
+  color:var(--danger-on, var(--text-on-danger, var(--text-1)));
+}
+
+.csv-mf-warning {
+  background:var(--warning);
+  color:var(--warning-on, var(--text-on-warning, var(--text-1)));
+}
+
+.csv-mf-accent {
+  background:var(--accent);
+  color:var(--accent-on, var(--text-on-accent, var(--text-1)));
+}
+
+/* Marks/border row */
+.csv-divider { border-color:var(--border) !important; }
+.csv-template-row { background:var(--surface-2); border:1px solid var(--border); border-radius:var(--radius); }
+
+/* code inline */
+#csvUploaderModal code:not(.csv-raw-code) { background:var(--surface-2); color:var(--accent); padding:2px 5px; border-radius:4px; font-size:.78rem; }
+
+/* ── Top Toolbar Responsive Fix ───────────────────── */
+
+.csv-top-toolbar{
+  overflow:visible;
+  padding-bottom:2px;
+}
+
+.csv-top-toolbar > *{
+  flex-shrink:0;
+}
+
+/* Button group alignment */
+.csv-top-toolbar .btn,
+.csv-top-toolbar .form-select,
+.csv-top-toolbar .input-group{
+  white-space:nowrap;
+  flex-shrink:0;
+}
+
+/* Prevent Save button compression */
+.csv-top-toolbar .btn-success,
+.csv-top-toolbar .btn-primary{
+  min-width:max-content;
+}
+
+/* Dropdown always on top */
+.csv-top-toolbar .dropdown-menu {
+  z-index:9999 !important;
+}
+
+/* ── Mobile Responsive ─────────────────────────────── */
+@media (max-width: 640px) {
+  .csvpage-header h1 { font-size:1.05rem; }
+
+  /* Stack title row above buttons row */
+  #csvStickyBar .csv-top-toolbar {
+    flex-direction: column !important;
+    align-items: flex-start !important;
+    gap: .55rem !important;
+  }
+
+  /* Buttons wrap — no horizontal scroll so dropdown renders correctly */
+  #csvStickyBar .csv-btn-row {
+    flex-wrap: wrap !important;
+    width: 100%;
+    gap: .4rem !important;
+    flex-shrink: 1 !important;
+  }
+  #csvStickyBar .btn {
+    flex-shrink: 0;
+    font-size: .72rem;
+    padding: .3rem .55rem;
+    white-space: nowrap;
+  }
+  #csvStickyBar .dropdown-menu {
+    z-index: 9999 !important;
+  }
+
+  .csv-q-card { padding:.85rem .75rem; overflow:hidden; max-width:100%; }
+  .csv-raw-code { font-size:.7rem; word-break:break-all; max-width:100%; overflow-x:auto; }
+  .csv-rend-opt { font-size:.78rem; }
+
+  .csv-q-card .d-flex.align-items-center.gap-2 {
+    flex-wrap: wrap !important;
+    gap: .35rem !important;
+  }
+  #csvStep1 .col-lg-6 { padding:0; }
+
+  /* Prevent any child from busting card width */
+  .csv-q-card * { max-width: 100%; }
+}
+
+/* ── Target-exam picker (Step 1, manual upload) / locked chip (Step 2,
+   both paths) — see the exam-id security note in csvSaveToDB() below.
+   Same component shape as Manage Questions' own picker. ── */
+.csv-exam-field { margin-bottom: 1.1rem; }
+.csv-exam-field > label { font-size: .8rem; font-weight: 700; color: var(--text-2); margin-bottom: .4rem; display: block; }
+.csv-exam-picker { position: relative; }
+.csv-exam-trigger {
+  width: 100%; display: flex; align-items: center; justify-content: space-between; gap: .6rem;
+  background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--radius);
+  padding: .6rem .85rem; cursor: pointer; text-align: left; color: var(--text-1);
+}
+.csv-exam-trigger:hover { border-color: var(--border-focus); }
+.csv-exam-trigger.open { border-color: var(--accent); }
+.cet-name { font-size: .85rem; font-weight: 700; color: var(--text-1); }
+.cet-meta { font-size: .72rem; color: var(--text-3); margin-top: .1rem; }
+.cet-empty { font-size: .82rem; color: var(--text-3); }
+.csv-exam-trigger > i.chev { color: var(--text-3); font-size: .78rem; flex-shrink: 0; transition: transform .12s; }
+.csv-exam-trigger.open > i.chev { transform: rotate(180deg); }
+.csv-exam-panel {
+  position: absolute; top: calc(100% + .35rem); left: 0; right: 0; z-index: 50;
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+  box-shadow: var(--shadow-lg); max-height: 320px; display: flex; flex-direction: column; overflow: hidden;
+}
+.csv-exam-search { padding: .5rem; border-bottom: 1px solid var(--border); }
+.csv-exam-search input { width: 100%; font-size: .8rem; padding: .4rem .6rem; border-radius: 7px; border: 1px solid var(--border); background: var(--surface-2); color: var(--text-1); }
+.csv-exam-search input:focus { outline: none; border-color: var(--border-focus); }
+.csv-exam-list { overflow-y: auto; padding: .3rem; }
+.csv-exam-item { padding: .5rem .6rem; border-radius: 8px; cursor: pointer; margin-bottom: .1rem; }
+.csv-exam-item:hover { background: var(--surface-2); }
+.csv-exam-item.active { background: var(--accent-subtle); }
+.cei-name { font-size: .8rem; font-weight: 700; color: var(--text-1); }
+.cei-meta { font-size: .7rem; color: var(--text-3); margin-top: .1rem; }
+
+.csv-exam-locked {
+  display: flex; align-items: center; gap: .55rem;
+  background: var(--accent-subtle); border: 1px solid var(--accent); border-radius: var(--radius);
+  padding: .55rem .85rem; font-size: .82rem; color: var(--text-1);
+}
+.csv-exam-locked i.fa-lock { color: var(--accent); }
+.csv-exam-locked strong { color: var(--accent); }
+
+.csv-target-chip {
+  display: inline-flex; align-items: center; gap: .4rem; font-size: .74rem; font-weight: 700;
+  color: var(--accent); background: var(--accent-subtle); border: 1px solid var(--accent);
+  border-radius: 20px; padding: .3rem .7rem; white-space: nowrap;
+}
+
+/* ── Bulk selection + bulk actions bar ─────────────────────────────────── */
+.csv-sel-cb { width:16px; height:16px; accent-color:var(--accent); cursor:pointer; margin-right:.15rem; flex-shrink:0; }
+
+.csv-bulk-bar { background:var(--surface); border:1px solid var(--border); border-radius:calc(var(--radius)+4px); padding:.9rem 1rem; margin-bottom:.85rem; transition:border-color .15s; }
+.csv-bulk-bar.has-selection { border-color:var(--accent); }
+.csv-bulk-head { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:.6rem; margin-bottom:.75rem; padding-bottom:.65rem; border-bottom:1px solid var(--border); }
+.csv-bulk-count { font-size:.85rem; font-weight:700; color:var(--text-2); }
+.csv-bulk-bar.has-selection .csv-bulk-count { color:var(--accent); }
+.csv-bulk-select-actions { display:flex; gap:.4rem; flex-wrap:wrap; }
+.csv-bulk-section { margin-bottom:.85rem; }
+.csv-bulk-section:last-child { margin-bottom:0; }
+.csv-bulk-section-title { font-size:.7rem; font-weight:700; text-transform:uppercase; letter-spacing:.04em; color:var(--text-3); margin-bottom:.55rem; display:flex; align-items:center; gap:.4rem; }
+/* flex-end, not center: every field in this row is a label-above-control
+   stack of a DIFFERENT label height (a hint like "(MCQ/MSQ)" can wrap) —
+   bottom-aligning keeps every control's own edge level regardless of how
+   tall its label happens to be, instead of centering whole stacks against
+   each other. */
+.csv-bulk-row { display:flex; align-items:flex-end; gap:1.1rem; flex-wrap:wrap; row-gap:.85rem; }
+.csv-bulk-scope { display:flex; gap:.9rem; flex-wrap:wrap; font-size:.8rem; color:var(--text-2); align-items:center; padding-bottom:.4rem; }
+.csv-bulk-scope label { display:flex; align-items:center; gap:.35rem; cursor:pointer; }
+.csv-bulk-scope input[type="radio"] { accent-color:var(--accent); cursor:pointer; }
+.csv-bulk-size-btns, .csv-bulk-mark-btns { display:flex; gap:.4rem; flex-wrap:wrap; }
+
+/* One consistent label+control shape shared by every field in the Bulk
+   Marking row (the type filter AND the three number inputs) — this is what
+   keeps them all reading as one aligned form instead of a native <select>
+   dropped in next to hand-built inputs. */
+.csv-bulk-field { display:flex; flex-direction:column; gap:.3rem; }
+.csv-bulk-field-label { font-size:.7rem; color:var(--text-3); font-weight:600; line-height:1.3; }
+.csv-bulk-field input { width:92px; }
+.csv-bulk-hint { font-weight:400; text-transform:none; color:var(--text-3); font-size:.66rem; }
+
+.csv-bulk-type-btn { min-width:150px; text-align:left; display:inline-flex; align-items:center; }
+
+@media (max-width: 640px) {
+  .csv-bulk-row { flex-direction:column; align-items:stretch; width:100%; }
+  .csv-bulk-field { width:100%; }
+  .csv-bulk-field input { width:100%; }
+  .csv-bulk-type-btn, .csv-bulk-type-btn + .dropdown-menu { width:100%; }
+  .csv-bulk-select-actions .btn, .csv-bulk-size-btns .btn, .csv-bulk-mark-btns .btn { font-size:.72rem; padding:.3rem .55rem; }
+}
+</style>
+
+<!-- ── CSV Upload &amp; Editor — standalone page ────────────────────────────── -->
+<div id="csvUploaderModal">
+
+      <div class="csvpage-header">
+        <a href="{{ url_for('admin.ai_command_centre') }}" class="csvpage-back" title="Back to AI Command Centre" aria-label="Back to AI Command Centre">
+          <i class="fas fa-arrow-left"></i>
+        </a>
+        <div class="csvpage-icon"><i class="fas fa-file-csv"></i></div>
+        <div>
+          <h1>CSV Upload &amp; Editor</h1>
+          <p>Parse &rarr; Preview &rarr; Edit &rarr; Save to Database</p>
+        </div>
+      </div>
+
+      <div>
+
+        <!-- Step 1: Upload -->
+        <div id="csvStep1">
+          <div class="row justify-content-center">
+            <div class="col-lg-6">
+              <div class="card">
+                <div class="card-body p-4">
+                  <h5 class="fw-bold mb-1" style="color:var(--text-1)">Upload your CSV file</h5>
+                  <p class="mb-3" style="font-size:0.82rem;color:var(--text-3)">
+                    Required columns:
+                    <code style="background:var(--input-bg);color:var(--accent);padding:2px 5px;border-radius:4px;font-size:0.78rem;">question_text, option_a–d, correct_answer, question_type, image_path, positive_marks, negative_marks, tolerance</code>
+                    <br>Optional: <code style="background:var(--input-bg);color:var(--text-2);padding:2px 5px;border-radius:4px;font-size:0.78rem;">source_tag</code> (e.g. "ESE 2021") — leave blank or omit the column if not applicable.
+                  </p>
+
+                  <div class="csv-exam-field">
+                    <label><i class="fas fa-graduation-cap me-1"></i>Import into</label>
+                    <div class="csv-exam-picker" id="csvExamPicker">
+                      <button type="button" class="csv-exam-trigger" id="csvExamTrigger">
+                        <span class="cet-empty">Select an exam&hellip;</span>
+                        <i class="fas fa-chevron-down chev"></i>
+                      </button>
+                      <div class="csv-exam-panel" id="csvExamPanel" style="display:none">
+                        <div class="csv-exam-search"><input type="text" id="csvExamSearch" placeholder="Search exams&hellip;" autocomplete="off"></div>
+                        <div class="csv-exam-list" id="csvExamList">
+                          {% for e in exams %}
+                          <div class="csv-exam-item" data-exam-id="{{ e.id }}" data-exam-name="{{ e.name }}"
+                               data-search="{{ (e.name ~ ' ' ~ (e.category_name or '')) | lower }}">
+                            <div class="cei-name">{{ e.name }}</div>
+                            <div class="cei-meta">
+                              {% if e.category_name %}{{ e.category_name }}{% if e.subcategory_name %} &middot; {{ e.subcategory_name }}{% endif %} &middot; {% endif %}{{ e.question_count }} question{{ 's' if e.question_count != 1 else '' }}
+                            </div>
+                          </div>
+                          {% else %}
+                          <div class="exam-picker-empty" style="padding:1rem;text-align:center;font-size:.8rem;color:var(--text-3);">No exams yet — create one on Manage Exams.</div>
+                          {% endfor %}
+                        </div>
+                      </div>
+                    </div>
+                    <div style="font-size:.72rem;color:var(--text-3);margin-top:.35rem;">Every question in the file will be added to this exam — an exam_id column inside the file is no longer required (and is ignored unless it conflicts with what you pick here).</div>
+                  </div>
+
+                  <label id="csvDropZone" for="csvFileInput"
+                        ondragover="csvDragOver(event)"
+                        ondragleave="csvDragLeave(event)"
+                        ondrop="csvDrop(event)"
+                        style="display:block;">
+                    <i class="fas fa-cloud-upload-alt" style="font-size:2.2rem;color:var(--accent);margin-bottom:.6rem;display:block;"></i>
+                    <div class="fw-semibold" style="color:var(--text-1);">Drop CSV here or <span style="color:var(--accent);">browse</span></div>
+                    <div style="font-size:0.8rem;color:var(--text-3);margin-top:4px;" id="csvFileName">No file selected</div>
+                  </label>
+                  <input type="file" id="csvFileInput" accept=".csv" style="display:none;" onchange="csvFileSelected(this)">
+
+                  <div class="d-flex align-items-center gap-2 my-4">
+                    <hr class="csv-divider" style="flex:1;">
+                    <span style="font-size:0.78rem;color:var(--text-3);">or</span>
+                    <hr class="csv-divider" style="flex:1;">
+                  </div>
+
+                  <div class="csv-template-row d-flex align-items-center justify-content-between p-3 rounded-3">
+                    <div>
+                      <div class="fw-semibold" style="font-size:0.85rem;color:var(--text-1);">Need a template?</div>
+                      <div style="font-size:0.78rem;color:var(--text-3);">Download a pre-filled sample CSV</div>
+                    </div>
+                    <button class="btn btn-secondary btn-sm" onclick="csvDownloadSample()">
+                      <i class="fas fa-download me-1"></i>Sample CSV
+                    </button>
+                  </div>
+
+                  <button class="btn btn-primary w-100 mt-4" onclick="csvParse()">
+                    <i class="fas fa-table me-2"></i>Parse &amp; Preview
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div><!-- /Step1 -->
+
+        <!-- Processing / loading state -->
+        <div id="csvProcessing">
+          <div class="csv-proc-spin"></div>
+          <div class="csv-proc-title" id="csvProcTitle">Processing CSV&hellip;</div>
+          <div class="csv-proc-sub" id="csvProcSub">Reading file&hellip;</div>
+        </div><!-- /Processing -->
+
+        <!-- Step 2: Preview/Edit -->
+        <div id="csvStep2" style="display:none;">
+          <div id="csvStickyBar">
+            <div class="d-flex justify-content-between align-items-center mb-3 csv-top-toolbar" style="gap:.5rem;flex-wrap:wrap;padding-right:.25rem;">
+              <div class="d-flex align-items-center gap-3" style="flex-shrink:0;min-width:0;">
+                <button class="btn btn-secondary btn-sm" style="flex-shrink:0;" onclick="csvBackToUpload()">
+                  <i class="fas fa-arrow-left me-1"></i>Back
+                </button>
+                <span class="fw-bold" style="font-size:1rem;color:var(--text-1);white-space:nowrap;">
+                  <i class="fas fa-list-ol me-2" style="color:var(--accent)"></i>
+                  <span id="csvQCount">0</span> questions
+                </span>
+                <span class="csv-target-chip" id="csvTargetChip" style="display:none">
+                  <i class="fas fa-graduation-cap"></i><span id="csvTargetChipText"></span>
+                </span>
+              </div>
+              <div class="d-flex gap-2 align-items-center csv-btn-row" style="flex-shrink:0;flex-wrap:wrap;">
+                <div class="btn-group" style="flex-shrink:0;">
+                  <button class="btn btn-secondary btn-sm dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false" style="white-space:nowrap;">
+                    <i class="fas fa-text-height me-1"></i>Global Size
+                  </button>
+                  <ul class="dropdown-menu dropdown-menu-end" style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);z-index:9999;">
+                    <li><a class="dropdown-item" href="#" style="color:var(--text-1);" onmouseover="this.style.background='var(--surface-2)'" onmouseout="this.style.background=''" onclick="csvApplyGlobalSize('small');return false;">Small</a></li>
+                    <li><a class="dropdown-item" href="#" style="color:var(--text-1);" onmouseover="this.style.background='var(--surface-2)'" onmouseout="this.style.background=''" onclick="csvApplyGlobalSize('normalsize');return false;">Normal</a></li>
+                    <li><a class="dropdown-item" href="#" style="color:var(--text-1);" onmouseover="this.style.background='var(--surface-2)'" onmouseout="this.style.background=''" onclick="csvApplyGlobalSize('large');return false;">Large</a></li>
+                    <li><a class="dropdown-item" href="#" style="color:var(--text-1);" onmouseover="this.style.background='var(--surface-2)'" onmouseout="this.style.background=''" onclick="csvApplyGlobalSize('Large');return false;">Extra Large</a></li>
+                  </ul>
+                </div>
+                <div class="btn-group" style="flex-shrink:0;">
+                  <button class="btn btn-secondary btn-sm dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false" style="white-space:nowrap;" title="Change LaTeX size for question text only, across every loaded question">
+                    <i class="fas fa-heading me-1"></i>Question Size
+                  </button>
+                  <ul class="dropdown-menu dropdown-menu-end" style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);z-index:9999;">
+                    <li><a class="dropdown-item" href="#" style="color:var(--text-1);" onmouseover="this.style.background='var(--surface-2)'" onmouseout="this.style.background=''" onclick="csvApplyQuestionSize('small');return false;">Small</a></li>
+                    <li><a class="dropdown-item" href="#" style="color:var(--text-1);" onmouseover="this.style.background='var(--surface-2)'" onmouseout="this.style.background=''" onclick="csvApplyQuestionSize('normalsize');return false;">Normal</a></li>
+                    <li><a class="dropdown-item" href="#" style="color:var(--text-1);" onmouseover="this.style.background='var(--surface-2)'" onmouseout="this.style.background=''" onclick="csvApplyQuestionSize('large');return false;">Large</a></li>
+                    <li><a class="dropdown-item" href="#" style="color:var(--text-1);" onmouseover="this.style.background='var(--surface-2)'" onmouseout="this.style.background=''" onclick="csvApplyQuestionSize('Large');return false;">Extra Large</a></li>
+                  </ul>
+                </div>
+                <div class="btn-group" style="flex-shrink:0;">
+                  <button class="btn btn-secondary btn-sm dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false" style="white-space:nowrap;" title="Change LaTeX size for answer options only, across every loaded question">
+                    <i class="fas fa-list-ul me-1"></i>Options Size
+                  </button>
+                  <ul class="dropdown-menu dropdown-menu-end" style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);z-index:9999;">
+                    <li><a class="dropdown-item" href="#" style="color:var(--text-1);" onmouseover="this.style.background='var(--surface-2)'" onmouseout="this.style.background=''" onclick="csvApplyOptionsSize('small');return false;">Small</a></li>
+                    <li><a class="dropdown-item" href="#" style="color:var(--text-1);" onmouseover="this.style.background='var(--surface-2)'" onmouseout="this.style.background=''" onclick="csvApplyOptionsSize('normalsize');return false;">Normal</a></li>
+                    <li><a class="dropdown-item" href="#" style="color:var(--text-1);" onmouseover="this.style.background='var(--surface-2)'" onmouseout="this.style.background=''" onclick="csvApplyOptionsSize('large');return false;">Large</a></li>
+                    <li><a class="dropdown-item" href="#" style="color:var(--text-1);" onmouseover="this.style.background='var(--surface-2)'" onmouseout="this.style.background=''" onclick="csvApplyOptionsSize('Large');return false;">Extra Large</a></li>
+                  </ul>
+                </div>
+                <button class="btn btn-secondary btn-sm" style="flex-shrink:0;white-space:nowrap;" onclick="csvRenderAll()" title="Render all cards to MathJax view">
+                  <i class="fas fa-calculator me-1"></i>Render All
+                </button>
+                <button class="btn btn-secondary btn-sm" style="flex-shrink:0;white-space:nowrap;" onclick="csvRawAll()" title="Show raw LaTeX for all cards">
+                  <i class="fas fa-code me-1"></i>Raw All
+                </button>
+                <button class="btn btn-secondary btn-sm" style="flex-shrink:0;white-space:nowrap;" onclick="csvExport()">
+                  <i class="fas fa-file-export me-1"></i>Export CSV
+                </button>
+                <button class="btn btn-primary btn-sm" style="flex-shrink:0;white-space:nowrap;" onclick="csvConfirmSave()">
+                  <i class="fas fa-database me-1"></i>Save to DB
+                </button>
+              </div>
+            </div>
+            <div class="csv-stats-row">
+              <div class="csv-stat"><span class="csv-stat-val" id="csvStatTotal">0</span><span class="csv-stat-lbl">Total</span></div>
+              <div class="csv-stat"><span class="csv-stat-val" id="csvStatValid">0</span><span class="csv-stat-lbl">Valid</span></div>
+              <div class="csv-stat csv-stat-err"><span class="csv-stat-val" id="csvStatErrors">0</span><span class="csv-stat-lbl">Errors</span></div>
+              <div class="csv-stat"><span class="csv-stat-val" id="csvStatShowing">0</span><span class="csv-stat-lbl">Showing</span></div>
+            </div>
+          </div>
+
+<!-- Bulk selection + bulk actions — works identically for AI-generated and
+     manually-uploaded rows since both land in the same _csvRows array (see
+     _loadRowsIntoEditor). Always visible (not gated on a selection) so
+     "Select All" itself is reachable. -->
+<div id="csvBulkBar" class="csv-bulk-bar">
+  <div class="csv-bulk-head">
+    <span class="csv-bulk-count"><i class="fas fa-check-square me-1"></i><span id="csvBulkCount">0</span> selected</span>
+    <div class="csv-bulk-select-actions">
+      <button class="btn btn-secondary btn-sm" onclick="csvSelectAll()"><i class="fas fa-check-double me-1"></i>Select All</button>
+      <div class="btn-group">
+        <button class="btn btn-secondary btn-sm dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">By Type</button>
+        <ul class="dropdown-menu">
+          <li><a class="dropdown-item" href="#" onclick="csvSelectByType('MCQ');return false;">All MCQ</a></li>
+          <li><a class="dropdown-item" href="#" onclick="csvSelectByType('MSQ');return false;">All MSQ</a></li>
+          <li><a class="dropdown-item" href="#" onclick="csvSelectByType('NUMERIC');return false;">All Numeric</a></li>
+        </ul>
+      </div>
+      <button class="btn btn-secondary btn-sm" onclick="csvClearSelection()"><i class="fas fa-times me-1"></i>Clear</button>
+    </div>
+  </div>
+
+  <div class="csv-bulk-section">
+    <div class="csv-bulk-section-title"><i class="fas fa-text-height"></i>Bulk LaTeX Size — selected questions</div>
+    <div class="csv-bulk-row">
+      <div class="csv-bulk-scope">
+        <label><input type="radio" name="csvBulkFmtScope" value="both" checked>Text + Options</label>
+        <label><input type="radio" name="csvBulkFmtScope" value="question">Text only</label>
+        <label><input type="radio" name="csvBulkFmtScope" value="options">Options only</label>
+      </div>
+      <div class="csv-bulk-size-btns">
+        <button class="btn btn-secondary btn-sm" onclick="csvBulkApplySize('small')">Small</button>
+        <button class="btn btn-secondary btn-sm" onclick="csvBulkApplySize('normalsize')">Normal</button>
+        <button class="btn btn-secondary btn-sm" onclick="csvBulkApplySize('large')">Large</button>
+        <button class="btn btn-secondary btn-sm" onclick="csvBulkApplySize('Large')">Extra Large</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="csv-bulk-section">
+    <div class="csv-bulk-section-title"><i class="fas fa-star"></i>Bulk Marking Scheme — selected questions</div>
+    <div class="csv-bulk-row">
+      <div class="csv-bulk-field">
+        <span class="csv-bulk-field-label">Question Type</span>
+        <div class="btn-group">
+          <button class="btn btn-secondary btn-sm dropdown-toggle csv-bulk-type-btn" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+            <i class="fas fa-filter me-1"></i><span id="csvBulkTypeScopeLabel">All selected types</span>
+          </button>
+          <ul class="dropdown-menu">
+            <li><a class="dropdown-item" href="#" onclick="csvSetBulkTypeScope('ALL','All selected types');return false;">All selected types</a></li>
+            <li><a class="dropdown-item" href="#" onclick="csvSetBulkTypeScope('MCQ','MCQ only');return false;">MCQ only</a></li>
+            <li><a class="dropdown-item" href="#" onclick="csvSetBulkTypeScope('MSQ','MSQ only');return false;">MSQ only</a></li>
+            <li><a class="dropdown-item" href="#" onclick="csvSetBulkTypeScope('NUMERIC','Numeric only');return false;">Numeric only</a></li>
+          </ul>
+        </div>
+      </div>
+      <div class="csv-bulk-field">
+        <span class="csv-bulk-field-label">+ Marks</span>
+        <input type="number" step="0.25" id="csvBulkPM" class="form-control form-control-sm" placeholder="—">
+      </div>
+      <div class="csv-bulk-field">
+        <span class="csv-bulk-field-label">&minus; Marks <span class="csv-bulk-hint">(MCQ/MSQ)</span></span>
+        <input type="number" step="0.25" id="csvBulkNM" class="form-control form-control-sm" placeholder="—">
+      </div>
+      <div class="csv-bulk-field">
+        <span class="csv-bulk-field-label">Tolerance <span class="csv-bulk-hint">(Numeric)</span></span>
+        <input type="number" step="0.01" id="csvBulkTol" class="form-control form-control-sm" placeholder="—">
+      </div>
+      <div class="csv-bulk-mark-btns">
+        <button class="btn btn-secondary btn-sm" onclick="csvBulkApplyMarks('adjust')" title="Add these values to the current marks (use a negative number to decrease)"><i class="fas fa-arrows-up-down me-1"></i>Adjust (&plusmn;)</button>
+        <button class="btn btn-primary btn-sm" onclick="csvBulkApplyMarks('set')" title="Overwrite the current marks with these values">Set Values</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="csvCardList"></div>
+
+<!-- Load more -->
+<div id="csvLoadMoreBar">
+  <span id="csvShowingLabel">Showing 0 of 0</span>
+  <button id="csvLoadMoreBtn" onclick="csvLoadMore()">
+    <i class="fas fa-chevron-down"></i>Load More
+  </button>
+</div>
+
+<!-- Floating Scroll Navigation -->
+<div id="csvScrollNav">
+  <button class="csv-scroll-btn"
+        onclick="csvNavScrollTop()"
+        title="Jump to top"
+        data-tooltip="Jump to Top">
+    <svg class="csv-scroll-progress" viewBox="0 0 40 40">
+      <circle class="bg" cx="20" cy="20" r="18"></circle>
+      <circle id="csvScrollProgress" class="fg" cx="20" cy="20" r="18"></circle>
+    </svg>
+    <i class="fas fa-arrow-up"></i>
+  </button>
+
+  <button class="csv-scroll-btn"
+        onclick="csvNavScrollBot()"
+        title="Jump to bottom"
+        data-tooltip="Jump to Bottom">
+    <i class="fas fa-arrow-down"></i>
+  </button>
+</div>
+        </div><!-- /Step2 -->
+
+      </div>
+</div><!-- /csvUploaderModal -->
+
+<!-- Confirm Save Modal -->
+<div id="csvConfirmModal" style="display:none;position:fixed;inset:0;z-index:10060;background:color-mix(in srgb, var(--bg) 55%, transparent);backdrop-filter:blur(5px);align-items:center;justify-content:center;" onclick="if(event.target===this)this.style.display='none'">
+  <div class="csv-modal-box">
+    <div class="csv-modal-icon success"><i class="fas fa-database"></i></div>
+    <h3 class="csv-modal-title">Confirm Save to Database</h3>
+    <p class="csv-modal-msg">
+      You are about to save <strong id="csvConfirmCount" style="color:var(--success-text)">0</strong> questions to the database.<br>
+      <small>This action cannot be undone.</small>
+    </p>
+    <div class="csv-modal-footer">
+      <button class="csv-mf-cancel" onclick="document.getElementById('csvConfirmModal').style.display='none'"><i class="fas fa-times me-1"></i>Cancel</button>
+      <button class="csv-mf-success" onclick="csvSaveToDB()"><i class="fas fa-database me-1"></i>Yes, Save All</button>
+    </div>
+  </div>
+</div>
+
+<!-- Export Confirm Modal -->
+<div id="csvExportModal" style="display:none;position:fixed;inset:0;z-index:10060;background:rgba(0,0,0,.6);backdrop-filter:blur(5px);align-items:center;justify-content:center;" onclick="if(event.target===this)this.style.display='none'">
+  <div class="csv-modal-box">
+    <div class="csv-modal-icon info"><i class="fas fa-file-export"></i></div>
+    <h3 class="csv-modal-title">Export CSV?</h3>
+    <p class="csv-modal-msg">You are about to export <strong id="csvExportCount" style="color:var(--accent)">0</strong> questions.</p>
+    <div class="csv-modal-footer">
+      <button class="csv-mf-cancel" onclick="document.getElementById('csvExportModal').style.display='none'">Cancel</button>
+      <button class="csv-mf-accent" onclick="csvExecuteExport()"><i class="fas fa-download me-1"></i>Yes, Export</button>
+    </div>
+  </div>
+</div>
+
+<!-- Delete Question Confirm Modal -->
+<div id="csvDeleteModal" style="display:none;position:fixed;inset:0;z-index:10060;background:rgba(0,0,0,.6);backdrop-filter:blur(5px);align-items:center;justify-content:center;" onclick="if(event.target===this)this.style.display='none'">
+  <div class="csv-modal-box">
+    <div class="csv-modal-icon danger"><i class="fas fa-trash"></i></div>
+    <h3 class="csv-modal-title">Delete Question?</h3>
+    <p class="csv-modal-msg">This question will be removed from the preview list.<br><small>You can still go back and re-upload the CSV.</small></p>
+    <div class="csv-modal-footer">
+      <button class="csv-mf-cancel" onclick="document.getElementById('csvDeleteModal').style.display='none'"><i class="fas fa-times me-1"></i>Cancel</button>
+      <button id="csvDeleteConfirmBtn" class="csv-mf-danger" onclick="csvExecuteDelete()"><i class="fas fa-trash me-1"></i>Yes, Delete</button>
+    </div>
+  </div>
+</div>
+
+<!-- Save Success Modal -->
+<div id="csvSuccessModal" style="display:none;position:fixed;inset:0;z-index:10070;background:color-mix(in srgb, var(--bg) 60%, transparent);backdrop-filter:blur(6px);align-items:center;justify-content:center;" onclick="if(event.target===this)this.style.display='none'">
+  <div class="csv-modal-box" style="max-width:460px;text-align:center;">
+    <!-- Animated checkmark -->
+    <div style="margin:0 auto 1.25rem;width:68px;height:68px;border-radius:50%;background:var(--success-bg);border:2px solid var(--success-border);display:flex;align-items:center;justify-content:center;position:relative;">
+      <i class="fas fa-check" style="font-size:1.6rem;color:var(--success-text);"></i>
+      <div id="csvSuccessRing" style="position:absolute;inset:-6px;border-radius:50%;border:3px solid var(--success);border-top-color:transparent;animation:csvRingSpin .6s linear 1;"></div>
+    </div>
+    <h3 style="font-size:1.1rem;font-weight:800;color:var(--text-1);margin:0 0 .4rem;">Questions Added Successfully!</h3>
+    <p style="font-size:.82rem;color:var(--text-3);margin:0 0 1.25rem;line-height:1.6;">
+      Your questions have been saved to the database and are ready to use.
+    </p>
+    <!-- Stats row -->
+    <div style="display:flex;gap:.75rem;margin-bottom:1.25rem;">
+      <div style="flex:1;background:var(--success-bg);border:1px solid var(--success-border);border-radius:var(--radius);padding:.7rem .5rem;">
+        <div id="csvSuccessInserted" style="font-size:1.5rem;font-weight:800;color:var(--success-text);">0</div>
+        <div style="font-size:.7rem;color:var(--text-3);font-weight:600;text-transform:uppercase;letter-spacing:.05em;">Inserted</div>
+      </div>
+      <div style="flex:1;background:var(--warning-bg);border:1px solid var(--warning-border);border-radius:var(--radius);padding:.7rem .5rem;">
+        <div id="csvSuccessSkipped" style="font-size:1.5rem;font-weight:800;color:var(--warning-text);">0</div>
+        <div style="font-size:.7rem;color:var(--text-3);font-weight:600;text-transform:uppercase;letter-spacing:.05em;">Skipped</div>
+      </div>
+    </div>
+    <button id="csvSuccessGotIt" style="width:100%;padding:.6rem;border-radius:var(--radius);background:var(--success);color:#fff;border:none;font-weight:700;font-size:.85rem;cursor:pointer;font-family:inherit;">
+      <i class="fas fa-check me-1"></i>Got it — Reload Now
+    </button>
+  </div>
+</div>
+<style>
+@keyframes csvRingSpin { from { transform:rotate(0deg); } to { transform:rotate(360deg); } }
+</style>
+
+<!-- Discard Changes Confirm Modal -->
+<div id="csvDiscardModal" style="display:none;position:fixed;inset:0;z-index:10060;background:rgba(0,0,0,.6);backdrop-filter:blur(5px);align-items:center;justify-content:center;" onclick="if(event.target===this)this.style.display='none'">
+  <div class="csv-modal-box">
+    <div class="csv-modal-icon warning"><i class="fas fa-exclamation-triangle"></i></div>
+    <h3 class="csv-modal-title">Discard All Changes?</h3>
+    <p class="csv-modal-msg">All edits and parsed questions will be lost.<br><small>You will be taken back to the upload screen.</small></p>
+    <div class="csv-modal-footer">
+      <button class="csv-mf-cancel" onclick="document.getElementById('csvDiscardModal').style.display='none'"><i class="fas fa-times me-1"></i>Keep Editing</button>
+      <button class="csv-mf-warning" onclick="csvExecuteDiscard()"><i class="fas fa-arrow-left me-1"></i>Yes, Go Back</button>
+    </div>
+  </div>
+</div>
+
+<!-- Leave Page Confirm Modal — shown instead of the browser's native
+     beforeunload dialog whenever we can intercept the click ourselves
+     (Back to AI Command Centre, sidebar nav links). The native dialog still
+     exists as a fallback for exits we truly can't intercept in JS (browser
+     Back/Forward buttons, closing the tab, typing a new URL) — no site can
+     replace that one, browsers hard-code it deliberately. -->
+<div id="csvLeaveModal" style="display:none;position:fixed;inset:0;z-index:10060;background:rgba(0,0,0,.6);backdrop-filter:blur(5px);align-items:center;justify-content:center;" onclick="if(event.target===this)csvCancelLeave()">
+  <div class="csv-modal-box">
+    <div class="csv-modal-icon warning"><i class="fas fa-exclamation-triangle"></i></div>
+    <h3 class="csv-modal-title">Leave This Page?</h3>
+    <p class="csv-modal-msg">You have unsaved parsed questions.<br><small>If you leave now without saving, your progress will be lost.</small></p>
+    <div class="csv-modal-footer">
+      <button class="csv-mf-cancel" onclick="csvCancelLeave()"><i class="fas fa-times me-1"></i>Stay on Page</button>
+      <button class="csv-mf-warning" onclick="csvConfirmLeave()"><i class="fas fa-sign-out-alt me-1"></i>Leave Anyway</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+  let _csvRows  = [];
+  let _csvConfirm = null;
+  let _csvSkipped = 0;     // rows dropped during parse (missing question_text)
+  const _PAGE_SIZE = 50;   // cards rendered per "Load More" batch
+  let _renderedCount = 0;  // how many _csvRows are currently in the DOM
+
+  // Bulk-selection state: a set of _csvRows indices, shared by the same
+  // preview/edit surface both AI-generated and manually-uploaded rows go
+  // through (see _loadRowsIntoEditor) — so bulk actions work identically
+  // for either source with zero duplicated logic.
+  let _csvSelected = new Set();
+
+  // SECURITY: the one authoritative destination for every row about to be
+  // saved — set either by the admin picking an exam below (manual upload)
+  // or from the AI job's own exam_id (AI-generated path, see
+  // _loadAiGeneratedQuestions()), never derived from anything inside a
+  // parsed CSV row. See import_questions_csv() in
+  // app/routes/api/v01/admin/questions.py for the server-side half of
+  // this — it re-validates this value and rejects the whole import if any
+  // row's own (optional, legacy) exam_id column disagrees with it.
+  let _targetExamId = null, _targetExamName = null;
+
+  function _setTargetExam(id, name) {
+    _targetExamId = id ? String(id) : null;
+    _targetExamName = name || null;
+    const trigger = document.getElementById('csvExamTrigger');
+    if (trigger && _targetExamId) {
+      trigger.innerHTML = `<span class="cet-name">${_esc(_targetExamName)}</span><i class="fas fa-chevron-down chev"></i>`;
+    }
+    const chip = document.getElementById('csvTargetChip');
+    const chipText = document.getElementById('csvTargetChipText');
+    if (chip && chipText) {
+      if (_targetExamId) { chipText.textContent = _targetExamName; chip.style.display = 'inline-flex'; }
+      else { chip.style.display = 'none'; }
+    }
+  }
+
+  // ── Target-exam picker (Step 1, manual upload only — the AI path calls
+  // _setTargetExam() directly from the job data instead) ──────────────────
+  (function initExamPicker(){
+    const picker  = document.getElementById('csvExamPicker');
+    const trigger = document.getElementById('csvExamTrigger');
+    const panel   = document.getElementById('csvExamPanel');
+    const search  = document.getElementById('csvExamSearch');
+    const list    = document.getElementById('csvExamList');
+    if (!picker || !trigger || !panel) return;
+
+    function close(){ panel.style.display = 'none'; trigger.classList.remove('open'); }
+    function open(){
+      panel.style.display = 'flex'; trigger.classList.add('open');
+      if (search) { search.value = ''; filter(''); search.focus(); }
+    }
+    trigger.addEventListener('click', function(e){
+      e.preventDefault();
+      panel.style.display === 'none' ? open() : close();
+    });
+    document.addEventListener('click', function(e){ if (!picker.contains(e.target)) close(); });
+    document.addEventListener('keydown', function(e){ if (e.key === 'Escape') close(); });
+
+    function filter(q){
+      q = (q||'').trim().toLowerCase();
+      list.querySelectorAll('.csv-exam-item').forEach(function(item){
+        const hay = item.dataset.search || '';
+        item.style.display = (!q || hay.indexOf(q) !== -1) ? '' : 'none';
+      });
+    }
+    if (search) search.addEventListener('input', function(){ filter(search.value); });
+
+    if (list) list.addEventListener('click', function(e){
+      const item = e.target.closest('.csv-exam-item');
+      if (!item) return;
+      list.querySelectorAll('.csv-exam-item').forEach(function(el){ el.classList.remove('active'); });
+      item.classList.add('active');
+      _setTargetExam(item.dataset.examId, item.dataset.examName);
+      close();
+    });
+  })();
+
+  function _setProcessing(title, sub) {
+    const t = document.getElementById('csvProcTitle');
+    const s = document.getElementById('csvProcSub');
+    if (t && title) t.textContent = title;
+    if (s && sub)   s.textContent = sub;
+  }
+  function _showProcessing(title, sub) {
+    document.getElementById('csvStep1').style.display = 'none';
+    document.getElementById('csvStep2').style.display = 'none';
+    document.getElementById('csvProcessing').style.display = 'block';
+    _setProcessing(title, sub);
+  }
+  function _hideProcessing() {
+    document.getElementById('csvProcessing').style.display = 'none';
+  }
+
+  function csvToast(title, type, msg) {
+    const colors = { success:'var(--success)', danger:'var(--danger)', warning:'var(--warning)', info:'var(--accent)' };
+    const icons  = { success:'fa-check-circle', danger:'fa-times-circle', warning:'fa-exclamation-triangle', info:'fa-info-circle' };
+    const t = document.createElement('div');
+    t.style.cssText = `position:fixed;bottom:1.5rem;right:1.5rem;z-index:99999;min-width:260px;max-width:360px;
+      background:var(--surface);border:1px solid var(--border);border-left:4px solid ${colors[type]||colors.info};
+      border-radius:var(--radius);padding:.75rem 1rem;box-shadow:var(--shadow-lg);
+      display:flex;align-items:flex-start;gap:.65rem;animation:csvTIn .2s ease-out;`;
+    t.innerHTML = `
+      <i class="fas ${icons[type]||icons.info}" style="color:${colors[type]||colors.info};margin-top:.1rem;flex-shrink:0;font-size:.95rem;"></i>
+      <div style="flex:1;min-width:0;">
+        <div style="font-weight:700;font-size:.82rem;color:var(--text-1);">${title}</div>
+        ${msg ? `<div style="font-size:.76rem;color:var(--text-3);margin-top:.15rem;">${msg}</div>` : ''}
+      </div>
+      <button onclick="this.parentElement.remove()" style="background:none;border:none;color:var(--text-3);cursor:pointer;font-size:.8rem;padding:0;line-height:1;flex-shrink:0;">✕</button>`;
+    if (!document.getElementById('csvToastStyle')) {
+      const s = document.createElement('style');
+      s.id = 'csvToastStyle';
+      s.textContent = '@keyframes csvTIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}';
+      document.head.appendChild(s);
+    }
+    document.body.appendChild(t);
+    setTimeout(() => t.remove(), 4000);
+  }
+
+  window.csvDragOver=function(e){e.preventDefault();document.getElementById('csvDropZone').classList.add('drag-over');};
+  window.csvDragLeave=function(){document.getElementById('csvDropZone').classList.remove('drag-over');};
+  window.csvDrop=function(e){
+    e.preventDefault();
+    document.getElementById('csvDropZone').classList.remove('drag-over');
+    const file=e.dataTransfer.files[0];
+    if(file&&file.name.endsWith('.csv')){
+      const input=document.getElementById('csvFileInput');
+      const dt=new DataTransfer(); dt.items.add(file); input.files=dt.files;
+      _handleFile(file);
+    } else { csvToast('Please drop a .csv file', 'warning'); }
+  };
+
+  window.csvFileSelected=function(input){const file=input.files[0];if(file)_handleFile(file);};
+  function _handleFile(file){document.getElementById('csvFileName').textContent=file.name;}
+
+  // Turns an exam name into a filesystem-safe filename fragment — strips
+  // characters Windows/macOS/Linux all disallow in filenames, collapses
+  // whitespace to underscores, and falls back to a generic name if the
+  // exam name is empty/becomes empty after stripping (e.g. an exam named
+  // only in symbols).
+  function _safeExportName(name){
+    const cleaned = (name || '').trim()
+      .replace(/[\\/:*?"<>|]+/g, ' ')
+      .replace(/\s+/g, '_')
+      .replace(/^_+|_+$/g, '')
+      .slice(0, 80);
+    return cleaned || 'questions';
+  }
+
+  function _download(blob, filename){
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = filename;
+    document.body.appendChild(a); a.click();
+    setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(url); }, 150);
+  }
+
+  window.csvDownloadSample=function(){
+    const hdr='question_text,option_a,option_b,option_c,option_d,correct_answer,question_type,image_path,positive_marks,negative_marks,tolerance,source_tag';
+    const r1='"$\\\\large\\\\text{A particle moves with velocity }v$","$\\\\large\\\\text{10 m/s}$","$\\\\large\\\\text{20 m/s}$","$\\\\large\\\\text{30 m/s}$","$\\\\large\\\\text{40 m/s}$",B,MCQ,,4,1,0,"ESE 2021"';
+    const r2='"$\\\\large\\\\text{Numeric: What is } 2+2?$","","","","",4,NUMERIC,,3,0,0.01,';
+    _download(new Blob([[hdr,r1,r2].join('\n')],{type:'text/csv'}),'sample_questions.csv');
+  };
+
+  window.csvParse=function(){
+    const input=document.getElementById('csvFileInput');
+    const file=input.files[0];
+    if(!file){csvToast('Please select or drop a CSV file first.','warning');return;}
+    if(!_targetExamId){csvToast('Select an exam first.','warning','Choose which exam these questions belong to before parsing.');return;}
+
+    // Real, staged loading feedback (no fabricated percentages — local text
+    // parsing has no meaningful "% done"). Each label change is yielded via
+    // setTimeout(...,0) so the browser actually paints it before the next
+    // (synchronous, CPU-bound) phase runs — otherwise the whole thing runs
+    // in one blocking tick and the labels would never be visible.
+    _showProcessing('Processing CSV…', 'Reading file…');
+
+    const reader=new FileReader();
+    reader.onerror=function(){ _hideProcessing(); document.getElementById('csvStep1').style.display='block'; csvToast('Could not read the file.','danger'); };
+    reader.onload=function(e){
+      setTimeout(function(){
+        _setProcessing(null, 'Parsing rows…');
+        setTimeout(function(){ _doParse(e.target.result); }, 0);
+      }, 0);
+    };
+    reader.readAsText(file);
+  };
+
+  function _parseCSV(text){
+    const rows=[];let cur=[];let field='';let inQ=false;
+    for(let i=0;i<text.length;i++){
+      const ch=text[i];
+      if(ch==='"'){
+        if(inQ&&text[i+1]==='"'){field+='"';i++;}
+        else inQ=!inQ;
+      } else if(ch===','&&!inQ){cur.push(field.trim());field='';}
+      else if((ch==='\n'||ch==='\r')&&!inQ){
+        if(ch==='\r'&&text[i+1]==='\n')i++;
+        cur.push(field.trim());field='';
+        if(cur.some(f=>f!=''))rows.push(cur);
+        cur=[];
+      } else field+=ch;
+    }
+    if(field||cur.length){cur.push(field.trim());if(cur.some(f=>f!=''))rows.push(cur);}
+    return rows;
+  }
+
+  function _doParse(text){
+    const rows=_parseCSV(text);
+    if(rows.length<2){
+      _hideProcessing(); document.getElementById('csvStep1').style.display='block';
+      csvToast('CSV has no data rows.','warning'); return;
+    }
+    const headers=rows[0].map(h=>h.trim());
+    const FIELDS=['exam_id','question_text','option_a','option_b','option_c','option_d',
+                  'correct_answer','question_type','image_path','positive_marks','negative_marks','tolerance','source_tag'];
+    const parsed=[]; let skipped=0;
+    for(let i=1;i<rows.length;i++){
+      const vals=rows[i];
+      const q={};
+      headers.forEach((h,idx)=>{if(h) q[h]=idx<vals.length?vals[idx]:''});
+      FIELDS.forEach(f=>{if(q[f]===undefined)q[f]='';});
+      // exam_id is optional/legacy now (see the module-level security note
+      // above) — the picker's _targetExamId is what actually decides where
+      // these land; a row is only dropped here for missing question text.
+      if(!q.question_text){ skipped++; continue; }
+      parsed.push(q);
+    }
+    if(!parsed.length){
+      _hideProcessing(); document.getElementById('csvStep1').style.display='block';
+      csvToast('No valid rows found.','warning','Check column headers match the required format.'); return;
+    }
+    _loadRowsIntoEditor(parsed, skipped);
+  }
+
+  // Shared tail for every source that lands rows in the editor (manual CSV
+  // parse above, AI-generated below) — one place that puts data into
+  // _csvRows and switches to the paginated preview.
+  function _loadRowsIntoEditor(rows, skipped){
+    _csvRows = rows;
+    _csvSkipped = skipped || 0;
+    _csvSelected = new Set();
+    window.csvSetBulkTypeScope('ALL', 'All selected types');
+    _setProcessing(null, 'Preparing preview…');
+    setTimeout(function(){
+      _hideProcessing();
+      document.getElementById('csvStep2').style.display='block';
+      _renderCards();
+    }, 0);
+  }
+
+  // ── AI-generated source ───────────────────────────────────────────────
+  // Normalizes one AI-generated question (see QuestionModel in
+  // app/services/ai_question_generator.py) into the exact same row shape
+  // _csvRows already uses for manually-uploaded CSVs, so every downstream
+  // function (rendering, editing, Load More, Save to DB, Export) works
+  // completely unmodified regardless of source.
+  function _normalizeAiQuestion(q){
+    return {
+      exam_id:        String(q.exam_id ?? ''),
+      question_text:  q.question_text || '',
+      option_a:       q.option_a || '',
+      option_b:       q.option_b || '',
+      option_c:       q.option_c || '',
+      option_d:       q.option_d || '',
+      correct_answer: q.correct_answer || '',
+      question_type:  q.question_type || 'MCQ',
+      image_path:     '',
+      positive_marks: String(q.positive_marks ?? 4),
+      negative_marks: String(q.negative_marks ?? 1),
+      tolerance:      String(q.tolerance ?? 0),
+      // AI generation never invents a source — this is always '' unless a
+      // future generation request explicitly supplies one.
+      source_tag:     (q.metadata && q.metadata.source_tag) || q.source_tag || '',
+    };
+  }
+
+  function _loadAiGeneratedQuestions(jobId){
+    _showProcessing('Loading Generated Questions…', 'Fetching from AI engine…');
+    fetch('/api/v01/admin/ai/status/' + encodeURIComponent(jobId))
+      .then(function(r){ return r.json(); })
+      .then(function(job){
+        const rows = (job.questions || []).map(_normalizeAiQuestion);
+        if(!rows.length){
+          _hideProcessing(); document.getElementById('csvStep1').style.display='block';
+          csvToast('No generated questions found for this job.','warning'); return;
+        }
+        if(job.status === 'partially_completed'){
+          const nFailed = (job.batches || []).filter(b => b.status === 'failed').length;
+          csvToast('Partial results', 'warning', `${rows.length} question(s) recovered — ${nFailed} batch(es) failed. You can retry those from the AI Command Centre.`);
+        }
+        // The admin's OWN exam selection at generation time (stored on the
+        // job itself) — not each question's own echoed exam_id, which is
+        // only ever LLM output. See the module-level security note above.
+        _setTargetExam(job.exam_id, job.exam_name || ('Exam ' + job.exam_id));
+        _setProcessing(null, 'Normalizing data…');
+        setTimeout(function(){ _loadRowsIntoEditor(rows, 0); }, 0);
+      })
+      .catch(function(){
+        _hideProcessing(); document.getElementById('csvStep1').style.display='block';
+        csvToast('Could not load generated questions.','danger','The generation job may have expired — try generating again.');
+      });
+  }
+
+  document.addEventListener('DOMContentLoaded', function(){
+    const params = new URLSearchParams(window.location.search);
+    const jobId  = params.get('job_id');
+    if(params.get('source') === 'ai' && jobId){
+      _loadAiGeneratedQuestions(jobId);
+    }
+  });
+
+  function _parseRow(row){
+    const res=[];let cur='';let inQ=false;
+    for(const ch of row){
+      if(ch==='"'){inQ=!inQ;}
+      else if(ch===','&&!inQ){res.push(cur.trim());cur='';}
+      else cur+=ch;
+    }
+    res.push(cur.trim());return res;
+  }
+
+  // Incremental rendering: only ever put _renderedCount cards in the DOM.
+  // _csvRows always holds the COMPLETE parsed dataset regardless of how much
+  // is rendered — "Load More" is purely a rendering step, never a re-parse
+  // and never a network/database request (Save to DB always sends the full
+  // _csvRows array — see csvSaveToDB below).
+  function _renderCards(preserveCount){
+    const container = document.getElementById('csvCardList');
+    container.innerHTML = '';
+    _renderedCount = 0;
+    const target = Math.min(_csvRows.length, Math.max(_PAGE_SIZE, preserveCount||0));
+    _appendBatch(target);
+  }
+
+  // Appends the next `n` not-yet-rendered rows to the DOM in one batched
+  // document-fragment insertion (a single reflow, not one per card).
+  function _appendBatch(n){
+    const container = document.getElementById('csvCardList');
+    const start = _renderedCount;
+    const end   = Math.min(start + n, _csvRows.length);
+    const frag  = document.createDocumentFragment();
+    for(let i = start; i < end; i++){
+      const div = document.createElement('div');
+      div.innerHTML = _cardHTML(_csvRows[i], i);
+      frag.appendChild(div.firstElementChild);
+    }
+    container.appendChild(frag);
+    _renderedCount = end;
+    _updateStatsBar();
+  }
+
+  window.csvLoadMore = function(){
+    _appendBatch(_PAGE_SIZE);
+  };
+
+  function _updateStatsBar(){
+    const total = _csvRows.length + _csvSkipped;
+    const set = (id, val) => { const el = document.getElementById(id); if(el) el.textContent = val; };
+    set('csvQCount', _csvRows.length);
+    set('csvStatTotal', total);
+    set('csvStatValid', _csvRows.length);
+    set('csvStatErrors', _csvSkipped);
+    set('csvStatShowing', _renderedCount);
+    const label = document.getElementById('csvShowingLabel');
+    if (label) label.textContent = `Showing ${_renderedCount} of ${_csvRows.length}`;
+    const bar = document.getElementById('csvLoadMoreBar');
+    if (bar) bar.style.display = _renderedCount < _csvRows.length ? 'flex' : 'none';
+  }
+
+  function _cardHTML(q,i){
+    const isNum=q.question_type==='NUMERIC';
+    const badgeCls=q.question_type==='MCQ'?'csv-badge-mcq':q.question_type==='MSQ'?'csv-badge-msq':'csv-badge-numeric';
+    const pm=q.positive_marks||4, nm=q.negative_marks||1;
+
+    const rawOpts=!isNum?`
+      <div class="row g-2 mb-2">
+        <div class="csv-rend-opt"><strong style="color:var(--success-text);font-size:.78rem;">A)</strong> <code class="csv-raw-code">${_esc(q.option_a).replace(/\$/g,'&#36;')}</code></div>
+        <div class="csv-rend-opt"><strong style="color:var(--success-text);font-size:.78rem;">B)</strong> <code class="csv-raw-code">${_esc(q.option_b).replace(/\$/g,'&#36;')}</code></div>
+        <div class="csv-rend-opt"><strong style="color:var(--success-text);font-size:.78rem;">C)</strong> <code class="csv-raw-code">${_esc(q.option_c).replace(/\$/g,'&#36;')}</code></div>
+        <div class="csv-rend-opt"><strong style="color:var(--success-text);font-size:.78rem;">D)</strong> <code class="csv-raw-code">${_esc(q.option_d).replace(/\$/g,'&#36;')}</code></div>
+      </div>` : '';
+
+    const rendOpts=!isNum?`
+      <div class="mt-2">
+        <div class="csv-rend-opt"><strong style="color:var(--success-text);font-size:.78rem;">A)</strong> <span class="csv-latex" id="cropt-${i}-a">${_renderContent(q.option_a||'')}</span></div>
+        <div class="csv-rend-opt"><strong style="color:var(--success-text);font-size:.78rem;">B)</strong> <span class="csv-latex" id="cropt-${i}-b">${_renderContent(q.option_b||'')}</span></div>
+        <div class="csv-rend-opt"><strong style="color:var(--success-text);font-size:.78rem;">C)</strong> <span class="csv-latex" id="cropt-${i}-c">${_renderContent(q.option_c||'')}</span></div>
+        <div class="csv-rend-opt"><strong style="color:var(--success-text);font-size:.78rem;">D)</strong> <span class="csv-latex" id="cropt-${i}-d">${_renderContent(q.option_d||'')}</span></div>
+      </div>` : '';
+
+    const editOpts=!isNum?`
+      <div class="row g-2 mb-3">
+        <div class="col-6"><label class="form-label">A:</label><input class="form-control form-control-sm" id="ceoa-${i}" value="${_esc(q.option_a||'')}"></div>
+        <div class="col-6"><label class="form-label">B:</label><input class="form-control form-control-sm" id="ceob-${i}" value="${_esc(q.option_b||'')}"></div>
+        <div class="col-6"><label class="form-label">C:</label><input class="form-control form-control-sm" id="ceoc-${i}" value="${_esc(q.option_c||'')}"></div>
+        <div class="col-6"><label class="form-label">D:</label><input class="form-control form-control-sm" id="ceod-${i}" value="${_esc(q.option_d||'')}"></div>
+      </div>` : '';
+
+    return `
+    <div class="csv-q-card" id="ccard-${i}">
+      <div class="d-flex justify-content-between align-items-center mb-3 flex-nowrap gap-2 csv-top-toolbar">
+        <div class="d-flex align-items-center gap-2 flex-wrap">
+          <input type="checkbox" class="csv-sel-cb" data-idx="${i}" ${_csvSelected.has(i)?'checked':''} onchange="csvToggleSelect(${i},this.checked)" title="Select for bulk actions">
+          <span class="badge rounded-pill px-3 py-1 ${badgeCls}" style="font-size:.72rem;">${q.question_type}</span>
+          <span class="badge" style="background:var(--surface-2);border:1px solid var(--border);color:var(--text-2);font-size:.72rem;">+${pm} / -${nm}</span>
+          ${q.source_tag ?`<span class="badge" style="background:var(--accent-subtle);border:1px solid var(--accent);color:var(--accent);font-size:.68rem;"><i class="fas fa-bookmark" style="font-size:.6rem"></i> ${_esc(q.source_tag)}</span>` : ''}
+          <div class="csv-size-wrap">
+            <i class="fas fa-text-height" style="color:var(--accent);font-size:.68rem;"></i>
+            <select onchange="csvChangeSize(${i},this.value)">
+              <option value="" disabled selected>LaTeX Size</option>
+              <option value="small">Small</option>
+              <option value="normalsize">Normal</option>
+              <option value="large">Large</option>
+              <option value="Large">Extra Large</option>
+            </select>
+          </div>
+        </div>
+        <div class="btn-group btn-group-sm">
+          <button class="btn btn-secondary" id="ctbtn-${i}" onclick="csvToggleView(${i})">
+            <i class="fas fa-eye"></i> Rendered
+          </button>
+          <button class="btn btn-secondary" onclick="csvEditCard(${i})">
+            <i class="fas fa-edit"></i> Edit
+          </button>
+          <button class="btn csv-del-btn" onclick="csvDeleteCard(${i})">
+            <i class="fas fa-trash"></i>
+          </button>
+        </div>
+      </div>
+
+      <p class="fw-bold mb-2" style="font-size:0.78rem;color:var(--accent);">Question ${i+1}</p>
+
+      <div id="craw-${i}">
+        <div class="mb-2">
+          <p class="mb-1" style="font-size:0.72rem;color:var(--text-3);font-weight:600;">QUESTION TEXT</p>
+          <code class="csv-raw-code">${_esc(q.question_text).replace(/\$/g,'&#36;')}</code>
+        </div>
+        ${rawOpts}
+      </div>
+
+      <div id="crend-${i}" style="display:none;">
+        <p class="mb-1" style="font-size:0.72rem;color:var(--accent);font-weight:600;">QUESTION</p>
+        <div class="csv-latex" id="crq-${i}">${_renderContent(q.question_text)}</div>
+        ${rendOpts}
+      </div>
+
+      <div id="cedit-${i}" style="display:none;">
+        <div class="mb-3">
+          <label class="form-label">Question Text:</label>
+          <textarea class="form-control form-control-sm" id="ceq-${i}" rows="3">${_esc(q.question_text)}</textarea>
+        </div>
+        ${editOpts}
+        <div class="row g-2 mb-3">
+          <div class="col-4"><label class="form-label">Correct Answer:</label><input class="form-control form-control-sm" id="ceoa-ans-${i}" value="${_esc(q.correct_answer)}"></div>
+          <div class="col-2"><label class="form-label">+Marks:</label><input type="number" step="0.5" class="form-control form-control-sm" id="cepm-${i}" value="${pm}"></div>
+          <div class="col-2"><label class="form-label">-Marks:</label><input type="number" step="0.5" class="form-control form-control-sm" id="cenm-${i}" value="${nm}"></div>
+          <div class="col-2"><label class="form-label">Tolerance:</label><input type="number" step="0.01" class="form-control form-control-sm" id="cetol-${i}" value="${q.tolerance||0}"></div>
+          <div class="col-2"><label class="form-label">Image Path:</label><input class="form-control form-control-sm" id="ceimg-${i}" value="${_esc(q.image_path||'')}"></div>
+        </div>
+        <div class="row g-2 mb-3">
+          <div class="col-4"><label class="form-label">Source / Previous Year Tag <span style="font-weight:400;color:var(--text-3)">(optional)</span>:</label><input class="form-control form-control-sm" id="cetag-${i}" placeholder="e.g. ESE 2021" value="${_esc(q.source_tag||'')}"></div>
+        </div>
+        <div class="d-flex gap-2">
+          <button class="btn btn-primary btn-sm" onclick="csvSaveEdit(${i})"><i class="fas fa-save me-1"></i>Save</button>
+          <button class="btn btn-secondary btn-sm" onclick="csvCancelEdit(${i})">Cancel</button>
+        </div>
+      </div>
+
+      <div class="mt-3" style="font-size:0.82rem;color:var(--success-text);font-weight:600;">
+        <i class="fas fa-check-circle me-1"></i>Answer: <span id="cans-${i}">${q.correct_answer}</span>
+      </div>
+    </div>`;
+  }
+
+  window.csvToggleView=function(i){
+    const raw  = document.getElementById(`craw-${i}`);
+    const rend = document.getElementById(`crend-${i}`);
+    const btn  = document.getElementById(`ctbtn-${i}`);
+    if(raw.style.display !== 'none'){
+      raw.style.display  = 'none';
+      rend.style.display = 'block';
+      btn.innerHTML = '<i class="fas fa-code"></i> Raw';
+      // Only typeset if not already done (flag on element)
+      if(window.MathJax && !rend.dataset.mathjaxDone){
+        MathJax.typesetPromise([rend]).then(()=>{ rend.dataset.mathjaxDone='1'; }).catch(()=>{});
+      }
+    } else {
+      raw.style.display  = 'block';
+      rend.style.display = 'none';
+      btn.innerHTML = '<i class="fas fa-eye"></i> Rendered';
+    }
+  };
+
+  window.csvEditCard=function(i){
+    document.getElementById(`craw-${i}`).style.display='none';
+    document.getElementById(`crend-${i}`).style.display='none';
+    document.getElementById(`cedit-${i}`).style.display='block';
+  };
+  window.csvCancelEdit=function(i){
+    document.getElementById(`craw-${i}`).style.display='block';
+    document.getElementById(`cedit-${i}`).style.display='none';
+  };
+  window.csvSaveEdit=function(i){
+    const q=_csvRows[i];
+    q.question_text=document.getElementById(`ceq-${i}`).value;
+    q.correct_answer=document.getElementById(`ceoa-ans-${i}`).value;
+    q.positive_marks=document.getElementById(`cepm-${i}`).value;
+    q.negative_marks=document.getElementById(`cenm-${i}`).value;
+    q.tolerance=document.getElementById(`cetol-${i}`).value;
+    q.image_path=document.getElementById(`ceimg-${i}`).value;
+    q.source_tag=document.getElementById(`cetag-${i}`).value;
+    if(q.question_type!=='NUMERIC'){
+      q.option_a=document.getElementById(`ceoa-${i}`).value;
+      q.option_b=document.getElementById(`ceob-${i}`).value;
+      q.option_c=document.getElementById(`ceoc-${i}`).value;
+      q.option_d=document.getElementById(`ceod-${i}`).value;
+    }
+    // Full rebuild (needed since every card is keyed by array index — a
+    // splice/edit shifts ids for every later card), but keep however many
+    // cards the user had already loaded via "Load More" instead of
+    // collapsing back to just the first page.
+    _renderCards(_renderedCount);
+  };
+  let _csvDeleteIdx = null;
+  window.csvDeleteCard=function(i){
+    _csvDeleteIdx = i;
+    document.getElementById('csvDeleteModal').style.display = 'flex';
+  };
+  window.csvExecuteDelete=function(){
+    document.getElementById('csvDeleteModal').style.display = 'none';
+
+    if(_csvDeleteIdx !== null){
+      _csvRows.splice(_csvDeleteIdx,1);
+      // Every card is keyed by array index, so a splice shifts every later
+      // index down by 1 — re-map the selection set to match, same reasoning
+      // _renderCards(_renderedCount) below already relies on.
+      const _shifted = new Set();
+      _csvSelected.forEach(idx => {
+        if (idx < _csvDeleteIdx) _shifted.add(idx);
+        else if (idx > _csvDeleteIdx) _shifted.add(idx - 1);
+      });
+      _csvSelected = _shifted;
+      _csvDeleteIdx=null;
+      _renderCards(_renderedCount);
+      _updateBulkBar();
+      csvToast('Question deleted', 'success', 'Removed from preview list');
+    }
+  };
+  window.csvBackToUpload=function(){
+    document.getElementById('csvDiscardModal').style.display = 'flex';
+  };
+  window.csvExecuteDiscard=function(){
+    document.getElementById('csvDiscardModal').style.display = 'none';
+    _renderedCount = 0;
+    _csvSkipped = 0;
+    _csvRows=[];
+    _csvSelected = new Set();
+    _updateBulkBar();
+    document.getElementById('csvStep1').style.display='block';
+    document.getElementById('csvStep2').style.display='none';
+    document.getElementById('csvFileInput').value='';
+    document.getElementById('csvFileName').textContent='No file selected';
+    // Going back to Step 1 always means a fresh, explicit exam pick next —
+    // never carry over a target exam from whatever was just discarded
+    // (particularly important coming from the AI path, where it was
+    // locked to that job's exam, not chosen here).
+    _setTargetExam(null, null);
+    const trigger = document.getElementById('csvExamTrigger');
+    if (trigger) trigger.innerHTML = '<span class="cet-empty">Select an exam&hellip;</span><i class="fas fa-chevron-down chev"></i>';
+  };
+
+  window.csvExport=function(){
+    if(!_csvRows.length){csvToast('Nothing to export.','warning');return;}
+    document.getElementById('csvExportCount').textContent=_csvRows.length;
+    document.getElementById('csvExportModal').style.display='flex';
+  };
+
+  window.csvExecuteExport=function(){
+    document.getElementById('csvExportModal').style.display='none';
+
+    // exam_id dropped — this export is just the question data being
+    // reviewed, and re-importing it now always goes through the exam
+    // picker rather than trusting a column in the file (see the
+    // module-level security note above).
+    const hdr='question_text,option_a,option_b,option_c,option_d,correct_answer,question_type,image_path,positive_marks,negative_marks,tolerance,source_tag';
+    const rows=_csvRows.map(q=>[`"${(q.question_text||'').replace(/"/g,'""')}"`,`"${(q.option_a||'').replace(/"/g,'""')}"`,`"${(q.option_b||'').replace(/"/g,'""')}"`,`"${(q.option_c||'').replace(/"/g,'""')}"`,`"${(q.option_d||'').replace(/"/g,'""')}"`,`"${(q.correct_answer||'').replace(/"/g,'""')}"`,`"${(q.question_type||'').replace(/"/g,'""')}"`,`"${(q.image_path||'').replace(/"/g,'""')}"`,q.positive_marks||4,q.negative_marks||1,q.tolerance||0,`"${(q.source_tag||'').replace(/"/g,'""')}"`].join(',')).join('\n');
+
+    const todayIso = new Date().toISOString().slice(0,10);
+    const filename = `${_safeExportName(_targetExamName)}_questions_${todayIso}.csv`;
+    _download(new Blob([hdr+'\n'+rows],{type:'text/csv'}),filename);
+
+    csvToast('Export successful','success',`${_csvRows.length} questions exported`);
+  };
+
+  window.csvConfirmSave=function(){
+    if(!_csvRows.length){csvToast('No questions to save.','warning');return;}
+    document.getElementById('csvConfirmCount').textContent=_csvRows.length;
+    document.getElementById('csvConfirmModal').style.display='flex';
+  };
+
+  window.csvSaveToDB=async function(){
+    document.getElementById('csvConfirmModal').style.display='none';
+    if(!_targetExamId){ csvToast('No exam selected', 'danger', 'Go back and choose an exam before saving.'); return; }
+    const hdr='question_text,option_a,option_b,option_c,option_d,correct_answer,question_type,image_path,positive_marks,negative_marks,tolerance,source_tag';
+    const rows=_csvRows.map(q=>[`"${(q.question_text||'').replace(/"/g,'""')}"`,`"${(q.option_a||'').replace(/"/g,'""')}"`,`"${(q.option_b||'').replace(/"/g,'""')}"`,`"${(q.option_c||'').replace(/"/g,'""')}"`,`"${(q.option_d||'').replace(/"/g,'""')}"`,`"${(q.correct_answer||'').replace(/"/g,'""')}"`,`"${(q.question_type||'').replace(/"/g,'""')}"`,`"${(q.image_path||'').replace(/"/g,'""')}"`,q.positive_marks||4,q.negative_marks||1,q.tolerance||0,`"${(q.source_tag||'').replace(/"/g,'""')}"`].join(',')).join('\n');
+    const fd=new FormData();
+    fd.append('csv_file',new Blob([hdr+'\n'+rows],{type:'text/csv'}),'questions.csv');
+    // SECURITY: exam_id sent as its own field — the one authoritative
+    // destination for this whole batch (see the module-level note above
+    // and import_questions_csv() server-side).
+    fd.append('exam_id', _targetExamId);
+    try {
+      const res=await fetch('/api/v01/admin/questions/import-csv',{method:'POST',body:fd});
+      const data=await res.json();
+      if(data.success){
+        csvToast(`Saved successfully!`, 'success', `Inserted: ${data.inserted} · Skipped: ${data.skipped}`);
+        // Show success popup
+        document.getElementById('csvSuccessInserted').textContent = data.inserted || 0;
+        document.getElementById('csvSuccessSkipped').textContent  = data.skipped  || 0;
+        const modal = document.getElementById('csvSuccessModal');
+        modal.style.display = 'flex';
+        document.getElementById('csvSuccessGotIt').onclick = () => {
+          _csvRows = [];
+          modal.style.display = 'none';
+          window.location.href = '{{ url_for("admin.ai_command_centre") }}';
+        };
+        // Cancel/backdrop click — sirf close, no reload
+        modal.onclick = (e) => {
+          if (e.target === modal) modal.style.display = 'none';
+        };
+      } else {
+        csvToast('Save failed', 'danger', data.message || 'Unknown error');
+      }
+    } catch(err){
+      csvToast('Server error', 'danger', err.message);
+    }
+  };
+
+  window.addEventListener('beforeunload', function (e) {
+    if (typeof _csvRows !== 'undefined' && _csvRows.length > 0) {
+      e.preventDefault();
+      e.returnValue = 'Unsaved progress will be lost. Are you sure?';
+    }
+  });
+
+  // ── Themed "Leave Page?" confirm for in-app navigation ──────────────
+  // Intercepts clicks on the header's "Back to AI Command Centre" link and
+  // every sidebar nav link so we can show our own modal instead of letting
+  // the browser start navigating (which would only trigger the native,
+  // unstylable beforeunload dialog above). That native dialog stays in
+  // place as the fallback for exits this can't intercept — browser
+  // Back/Forward, closing the tab, typing a new URL — those are handled
+  // entirely by the browser before any page JS runs.
+  let _pendingLeaveHref = null;
+
+  window.csvCancelLeave = function () {
+    document.getElementById('csvLeaveModal').style.display = 'none';
+    _pendingLeaveHref = null;
+  };
+  window.csvConfirmLeave = function () {
+    document.getElementById('csvLeaveModal').style.display = 'none';
+    const href = _pendingLeaveHref;
+    _pendingLeaveHref = null;
+    if (href) {
+      _csvRows = []; // clear first so beforeunload doesn't also fire its own prompt
+      window.location.href = href;
+    }
+  };
+
+  function _interceptLeaveLink(el) {
+    el.addEventListener('click', function (e) {
+      if (!_csvRows.length) return; // nothing unsaved — let it navigate normally
+      const href = el.getAttribute('href');
+      if (!href) return;
+      e.preventDefault();
+      _pendingLeaveHref = href;
+      document.getElementById('csvLeaveModal').style.display = 'flex';
+    });
+  }
+
+  document.addEventListener('DOMContentLoaded', function () {
+    document.querySelectorAll('.csvpage-back, .sidebar .nav-link[href]').forEach(_interceptLeaveLink);
+  });
+
+  function _applyLatexSize(text, sizeCmd) {
+    if (!text) return text;
+    // Match $$...$$ first (display math), then $...$ (inline math) — order matters
+    return text
+      .replace(/\$\$([\s\S]*?)\$\$/g, (match, content) => {
+        let inner = content.trim().replace(/^\\(small|normalsize|large|Large|LARGE|huge|Huge)\s+/, '').trim();
+        return `$$\\${sizeCmd} ${inner}$$`;
+      })
+      .replace(/(?<!\$)\$(?!\$)([\s\S]*?)(?<!\$)\$(?!\$)/g, (match, content) => {
+        let inner = content.trim().replace(/^\\(small|normalsize|large|Large|LARGE|huge|Huge)\s+/, '').trim();
+        return `$\\${sizeCmd} ${inner}$`;
+      });
+  }
+
+  window.csvChangeSize=function(i,size){
+    const q=_csvRows[i];
+    q.question_text=_applyLatexSize(q.question_text,size);
+    if(q.question_type!=='NUMERIC'){
+      q.option_a=_applyLatexSize(q.option_a,size);
+      q.option_b=_applyLatexSize(q.option_b,size);
+      q.option_c=_applyLatexSize(q.option_c,size);
+      q.option_d=_applyLatexSize(q.option_d,size);
+    }
+    // Update only this card in-place — do NOT call _renderCards() which rebuilds all cards
+    _updateCardInPlace(i);
+  };
+
+  // Update a single card's raw/rendered content in-place without rebuilding the whole list
+  function _updateCardInPlace(i) {
+    const q = _csvRows[i];
+    const rawEl  = document.getElementById(`craw-${i}`);
+    const rendEl = document.getElementById(`crend-${i}`);
+    const editEl = document.getElementById(`cedit-${i}`);
+    if (!rawEl) return; // card not yet in DOM
+
+    const isRendered = rendEl && rendEl.style.display !== 'none';
+    const isEditing  = editEl && editEl.style.display !== 'none';
+    const isNum = q.question_type === 'NUMERIC';
+
+    // Rebuild raw view content
+    const rawOptsHTML = !isNum ? `
+      <div class="row g-2 mb-2">
+        <div class="csv-rend-opt"><strong style="color:#10b981;font-size:.78rem;">A)</strong> <code class="csv-raw-code">${_esc(q.option_a).replace(/\$/g,'&#36;')}</code></div>
+        <div class="csv-rend-opt"><strong style="color:#10b981;font-size:.78rem;">B)</strong> <code class="csv-raw-code">${_esc(q.option_b).replace(/\$/g,'&#36;')}</code></div>
+        <div class="csv-rend-opt"><strong style="color:#10b981;font-size:.78rem;">C)</strong> <code class="csv-raw-code">${_esc(q.option_c).replace(/\$/g,'&#36;')}</code></div>
+        <div class="csv-rend-opt"><strong style="color:#10b981;font-size:.78rem;">D)</strong> <code class="csv-raw-code">${_esc(q.option_d).replace(/\$/g,'&#36;')}</code></div>
+      </div>` : '';
+    rawEl.innerHTML = `
+      <div class="mb-2">
+        <p class="mb-1" style="font-size:0.72rem;color:var(--text-3);font-weight:600;">QUESTION TEXT</p>
+        <code class="csv-raw-code">${_esc(q.question_text).replace(/\$/g,'&#36;')}</code>
+      </div>
+      ${rawOptsHTML}`;
+
+    // Rebuild rendered view content
+    const rendOptsHTML = !isNum ? `
+      <div class="mt-2">
+        <div class="csv-rend-opt"><strong style="color:var(--success-text);font-size:.78rem;">A)</strong> <span class="csv-latex" id="cropt-${i}-a">${_renderContent(q.option_a||'')}</span></div>
+        <div class="csv-rend-opt"><strong style="color:var(--success-text);font-size:.78rem;">B)</strong> <span class="csv-latex" id="cropt-${i}-b">${_renderContent(q.option_b||'')}</span></div>
+        <div class="csv-rend-opt"><strong style="color:var(--success-text);font-size:.78rem;">C)</strong> <span class="csv-latex" id="cropt-${i}-c">${_renderContent(q.option_c||'')}</span></div>
+        <div class="csv-rend-opt"><strong style="color:var(--success-text);font-size:.78rem;">D)</strong> <span class="csv-latex" id="cropt-${i}-d">${_renderContent(q.option_d||'')}</span></div>
+      </div>` : '';
+    rendEl.innerHTML = `
+      <p class="mb-1" style="font-size:0.72rem;color:var(--accent);font-weight:600;">QUESTION</p>
+      <div class="csv-latex" id="crq-${i}">${_renderContent(q.question_text)}</div>
+      ${rendOptsHTML}`;
+    delete rendEl.dataset.mathjaxDone; // reset so MathJax re-typesets with new size
+
+    // Restore exact view state
+    if (isEditing) {
+      rawEl.style.display  = 'none';
+      rendEl.style.display = 'none';
+      editEl.style.display = 'block';
+    } else if (isRendered) {
+      rawEl.style.display  = 'none';
+      rendEl.style.display = 'block';
+      if (window.MathJax) {
+        MathJax.typesetPromise([rendEl]).then(() => { rendEl.dataset.mathjaxDone = '1'; }).catch(() => {});
+      }
+    } else {
+      rawEl.style.display  = 'block';
+      rendEl.style.display = 'none';
+    }
+  }
+
+  // Global size change for all rows -- updates each card in-place to preserve view states
+  window.csvApplyGlobalSize = function(size) {
+    if (!_csvRows || _csvRows.length === 0) return;
+    _csvRows.forEach((q, i) => {
+      q.question_text = _applyLatexSize(q.question_text, size);
+      if (q.question_type !== 'NUMERIC') {
+        ['option_a', 'option_b', 'option_c', 'option_d'].forEach(opt => {
+          if (q[opt]) q[opt] = _applyLatexSize(q[opt], size);
+        });
+      }
+      _updateCardInPlace(i);
+    });
+    csvToast(`LaTeX size updated`, 'success', `Applied \\${size} to all formulas across ${_csvRows.length} questions`);
+  };
+
+  // Global, question-text-only size (independent of Options Size below) —
+  // reuses the exact same _applyLatexSize/_updateCardInPlace path as
+  // csvApplyGlobalSize, just scoped to one field.
+  window.csvApplyQuestionSize = function(size) {
+    if (!_csvRows || _csvRows.length === 0) return;
+    _csvRows.forEach((q, i) => {
+      q.question_text = _applyLatexSize(q.question_text, size);
+      _updateCardInPlace(i);
+    });
+    csvToast('Question text size updated', 'success', `Applied \\${size} to question text across ${_csvRows.length} questions`);
+  };
+
+  // Global, options-only size (independent of Question Size above). Numeric
+  // questions have no options to touch, same guard used everywhere else.
+  window.csvApplyOptionsSize = function(size) {
+    if (!_csvRows || _csvRows.length === 0) return;
+    _csvRows.forEach((q, i) => {
+      if (q.question_type !== 'NUMERIC') {
+        ['option_a', 'option_b', 'option_c', 'option_d'].forEach(opt => {
+          if (q[opt]) q[opt] = _applyLatexSize(q[opt], size);
+        });
+      }
+      _updateCardInPlace(i);
+    });
+    csvToast('Options size updated', 'success', `Applied \\${size} to answer options across ${_csvRows.length} questions`);
+  };
+
+  // ── Bulk selection ─────────────────────────────────────────────────────
+  function _syncSelectionCheckboxes() {
+    document.querySelectorAll('.csv-sel-cb').forEach(cb => {
+      const idx = parseInt(cb.dataset.idx, 10);
+      cb.checked = _csvSelected.has(idx);
+    });
+  }
+  function _updateBulkBar() {
+    const bar = document.getElementById('csvBulkBar');
+    const countEl = document.getElementById('csvBulkCount');
+    if (countEl) countEl.textContent = _csvSelected.size;
+    if (bar) bar.classList.toggle('has-selection', _csvSelected.size > 0);
+  }
+  window.csvToggleSelect = function(i, checked) {
+    if (checked) _csvSelected.add(i); else _csvSelected.delete(i);
+    _updateBulkBar();
+  };
+  window.csvSelectAll = function() {
+    // Operates over the full parsed dataset, not just what "Load More" has
+    // rendered so far — consistent with Save/Export/Render All/Raw All,
+    // which already all act on the complete _csvRows regardless of pagination.
+    _csvRows.forEach((_, i) => _csvSelected.add(i));
+    _syncSelectionCheckboxes();
+    _updateBulkBar();
+  };
+  window.csvClearSelection = function() {
+    _csvSelected.clear();
+    _syncSelectionCheckboxes();
+    _updateBulkBar();
+  };
+  window.csvSelectByType = function(type) {
+    _csvSelected.clear();
+    _csvRows.forEach((q, i) => { if (q.question_type === type) _csvSelected.add(i); });
+    _syncSelectionCheckboxes();
+    _updateBulkBar();
+    csvToast(`Selected all ${type}`, 'success', `${_csvSelected.size} question(s) selected`);
+  };
+
+  // ── Bulk LaTeX-size formatting, scoped to the current selection ────────
+  // Same _applyLatexSize/_updateCardInPlace primitives as the global size
+  // controls above — only the set of rows touched differs.
+  window.csvBulkApplySize = function(size) {
+    if (!_csvSelected.size) { csvToast('No questions selected', 'warning', 'Select at least one question first.'); return; }
+    const scopeEl = document.querySelector('input[name="csvBulkFmtScope"]:checked');
+    const scope = scopeEl ? scopeEl.value : 'both';
+    _csvSelected.forEach(i => {
+      const q = _csvRows[i];
+      if (!q) return;
+      if (scope === 'both' || scope === 'question') q.question_text = _applyLatexSize(q.question_text, size);
+      if ((scope === 'both' || scope === 'options') && q.question_type !== 'NUMERIC') {
+        ['option_a', 'option_b', 'option_c', 'option_d'].forEach(opt => {
+          if (q[opt]) q[opt] = _applyLatexSize(q[opt], size);
+        });
+      }
+      _updateCardInPlace(i);
+    });
+    csvToast('Bulk formatting applied', 'success', `Applied \\${size} (${scope === 'both' ? 'text + options' : scope}) to ${_csvSelected.size} selected question(s)`);
+  };
+
+  // ── Bulk marking-scheme update, scoped to the current selection ────────
+  // Fields shown per type mirror the marking config actually used at
+  // generation time (app/services/ai_question_generator.py's
+  // _config_block): MCQ/MSQ use +/-marks, NUMERIC uses +marks/tolerance —
+  // there is no "negative marks" concept for NUMERIC in this app, so a
+  // -Marks value is never applied to a NUMERIC row even if one is typed in,
+  // and a Tolerance value is never applied to an MCQ/MSQ row.
+  function _roundMark(v) { return Math.round(v * 100) / 100; }
+
+  // Themed dropdown-button (matches Global Size/By Type elsewhere on this
+  // page) standing in for a native <select> — its chosen value is tracked
+  // here rather than read off a form element.
+  let _csvBulkTypeScope = 'ALL';
+  window.csvSetBulkTypeScope = function(value, label) {
+    _csvBulkTypeScope = value;
+    const el = document.getElementById('csvBulkTypeScopeLabel');
+    if (el) el.textContent = label;
+  };
+
+  window.csvBulkApplyMarks = function(mode) {
+    if (!_csvSelected.size) { csvToast('No questions selected', 'warning', 'Select at least one question first.'); return; }
+    const typeScope = _csvBulkTypeScope; // ALL | MCQ | MSQ | NUMERIC
+    const pmRaw  = document.getElementById('csvBulkPM').value.trim();
+    const nmRaw  = document.getElementById('csvBulkNM').value.trim();
+    const tolRaw = document.getElementById('csvBulkTol').value.trim();
+    if (pmRaw === '' && nmRaw === '' && tolRaw === '') { csvToast('Enter at least one value', 'warning'); return; }
+    const pmV  = pmRaw  !== '' ? parseFloat(pmRaw)  : null;
+    const nmV  = nmRaw  !== '' ? parseFloat(nmRaw)  : null;
+    const tolV = tolRaw !== '' ? parseFloat(tolRaw) : null;
+
+    let touched = 0;
+    _csvSelected.forEach(i => {
+      const q = _csvRows[i];
+      if (!q) return;
+      if (typeScope !== 'ALL' && q.question_type !== typeScope) return;
+      const isNum = q.question_type === 'NUMERIC';
+
+      if (pmV !== null && !isNaN(pmV)) {
+        q.positive_marks = _roundMark(mode === 'set' ? pmV : (parseFloat(q.positive_marks) || 0) + pmV);
+      }
+      if (nmV !== null && !isNaN(nmV) && !isNum) { // -Marks isn't a NUMERIC field
+        q.negative_marks = _roundMark(mode === 'set' ? nmV : (parseFloat(q.negative_marks) || 0) + nmV);
+      }
+      if (tolV !== null && !isNaN(tolV) && isNum) { // Tolerance only applies to NUMERIC
+        q.tolerance = _roundMark(mode === 'set' ? tolV : (parseFloat(q.tolerance) || 0) + tolV);
+      }
+      touched++;
+    });
+
+    if (!touched) { csvToast('No matching questions', 'warning', `None of the selected questions are type "${typeScope}".`); return; }
+    // Marks are shown in each card's header badge, which _updateCardInPlace
+    // does not touch (it only rebuilds the raw/rendered content blocks) —
+    // a full rebuild is the same pattern csvSaveEdit already uses whenever
+    // a card's header-level data (not just its content) changes.
+    _renderCards(_renderedCount);
+    csvToast('Marking scheme updated', 'success', `${mode === 'set' ? 'Set' : 'Adjusted'} marks for ${touched} question(s)`);
+  };
+
+  // Global Render All — switch every card to rendered view, typeset MathJax in small batches
+  window.csvRenderAll = function() {
+    if (!_csvRows || !_csvRows.length) { csvToast('No questions to render.', 'warning'); return; }
+    let count = 0;
+    const toTypeset = [];
+    _csvRows.forEach((q, i) => {
+      const raw  = document.getElementById(`craw-${i}`);
+      const rend = document.getElementById(`crend-${i}`);
+      const btn  = document.getElementById(`ctbtn-${i}`);
+      if (raw && rend && raw.style.display !== 'none') {
+        raw.style.display  = 'none';
+        rend.style.display = 'block';
+        if (btn) btn.innerHTML = '<i class="fas fa-code"></i> Raw';
+        if(!rend.dataset.mathjaxDone) toTypeset.push(rend);
+        count++;
+      }
+    });
+    // Typeset in batches of 10 to avoid UI freeze
+    if (window.MathJax && toTypeset.length) {
+      const BATCH = 10;
+      const typesetBatch = (start) => {
+        const batch = toTypeset.slice(start, start + BATCH);
+        if(!batch.length) return;
+        MathJax.typesetPromise(batch).then(() => {
+          batch.forEach(el => el.dataset.mathjaxDone = '1');
+          setTimeout(() => typesetBatch(start + BATCH), 0);
+        }).catch(err => console.error('MathJax Error:', err));
+      };
+      typesetBatch(0);
+    }
+    if (count > 0) csvToast('Rendering...', 'success', `${count} question(s) queued for render`);
+    else csvToast('Already rendered', 'warning', 'All cards are already in rendered view');
+  };
+
+  // Global Raw All — switch every card back to raw LaTeX code view
+  window.csvRawAll = function() {
+    if (!_csvRows || !_csvRows.length) { csvToast('No questions loaded.', 'warning'); return; }
+    let count = 0;
+    _csvRows.forEach((q, i) => {
+      const raw  = document.getElementById(`craw-${i}`);
+      const rend = document.getElementById(`crend-${i}`);
+      const btn  = document.getElementById(`ctbtn-${i}`);
+      if (raw && rend && rend.style.display !== 'none') {
+        rend.style.display = 'none';
+        raw.style.display  = 'block';
+        if (btn) btn.innerHTML = '<i class="fas fa-eye"></i> Rendered';
+        count++;
+      }
+    });
+    if (count > 0) csvToast('Raw view', 'success', `${count} question(s) switched to raw LaTeX`);
+    else csvToast('Already raw', 'warning', 'All cards are already in raw view');
+  };
+
+  function _esc(t){const d=document.createElement('div');d.textContent=t||'';return d.innerHTML;}
+  function _renderContent(text){
+    if(!text) return '';
+
+    // Step 1: Protect ALL LaTeX zones ($...$, $$...$$) before any processing
+    // so \n inside LaTeX is never touched
+    const latexZones = [];
+    let protected_text = text
+      .replace(/\$\$[\s\S]*?\$\$/g, m => { latexZones.push(m); return `\x00LATEX${latexZones.length-1}\x00`; })
+      .replace(/\$[^$\n]+?\$/g,     m => { latexZones.push(m); return `\x00LATEX${latexZones.length-1}\x00`; });
+
+    // Step 2: Convert literal \n (backslash+n from CSV storage) to real newlines
+    // This is safe now — LaTeX zones are placeholder tokens
+    protected_text = protected_text.replace(/\\n/g, '\n');
+
+    // Step 3: Detect and convert pipe-table rows to HTML table
+    // Handles both markdown tables (|---|) and plain pipe-separated rows (like AI generates)
+    const lines = protected_text.split('\n');
+    const out = [];
+    let tableBuffer = [];
+
+    const isTableRow = l => {
+      const t = l.trim();
+      // Must have at least one | inside, start/end with |, or be a row like "A | 80 | 1,35,000"
+      return (t.startsWith('|') && t.endsWith('|') && t.length > 2) ||
+             /^[^|]+(\|[^|]+){1,}$/.test(t); // fallback: row with | separators but no wrapping |
+    };
+    const isSepRow = l => /^\|?[\s|:|-]+\|?$/.test(l.trim()) && /[-]{2,}/.test(l);
+
+    const flushTable = () => {
+      if(!tableBuffer.length) return;
+      let html = '<div style="overflow-x:auto;margin:.5rem 0"><table style="border-collapse:collapse;width:100%;font-size:.82rem;">';
+      let isHeader = true;
+      tableBuffer.forEach(row => {
+        if(isSepRow(row)) return;
+        // Split by | and clean up — works for both |a|b|c| and a|b|c formats
+        let cells;
+        const t = row.trim();
+        if(t.startsWith('|') && t.endsWith('|')){
+          cells = t.split('|').map(c=>c.trim()).filter((_,i,a)=>i>0&&i<a.length-1);
+        } else {
+          cells = t.split('|').map(c=>c.trim());
+        }
+        if(!cells.length) return;
+        if(isHeader){
+          html += '<tr>'+cells.map(c=>`<th style="border:1px solid var(--border);padding:.35rem .6rem;background:var(--surface-2);font-weight:700;text-align:left;white-space:nowrap;">${c}</th>`).join('')+'</tr>';
+          isHeader = false;
+        } else {
+          html += '<tr>'+cells.map(c=>`<td style="border:1px solid var(--border);padding:.3rem .6rem;">${c}</td>`).join('')+'</tr>';
+        }
+      });
+      html += '</table></div>';
+      out.push(html);
+      tableBuffer = [];
+    };
+
+    // Detect table blocks: 2+ consecutive pipe-rows = table
+    let pipeStreak = 0;
+    const staged = []; // stage lines, flush non-table runs
+    for(const line of lines){
+      if(isTableRow(line)){ pipeStreak++; staged.push({type:'pipe', line}); }
+      else { pipeStreak = 0; staged.push({type:'text', line}); }
+    }
+    // Now decide: runs of 2+ pipe rows = table; single pipe row = plain text
+    let i = 0;
+    while(i < staged.length){
+      if(staged[i].type === 'pipe'){
+        // count run length
+        let j = i;
+        while(j < staged.length && staged[j].type === 'pipe') j++;
+        const run = staged.slice(i, j);
+        if(run.length >= 2){
+          run.forEach(s => tableBuffer.push(s.line));
+          flushTable();
+        } else {
+          // single pipe line — not a table, treat as text
+          out.push(staged[i].line);
+        }
+        i = j;
+      } else {
+        out.push(staged[i].line);
+        i++;
+      }
+    }
+    flushTable();
+
+    // Step 4: Collapse blank lines, join with <br>
+    let result = out.map(l => l.trim() === '' ? '' : l).join('\n');
+    result = result.replace(/\n{3,}/g, '\n\n'); // max 2 consecutive blank lines
+    result = result.split('\n').map(l => l === '' ? '<br>' : l).join('<br>');
+
+    // Step 5: Restore LaTeX zones
+    result = result.replace(/\x00LATEX(\d+)\x00/g, (_, idx) => latexZones[+idx]);
+
+    return result;
+  }
+    // ── Sticky Header + Floating Scroll Nav ─────────────────────────────
+  // Standalone page now — the whole document scrolls (there's no modal
+  // scroll container anymore), so this tracks window scroll directly.
+  (function () {
+
+    let _attached = false;
+
+    function _attach() {
+      if (_attached) return;
+      _attached = true;
+
+      const nav  = document.getElementById('csvScrollNav');
+      const bar  = document.getElementById('csvStickyBar');
+      const ring = document.getElementById('csvScrollProgress');
+
+      function _update() {
+        const doc = document.documentElement;
+        const st  = window.scrollY || doc.scrollTop || 0;
+        const max = doc.scrollHeight - doc.clientHeight;
+
+        if (nav) nav.classList.add('csv-nav-visible');
+
+        if (bar) {
+          if (st > 5) bar.classList.add('csv-bar-scrolled');
+          else bar.classList.remove('csv-bar-scrolled');
+        }
+
+        if (ring && max > 0) {
+          const pct = st / max;
+          ring.style.strokeDashoffset = (113 - (113 * pct));
+        }
+      }
+
+      window.addEventListener('scroll', _update, { passive: true });
+      _update();
+    }
+
+    // Smooth scroll helpers
+    window.csvNavScrollTop = function () {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    };
+
+    window.csvNavScrollBot = function () {
+      window.scrollTo({ top: document.documentElement.scrollHeight, behavior: 'smooth' });
+    };
+
+    document.addEventListener('DOMContentLoaded', () => setTimeout(_attach, 100));
+
+  })();
+
+
+
+})();
+</script>
+{% endblock %}

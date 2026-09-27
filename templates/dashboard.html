@@ -1,0 +1,472 @@
+{% extends "base.html" %}
+{% set active_nav = 'dashboard' %}
+{% block title %}Dashboard - SmartAIExam{% endblock %}
+{% from "_dashboard_exam_cards.html" import render_live_card, render_upcoming_card, render_completed_card %}
+{% block content %}
+<link rel="stylesheet" href="{{ url_for('static', filename='shared/view-toggle.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='admin/list-controller.css') }}">
+<style>
+/* Dashboard layout — no sidebar CSS here, sidebar is in base.html */
+.ud-main { flex:1; min-width:0; padding:1.5rem 1.75rem; }
+
+.ud-topbar { display:flex; align-items:flex-start; justify-content:space-between; gap:1rem; margin-bottom:1.5rem; flex-wrap:wrap; }
+.ud-greeting h1 { font-size:1.2rem; font-weight:700; color:var(--text-1); letter-spacing:-.02em; margin-bottom:.2rem; }
+.ud-greeting p  { font-size:.8rem; color:var(--text-3); }
+
+/* ── Compact category/subcategory breadcrumb switcher — replaces the two
+   separate, widely-spaced pills with one hierarchy control. ── */
+.portal-crumb {
+  display:inline-flex; align-items:center; gap:.35rem;
+  padding:.3rem .4rem; border-radius:20px;
+  background:var(--accent-subtle); border:1px solid var(--border);
+}
+.pc-seg {
+  display:inline-flex; align-items:center; gap:.4rem;
+  padding:.3rem .65rem; border-radius:16px; border:none; background:transparent;
+  font-family:inherit; font-size:.78rem; font-weight:600; color:var(--accent);
+  cursor:pointer; transition:background .12s;
+  max-width:160px;
+}
+.pc-seg span { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.pc-seg:hover { background:rgba(0,0,0,.06); }
+.pc-seg i.pc-caret { font-size:.6rem; opacity:.6; margin-left:.1rem; }
+.pc-sep { color:var(--accent); opacity:.5; font-size:.62rem; }
+
+.pc-pop {
+  position:fixed; z-index:2000; min-width:220px; max-width:280px;
+  background:var(--surface); border:1px solid var(--border);
+  border-radius:calc(var(--radius) + 4px); box-shadow:var(--shadow-lg);
+  display:none; overflow:hidden;
+}
+.pc-pop.open { display:block; }
+.pc-pop-search {
+  width:100%; border:none; border-bottom:1px solid var(--border); background:var(--surface);
+  padding:.6rem .8rem; font-family:inherit; font-size:.8rem; color:var(--text-1); outline:none;
+}
+.pc-pop-list { max-height:260px; overflow-y:auto; padding:.35rem; }
+.pc-pop-item {
+  display:flex; align-items:center; justify-content:space-between; gap:.5rem;
+  padding:.5rem .65rem; border-radius:8px; font-size:.82rem; color:var(--text-2);
+  text-decoration:none; cursor:pointer;
+}
+.pc-pop-item:hover { background:var(--surface-2); }
+.pc-pop-item.current { color:var(--accent); font-weight:700; background:var(--accent-subtle); }
+.pc-pop-more { display:block; padding:.5rem .8rem; font-size:.76rem; color:var(--accent); font-weight:600; text-decoration:none; border-top:1px solid var(--border); }
+.pc-pop-empty { padding:1rem .8rem; font-size:.78rem; color:var(--text-3); text-align:center; }
+
+.ud-tabs-row { display:flex; align-items:center; justify-content:space-between; gap:.75rem; flex-wrap:wrap; margin-bottom:1.25rem; }
+.ud-tabs { display:flex; gap:.15rem; border-bottom:1px solid var(--border); flex:1; }
+.ud-tab {
+  display:flex; align-items:center; gap:.4rem;
+  padding:.5rem .9rem; background:none; border:none;
+  border-bottom:2px solid transparent; margin-bottom:-1px;
+  font-family:inherit; font-size:.8rem; font-weight:600;
+  color:var(--text-3); cursor:pointer; transition:color .15s,border-color .15s;
+  white-space:nowrap;
+}
+.ud-tab:hover { color:var(--text-1); }
+.ud-tab.active { color:var(--accent); border-bottom-color:var(--accent); }
+.ud-tab .tc { background:var(--surface-2); color:var(--text-3); border-radius:20px; padding:.1rem .42rem; font-size:.65rem; font-weight:700; }
+.ud-tab.active .tc { background:var(--accent-subtle); color:var(--accent); }
+
+.ud-pane { display:none; }
+.ud-pane.active { display:block; }
+
+.ud-toolbar { display:flex; align-items:center; justify-content:space-between; gap:.75rem; margin-bottom:1rem; flex-wrap:wrap; }
+.ud-search-wrap { position:relative; }
+.ud-search {
+  padding:.42rem .85rem .42rem 2.1rem;
+  background:var(--surface); border:1px solid var(--border);
+  border-radius:var(--radius); color:var(--text-1);
+  font-family:inherit; font-size:.8rem; outline:none; width:200px;
+  transition:border-color .15s,box-shadow .15s;
+}
+.ud-search::placeholder { color:var(--text-3); }
+.ud-search:focus { border-color:var(--border-focus); box-shadow:0 0 0 3px var(--accent-subtle); }
+.ud-search-wrap i { position:absolute; left:.7rem; top:50%; transform:translateY(-50%); color:var(--text-3); font-size:.7rem; pointer-events:none; }
+.ud-count { font-size:.75rem; color:var(--text-3); }
+
+.ud-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(290px,1fr)); gap:.85rem; }
+
+.ec {
+  background:var(--surface); border:1px solid var(--border);
+  border-radius:calc(var(--radius)+2px); display:flex; flex-direction:column;
+  transition:border-color .15s,box-shadow .15s,transform .15s;
+}
+.ec:hover { border-color:var(--accent); box-shadow:var(--shadow-md); transform:translateY(-2px); }
+.ec.live { border-color:var(--success-border); }
+.ec-head { padding:.85rem 1rem .65rem; border-bottom:1px solid var(--border); display:flex; align-items:flex-start; justify-content:space-between; gap:.5rem; }
+.ec-title { font-size:.85rem; font-weight:700; color:var(--text-1); line-height:1.35; flex:1; min-width:0; }
+.ec-body { padding:.65rem 1rem; flex:1; }
+.ec-desc { font-size:.75rem; color:var(--text-3); line-height:1.5; margin-bottom:.6rem; }
+.ec-meta { display:flex; flex-wrap:wrap; gap:.3rem; }
+.ec-tag { display:inline-flex; align-items:center; gap:.25rem; font-size:.7rem; color:var(--text-2); background:var(--surface-2); padding:.2rem .55rem; border-radius:20px; }
+.ec-tag i { color:var(--accent); font-size:.62rem; }
+.ec-tag-sched { color:var(--accent); background:var(--accent-subtle); }
+.ec-tag-sched i { color:var(--accent); }
+.ec-foot { padding:.65rem 1rem; border-top:1px solid var(--border); }
+
+.ec-btn {
+  display:flex; align-items:center; justify-content:center; gap:.4rem;
+  width:100%; padding:.52rem; border-radius:var(--radius);
+  border:none; font-family:inherit; font-size:.78rem; font-weight:600;
+  cursor:pointer; text-decoration:none; transition:background .12s,transform .1s;
+}
+.ec-btn.start  { background:var(--success); color:#fff; }
+.ec-btn.start:hover { background:#27ae60; transform:translateY(-1px); color:#fff; }
+.ec-btn.result { background:var(--accent); color:var(--accent-on); }
+.ec-btn.result:hover { background:var(--accent-hover); transform:translateY(-1px); color:var(--accent-on); }
+.ec-btn.off    { background:var(--surface-2); color:var(--text-3); border:1px solid var(--border); cursor:not-allowed; }
+
+.ebadge { display:inline-flex; align-items:center; gap:.2rem; padding:.18rem .5rem; border-radius:20px; font-size:.65rem; font-weight:700; text-transform:uppercase; border:1px solid; white-space:nowrap; }
+.eb-live     { background:var(--success-bg); color:var(--success-text); border-color:var(--success-border); animation:livepulse 2s infinite; }
+.eb-upcoming { background:var(--warning-bg); color:var(--warning-text); border-color:var(--warning-border); }
+.eb-prep     { background:var(--accent-subtle); color:var(--accent); border-color:var(--border); }
+.eb-done     { background:var(--info-bg);    color:var(--info-text);    border-color:var(--info-border); }
+.eb-pending  { background:var(--danger-bg);  color:var(--danger-text);  border-color:var(--danger-border); }
+@keyframes livepulse{0%,100%{box-shadow:0 0 0 0 var(--success-bg)}50%{box-shadow:0 0 0 4px transparent}}
+
+/* ── List view ── */
+#dashViewWrapper.list-view .ud-grid { grid-template-columns:1fr; gap:.5rem; }
+#dashViewWrapper.list-view .ec { flex-direction:row; align-items:center; flex-wrap:wrap; padding:.65rem .9rem; gap:.6rem; }
+#dashViewWrapper.list-view .ec:hover { transform:none; }
+#dashViewWrapper.list-view .ec-head { border-bottom:none; padding:0; flex:1 1 220px; min-width:0; }
+#dashViewWrapper.list-view .ec-body { padding:0; flex:2 1 260px; }
+#dashViewWrapper.list-view .ec-desc { display:none; }
+#dashViewWrapper.list-view .ec-foot { border-top:none; padding:0; flex:0 0 auto; width:auto; }
+#dashViewWrapper.list-view .ec-btn { width:auto; padding:.45rem .9rem; white-space:nowrap; }
+
+.ud-empty { text-align:center; padding:3.5rem 2rem; background:var(--surface); border:1px solid var(--border); border-radius:calc(var(--radius)+2px); }
+.ud-empty-icon { width:48px; height:48px; border-radius:12px; background:var(--surface-2); color:var(--text-3); display:flex; align-items:center; justify-content:center; font-size:1.2rem; margin:0 auto .85rem; }
+.ud-empty h3 { font-size:.9rem; font-weight:700; color:var(--text-2); margin-bottom:.3rem; }
+.ud-empty p  { font-size:.78rem; color:var(--text-3); }
+
+@media(max-width:768px){
+  .ud-main { padding:1rem; }
+  .ud-grid { grid-template-columns:1fr; }
+  .ud-search { width:100%; }
+  /* The view-toggle buttons were competing with the 3 tabs for the same
+     row's width, leaving too little room and clipping "Completed" to "Co"
+     with no visible hint it was scrollable. Give the toggle its own row so
+     the tabs get the full width (all 3 fit without scrolling at typical
+     mobile widths; overflow-x:auto below still covers narrower screens). */
+  .ud-tabs-row { flex-wrap:wrap; }
+  /* Wrapper (unstyled) takes the full width and right-aligns the toggle —
+     stretching .view-toggle itself would drag its own bordered/filled pill
+     background across the whole row, leaving an empty-looking bar. */
+  .ud-view-toggle-wrap { flex-basis:100%; display:flex; justify-content:flex-end; }
+  .ud-tabs { overflow-x:auto; scrollbar-width:none; }
+  .ud-tabs::-webkit-scrollbar{display:none}
+}
+</style>
+
+<main class="ud-main">
+
+  <div class="ud-topbar">
+    <div class="ud-greeting">
+      <h1><span id="dashGreetWord">{{ greeting }}</span>, {{ session.get('full_name','').split()[0] }}</h1>
+      <p>Here's what's happening today.</p>
+    </div>
+    <div class="portal-crumb" id="portalCrumb">
+      <button type="button" class="pc-seg" data-kind="category" title="Switch category">
+        <i class="fas fa-layer-group"></i><span>{{ selected_category.name if selected_category else 'Select Category' }}</span><i class="fas fa-chevron-down pc-caret"></i>
+      </button>
+      {% if selected_subcategory %}
+      <i class="fas fa-chevron-right pc-sep"></i>
+      <button type="button" class="pc-seg" data-kind="subcategory" title="Switch subcategory">
+        <i class="fas fa-sitemap"></i><span>{{ selected_subcategory.name }}</span><i class="fas fa-chevron-down pc-caret"></i>
+      </button>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="ud-tabs-row">
+    <div class="ud-tabs">
+      <button class="ud-tab active" data-tab="live">
+        <i class="fas fa-circle" style="font-size:.42rem;color:var(--success-text)"></i> Live
+        <span class="tc">{{ ongoing_total }}</span>
+      </button>
+      <button class="ud-tab" data-tab="upcoming">
+        <i class="fas fa-calendar-alt"></i> Upcoming
+        <span class="tc">{{ upcoming_total }}</span>
+      </button>
+      <button class="ud-tab" data-tab="completed">
+        <i class="fas fa-check-circle"></i> Completed
+        <span class="tc">{{ completed_total }}</span>
+      </button>
+    </div>
+    <div class="ud-view-toggle-wrap">
+      <div class="view-toggle" id="dashViewToggle" role="group" aria-label="Exam view">
+        <button type="button" data-view="grid" class="{{ 'active' if view_mode != 'list' else '' }}" title="Grid view" aria-label="Grid view" aria-pressed="{{ 'true' if view_mode != 'list' else 'false' }}"><i class="fas fa-th-large"></i></button>
+        <button type="button" data-view="list" class="{{ 'active' if view_mode == 'list' else '' }}" title="List view" aria-label="List view" aria-pressed="{{ 'true' if view_mode == 'list' else 'false' }}"><i class="fas fa-list"></i></button>
+      </div>
+    </div>
+  </div>
+
+  <div id="dashViewWrapper" class="{{ 'list-view' if view_mode == 'list' else '' }}">
+    {# Every pane always renders BOTH the toolbar+grid+paginator AND the
+       empty-state placeholder — never just one or the other. A pane that
+       starts empty (e.g. 0 Live exams at page load) must still have a real
+       #grid-live/#cnt-live in the DOM, because a Scheduled Exam can promote
+       INTO that pane later purely client-side (see scheduleNextDashboard
+       Transition() below) with no page reload — if the grid element didn't
+       exist yet, that promotion would have nothing to render into. Visible/
+       hidden state between the two is toggled by togglePaneEmptyState(),
+       called both here (from server-known totals) and after every
+       createAdminList reload. #}
+    {# LIVE #}
+    <div class="ud-pane active" id="pane-live">
+      <div class="ud-toolbar" id="toolbar-live" style="{{ 'display:none' if not ongoing_exams }}">
+        <div class="ud-search-wrap"><i class="fas fa-search"></i><input class="ud-search" id="search-live" placeholder="Search…"></div>
+        <span class="ud-count" id="cnt-live">{{ ongoing_total }} exams</span>
+      </div>
+      <div class="ud-grid" id="grid-live">
+        {% for e in ongoing_exams %}{{ render_live_card(e) }}{% endfor %}
+      </div>
+      <div class="admin-pg-bar" id="pg-live"></div>
+      <div class="ud-empty" id="empty-live" style="{{ 'display:none' if ongoing_exams }}"><div class="ud-empty-icon"><i class="fas fa-play-circle"></i></div><h3>No live exams right now</h3><p>Active exams will appear here when they start.</p></div>
+    </div>
+
+    {# UPCOMING #}
+    <div class="ud-pane" id="pane-upcoming">
+      <div class="ud-toolbar" id="toolbar-upcoming" style="{{ 'display:none' if not upcoming_exams }}">
+        <div class="ud-search-wrap"><i class="fas fa-search"></i><input class="ud-search" id="search-upcoming" placeholder="Search…"></div>
+        <span class="ud-count" id="cnt-upcoming">{{ upcoming_total }} exams</span>
+      </div>
+      <div class="ud-grid" id="grid-upcoming">
+        {% for e in upcoming_exams %}{{ render_upcoming_card(e) }}{% endfor %}
+      </div>
+      <div class="admin-pg-bar" id="pg-upcoming"></div>
+      <div class="ud-empty" id="empty-upcoming" style="{{ 'display:none' if upcoming_exams }}"><div class="ud-empty-icon"><i class="fas fa-calendar-alt"></i></div><h3>No upcoming exams</h3><p>Scheduled exams will appear here.</p></div>
+    </div>
+
+    {# COMPLETED #}
+    <div class="ud-pane" id="pane-completed">
+      <div class="ud-toolbar" id="toolbar-completed" style="{{ 'display:none' if not completed_exams }}">
+        <div class="ud-search-wrap"><i class="fas fa-search"></i><input class="ud-search" id="search-completed" placeholder="Search…"></div>
+        <span class="ud-count" id="cnt-completed">{{ completed_total }} exams</span>
+      </div>
+      <div class="ud-grid" id="grid-completed">
+        {% for e in completed_exams %}{{ render_completed_card(e) }}{% endfor %}
+      </div>
+      <div class="admin-pg-bar" id="pg-completed"></div>
+      <div class="ud-empty" id="empty-completed" style="{{ 'display:none' if completed_exams }}"><div class="ud-empty-icon"><i class="fas fa-clipboard-check"></i></div><h3>No completed exams</h3><p>Finished exams will appear here.</p></div>
+    </div>
+  </div>
+
+</main>
+
+<script src="{{ url_for('static', filename='shared/greeting.js') }}"></script>
+<script src="{{ url_for('static', filename='shared/view-toggle.js') }}"></script>
+<script src="{{ url_for('static', filename='admin/list-controller.js') }}"></script>
+<script>
+window.__autoShowUpdates = {{ auto_show_updates|tojson }};
+
+document.querySelectorAll('.ud-tab').forEach(function(b){
+  b.addEventListener('click',function(){
+    document.querySelectorAll('.ud-tab').forEach(function(x){x.classList.remove('active');});
+    document.querySelectorAll('.ud-pane').forEach(function(x){x.classList.remove('active');});
+    b.classList.add('active');
+    var p=document.getElementById('pane-'+b.getAttribute('data-tab'));
+    if(p) p.classList.add('active');
+  });
+});
+if({{ ongoing_total }}===0){ var b=document.querySelector('[data-tab="upcoming"]'); if(b) b.click(); }
+
+createViewToggle({
+  toggleEl: document.getElementById('dashViewToggle'),
+  targetEl: document.getElementById('dashViewWrapper'),
+  syncUrl: '/api/v01/portal/view-mode',
+  section: 'dashboard',
+  initial: {{ (view_mode or 'grid') | tojson }},
+});
+
+/* ── Scheduled Exam auto-promotion (Upcoming -> Live -> Completed) ──
+   Server remains the sole authority on which tab an exam belongs in —
+   this never moves a card itself. It schedules exactly ONE timer for
+   the SOONEST server-provided transition instant (data-transition-target,
+   from build_exam_card()'s next_transition_iso — only ever set for a
+   Scheduled Exam, never a Manual one) currently visible in the Live/
+   Upcoming panes, and when it fires, reloads page 1 of all three tabs
+   via the same createAdminList controllers/endpoint "Load more" already
+   uses — the server's own effective-status bucketing then decides
+   whether the exam actually moved. No polling: reused entirely from the
+   same absolute-target-timer pattern the "Your Updates" popup already
+   uses (see templates/base.html startCountdowns()), just re-triggering
+   a real reload instead of an in-place DOM tweak, since a promoted exam
+   needs to move between separately-paginated panes/counts, not just
+   change one button. Completed cards never carry a transition target,
+   so this naturally has nothing left to schedule once everything visible
+   has settled. */
+// Toggles a pane between its toolbar+grid and its empty-state placeholder.
+// Both are always present in the DOM (see the pane markup above) — this
+// only flips which one is visible, matching whatever the initial
+// server-rendered inline style already encoded for page 1 at load time.
+function togglePaneEmptyState(tab, total) {
+  var toolbar = document.getElementById('toolbar-' + tab);
+  var empty = document.getElementById('empty-' + tab);
+  var isEmpty = !total;
+  if (toolbar) toolbar.style.display = isEmpty ? 'none' : '';
+  if (empty) empty.style.display = isEmpty ? '' : 'none';
+}
+
+var dashListControllers = {};
+var dashTransitionTimer = null;
+function scheduleNextDashboardTransition() {
+  if (dashTransitionTimer) { clearTimeout(dashTransitionTimer); dashTransitionTimer = null; }
+  var targets = [];
+  document.querySelectorAll('#grid-live [data-transition-target], #grid-upcoming [data-transition-target]').forEach(function (card) {
+    var t = new Date(card.dataset.transitionTarget).getTime();
+    if (!isNaN(t)) targets.push(t);
+  });
+  if (!targets.length) return;
+  var soonest = Math.min.apply(null, targets);
+  var delay = Math.max(250, soonest - Date.now());
+  dashTransitionTimer = setTimeout(function () {
+    ['live', 'upcoming', 'completed'].forEach(function (tab) {
+      if (dashListControllers[tab]) dashListControllers[tab].load(1);
+    });
+  }, delay);
+}
+
+/* One paginated "load more" list per tab — server-side search, never the
+   whole subcategory's exam list at once. */
+['live', 'upcoming', 'completed'].forEach(function (tab) {
+  var status = tab === 'live' ? 'ongoing' : tab;
+  var ctl = createAdminList({
+    endpoint: '/api/v01/portal/exams',
+    paginatorEl: document.getElementById('pg-' + tab),
+    paginatorMode: 'loadmore',
+    searchInputEl: document.getElementById('search-' + tab),
+    perPage: {{ dashboard_per_page | default(12) }},
+    extraParams: function () { return { status: status }; },
+    onData: function (data) {
+      var grid = document.getElementById('grid-' + tab);
+      if (!grid) return;
+      if (data.page === 1) grid.innerHTML = data.cards_html || '';
+      else grid.insertAdjacentHTML('beforeend', data.cards_html || '');
+      var cnt = document.getElementById('cnt-' + tab);
+      if (cnt) cnt.textContent = data.total + ' exam' + (data.total !== 1 ? 's' : '');
+      // The toolbar count above and this tab-header badge are two separate
+      // elements showing the same number at load time, but they mean
+      // different things once a search is active: the toolbar count is
+      // meant to track the search-filtered result count (unchanged, always
+      // updates), while the tab-header badge is meant to stay the tab's
+      // TRUE total regardless of any in-progress search — so only sync it
+      // from a reload that has no search filter applied (an empty search
+      // box means data.total genuinely is the true total: either no search
+      // is active, or a scheduled-transition promotion, which never sets
+      // the search box). Otherwise the header count would go stale the
+      // moment an exam auto-promotes between tabs while the student is
+      // already on the page.
+      var searchEl = document.getElementById('search-' + tab);
+      if (!searchEl || !searchEl.value.trim()) {
+        var tabBadge = document.querySelector('.ud-tab[data-tab="' + tab + '"] .tc');
+        if (tabBadge) tabBadge.textContent = data.total;
+      }
+      // A scheduled-transition promotion's page-1 reload can flip a pane
+      // between empty and non-empty — toggle the toolbar/empty-state
+      // placeholder to match, the same way the server-rendered initial
+      // page already does via inline style. Guarded to an empty search box
+      // for the same reason as the tab badge above: a zero-result SEARCH
+      // must not show "No live exams right now" (there are some — none
+      // just matched), so it keeps the toolbar+blank-grid behaviour this
+      // already had before scheduled-transition promotion existed.
+      if (data.page === 1 && (!searchEl || !searchEl.value.trim())) togglePaneEmptyState(tab, data.total);
+      // Whatever just rendered (fresh page 1, an appended "load more" page,
+      // or a scheduled-transition reload below) may have introduced a new
+      // soonest transition instant — always rescan and reschedule from it.
+      scheduleNextDashboardTransition();
+    },
+  });
+  dashListControllers[tab] = ctl;
+  var totals = { live: {{ ongoing_total }}, upcoming: {{ upcoming_total }}, completed: {{ completed_total }} };
+  var totalPages = { live: {{ ongoing_total_pages }}, upcoming: {{ upcoming_total_pages }}, completed: {{ completed_total_pages }} };
+  ctl.hydrate({ page: 1, total_pages: totalPages[tab], total: totals[tab], per_page: {{ dashboard_per_page | default(12) }} });
+});
+// hydrate() only sets up the paginator from the already server-rendered
+// page 1 — it never fires onData — so the initial scan/schedule has to be
+// kicked off explicitly here, once, to cover those server-rendered cards.
+scheduleNextDashboardTransition();
+
+/* ── Compact Category/Subcategory breadcrumb switcher ── */
+(function () {
+  var crumb = document.getElementById('portalCrumb');
+  if (!crumb) return;
+  var pop = null;
+
+  function buildPop() {
+    pop = document.createElement('div');
+    pop.className = 'pc-pop';
+    pop.innerHTML =
+      '<input type="text" class="pc-pop-search" placeholder="Search…">' +
+      '<div class="pc-pop-list"></div>';
+    document.body.appendChild(pop);
+    return pop;
+  }
+
+  function positionPop(anchor) {
+    var r = anchor.getBoundingClientRect();
+    var top = r.bottom + 6, left = r.left;
+    var w = pop.offsetWidth || 260;
+    if (left + w > window.innerWidth - 8) left = window.innerWidth - w - 8;
+    pop.style.top = top + 'px';
+    pop.style.left = left + 'px';
+  }
+
+  function closePop() {
+    if (pop) pop.classList.remove('open');
+    document.removeEventListener('mousedown', outsideHandler);
+  }
+
+  function outsideHandler(e) {
+    if (pop && (pop.contains(e.target) || crumb.contains(e.target))) return;
+    closePop();
+  }
+
+  function renderList(items, kind, filter) {
+    var listEl = pop.querySelector('.pc-pop-list');
+    var currentName = kind === 'category'
+      ? {{ (selected_category.name if selected_category else '') | tojson }}
+      : {{ (selected_subcategory.name if selected_subcategory else '') | tojson }};
+    var filtered = filter ? items.filter(function (i) { return i.name.toLowerCase().includes(filter); }) : items;
+    if (!filtered.length) {
+      listEl.innerHTML = '<div class="pc-pop-empty">No matches</div>';
+      return;
+    }
+    var setUrl = kind === 'category' ? '/set-category' : '/set-subcategory';
+    listEl.innerHTML = filtered.map(function (i) {
+      var cur = i.name === currentName ? ' current' : '';
+      return '<a class="pc-pop-item' + cur + '" href="' + setUrl + '?id=' + i.id + '"><span>' + i.name + '</span>' + (cur ? '<i class="fas fa-check"></i>' : '') + '</a>';
+    }).join('');
+  }
+
+  function openFor(kind, anchor) {
+    if (!pop) buildPop();
+    closePop();
+    fetch('/api/v01/portal/breadcrumb-options').then(function (r) { return r.json(); }).then(function (data) {
+      var items = kind === 'category' ? data.categories : data.subcategories;
+      var truncated = kind === 'category' ? data.categories_truncated : data.subcategories_truncated;
+      var searchEl = pop.querySelector('.pc-pop-search');
+      searchEl.value = '';
+      searchEl.oninput = function () { renderList(items, kind, this.value.trim().toLowerCase()); };
+      renderList(items, kind, '');
+      var existingMore = pop.querySelector('.pc-pop-more');
+      if (existingMore) existingMore.remove();
+      var listEl = pop.querySelector('.pc-pop-list');
+      if (truncated) {
+        var browseUrl = kind === 'category' ? '/select-category' : '/select-subcategory';
+        listEl.insertAdjacentHTML('afterend', '<a class="pc-pop-more" href="' + browseUrl + '">Browse all →</a>');
+      }
+      positionPop(anchor);
+      pop.classList.add('open');
+      document.addEventListener('mousedown', outsideHandler);
+    });
+  }
+
+  crumb.querySelectorAll('.pc-seg').forEach(function (seg) {
+    seg.addEventListener('click', function () { openFor(seg.dataset.kind, seg); });
+  });
+})();
+</script>
+{% endblock %}

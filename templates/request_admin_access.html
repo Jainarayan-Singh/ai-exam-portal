@@ -1,0 +1,164 @@
+{% extends "base.html" %}
+{% block title %}Request Admin Access - SmartAIExam{% endblock %}
+{% block content %}
+<div class="auth-top">
+  <a href="{{ url_for('auth.login') }}" class="auth-top-btn"><i class="fas fa-arrow-left"></i> Login</a>
+</div>
+<div class="auth-page"><div class="auth-card auth-wide">
+  <div class="auth-logo"><video src="{{ url_for('static', filename='logo.mp4') }}" autoplay loop muted playsinline style="height:40px;width:auto"></video></div>
+  <div class="auth-title">Request Admin Access</div>
+  <div class="auth-sub">Submit your request for administrator privileges</div>
+
+  {# Step 1 — Verify identity #}
+  <div id="step1">
+    <div id="step1Alerts"></div>
+    <div class="auth-field">
+      <label>Username</label>
+      <div class="auth-iw"><i class="fas fa-user il"></i>
+        <input class="auth-inp" type="text" id="raUsername" placeholder="Your username">
+      </div>
+    </div>
+    <div class="auth-field">
+      <label>Email Address</label>
+      <div class="auth-iw"><i class="fas fa-envelope il"></i>
+        <input class="auth-inp" type="email" id="raEmail" placeholder="you@example.com">
+      </div>
+    </div>
+    <button class="auth-btn" id="verifyBtn" onclick="verifyUser()">
+      <i class="fas fa-search"></i> Verify Identity
+    </button>
+  </div>
+
+  {# Step 2 — Submit request (hidden until verified) #}
+  <div id="step2" style="display:none">
+    <div id="userInfoBox" style="background:var(--surface-2);border:1px solid var(--border);border-radius:var(--radius);padding:.7rem .9rem;margin-bottom:1rem;font-size:.82rem"></div>
+
+    <div id="prevRequests" style="display:none;margin-bottom:1rem">
+      <div style="font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text-3);margin-bottom:.5rem">Previous Requests</div>
+      <div style="border:1px solid var(--border);border-radius:var(--radius);overflow:hidden">
+        <table class="auth-tbl"><thead><tr><th>Date</th><th>Access</th><th>Status</th></tr></thead>
+        <tbody id="prevReqBody"></tbody></table>
+      </div>
+    </div>
+
+    <div id="requestForm" style="display:none">
+      <div class="auth-field">
+        <label>Request Access Level</label>
+        <select class="auth-select" id="raAccessLevel"></select>
+      </div>
+      <div class="auth-field">
+        <label>Reason for Request</label>
+        <textarea class="auth-textarea" id="raReason" placeholder="Briefly explain why you need this access…"></textarea>
+      </div>
+      <button class="auth-btn" id="submitBtn" onclick="submitRequest()">
+        <i class="fas fa-paper-plane"></i> Submit Request
+      </button>
+    </div>
+
+    <div id="bothAccessMsg" style="display:none">
+      <div class="auth-alert success"><i class="fas fa-check-circle" style="flex-shrink:0;font-size:.75rem;margin-top:.1rem"></i><span>You already have both user and admin access.</span></div>
+    </div>
+
+    <div id="pendingMsg" style="display:none">
+      <div class="auth-alert warning"><i class="fas fa-clock" style="flex-shrink:0;font-size:.75rem;margin-top:.1rem"></i><span>You already have a pending request. Please wait for admin review.</span></div>
+    </div>
+
+    <button class="auth-btn auth-btn-ghost" style="margin-top:.5rem" onclick="resetForm()">
+      <i class="fas fa-arrow-left"></i> Start Over
+    </button>
+  </div>
+
+  <div class="info-box-auth" style="margin-top:1rem">
+    <div class="ibt"><i class="fas fa-info-circle"></i> Review Process</div>
+    <div class="ibi">Requests are reviewed by existing administrators. You will be notified via email when processed.</div>
+  </div>
+  <a href="{{ url_for('auth.login') }}" class="auth-back"><i class="fas fa-arrow-left" style="font-size:.65rem"></i> Back to Login</a>
+</div></div>
+
+<script>
+var _userData = null;
+
+function showAlert(containerId, msg, type) {
+  var c = document.getElementById(containerId);
+  c.innerHTML = '<div class="auth-alert '+type+'"><i class="fas fa-'+(type==='danger'?'exclamation-triangle':'info-circle')+'" style="flex-shrink:0;font-size:.75rem;margin-top:.1rem"></i><span>'+msg+'</span></div>';
+}
+
+function verifyUser() {
+  var un = document.getElementById('raUsername').value.trim();
+  var em = document.getElementById('raEmail').value.trim();
+  if (!un || !em) { showAlert('step1Alerts','Username and email are required.','danger'); return; }
+  var btn = document.getElementById('verifyBtn');
+  btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Verifying…';
+  fetch('/api/v01/access-requests/validate-user', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({username:un, email:em})
+  }).then(function(r){return r.json();}).then(function(d){
+    btn.disabled=false; btn.innerHTML='<i class="fas fa-search"></i> Verify Identity';
+    if (!d.success) { showAlert('step1Alerts', d.message||'Verification failed.','danger'); return; }
+    _userData = d;
+    document.getElementById('step1').style.display = 'none';
+    document.getElementById('step2').style.display = 'block';
+    // User info
+    document.getElementById('userInfoBox').innerHTML =
+      '<strong style="color:var(--text-1)">'+d.user.full_name+'</strong>' +
+      '<span style="color:var(--text-3);margin-left:.5rem;font-size:.75rem">@'+d.user.username+'</span>' +
+      '<span style="color:var(--text-3);margin-left:.5rem;font-size:.75rem">'+d.user.email+'</span>' +
+      '<br><span style="color:var(--text-3);font-size:.72rem">Current access: <strong style="color:var(--accent)">'+d.user.current_access+'</strong></span>';
+    // Prev requests
+    if (d.requests && d.requests.length) {
+      var rows = d.requests.map(function(r){
+        var statusClass = r.status==='pending'?'ab-pending':r.status==='approved'?'ab-both':'ab-denied';
+        return '<tr><td style="font-size:.72rem;color:var(--text-3)">'+r.request_date+'</td><td>'+r.requested_access+'</td><td><span class="abadge '+statusClass+'">'+r.status+'</span></td></tr>';
+      }).join('');
+      document.getElementById('prevReqBody').innerHTML = rows;
+      document.getElementById('prevRequests').style.display = 'block';
+    }
+    // Show form, "already have both", or pending msg — existing-access check MUST run before
+    // the pending-request check, otherwise a dual-role user (can_request is false simply
+    // because there's nothing left to request) falls through to the pending-request message
+    // even when they have no pending request at all.
+    if (d.has_both_access) {
+      document.getElementById('bothAccessMsg').style.display = 'block';
+    } else if (d.has_pending_request || !d.can_request) {
+      document.getElementById('pendingMsg').style.display = 'block';
+    } else {
+      var sel = document.getElementById('raAccessLevel');
+      sel.innerHTML = d.available_requests.map(function(a){return '<option value="'+a+'">'+a+'</option>';}).join('');
+      document.getElementById('requestForm').style.display = 'block';
+    }
+  }).catch(function(){ btn.disabled=false; btn.innerHTML='<i class="fas fa-search"></i> Verify Identity'; showAlert('step1Alerts','Network error.','danger'); });
+}
+
+function submitRequest() {
+  var level  = document.getElementById('raAccessLevel').value;
+  var reason = document.getElementById('raReason').value.trim();
+  if (!reason) { alert('Please provide a reason.'); return; }
+  var btn = document.getElementById('submitBtn');
+  btn.disabled=true; btn.innerHTML='<i class="fas fa-spinner fa-spin"></i> Submitting…';
+  fetch('/api/v01/access-requests', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({username:_userData.user.username, email:_userData.user.email, current_access:_userData.user.current_access, requested_access:level, user_reason:reason})
+  }).then(function(r){return r.json();}).then(function(d){
+    btn.disabled=false; btn.innerHTML='<i class="fas fa-paper-plane"></i> Submit Request';
+    if (d.success) {
+      document.getElementById('requestForm').style.display='none';
+      document.getElementById('pendingMsg').style.display='block';
+      document.getElementById('pendingMsg').innerHTML='<div class="auth-alert success"><i class="fas fa-check-circle" style="flex-shrink:0;font-size:.75rem;margin-top:.1rem"></i><span>'+d.message+'</span></div>';
+    } else { alert(d.message||'Failed to submit.'); }
+  }).catch(function(){ btn.disabled=false; btn.innerHTML='<i class="fas fa-paper-plane"></i> Submit Request'; alert('Network error.'); });
+}
+
+function resetForm() {
+  _userData=null;
+  document.getElementById('step1').style.display='block';
+  document.getElementById('step2').style.display='none';
+  document.getElementById('step1Alerts').innerHTML='';
+  document.getElementById('prevRequests').style.display='none';
+  document.getElementById('requestForm').style.display='none';
+  document.getElementById('pendingMsg').style.display='none';
+  document.getElementById('bothAccessMsg').style.display='none';
+  document.getElementById('raUsername').value='';
+  document.getElementById('raEmail').value='';
+}
+</script>
+{% endblock %}

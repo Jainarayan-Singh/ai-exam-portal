@@ -1,0 +1,37 @@
+﻿# Sensitive credentials
+.env
+service_account.json
+client_secret_web_local.json
+token.json
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+
+# Virtual environment
+venv/
+env/
+.venv/
+
+# IDE files
+.vscode/
+.idea/
+
+# OS files
+.DS_Store
+Thumbs.db
+FullDBReplication.sql
+supabase_schema.txt
+
+# Local object storage (uploaded assets)
+/storage/
+.claude/
+database/
+migrations/
+
+# Transient upload staging (app/config.py: UPLOAD_TMP_DIR)
+/uploads_tmp/
+
+# Logs
+*.log

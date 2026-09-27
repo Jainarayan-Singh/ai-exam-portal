@@ -1,0 +1,589 @@
+{% extends "admin_base.html" %}
+{% block title %}Attempts Management{% endblock %}
+
+{% block extra_head %}
+<link rel="stylesheet" href="{{ url_for('static', filename='admin/select-enhance.css') }}">
+<script src="{{ url_for('static', filename='admin/select-enhance.js') }}"></script>
+{% endblock %}
+
+{% block content %}
+
+<style>
+/* ── Page Header ── */
+.page-top { display:flex; align-items:flex-start; justify-content:space-between; flex-wrap:wrap; gap:1rem; margin-bottom:1.5rem; }
+.page-top h1 { font-size:1.25rem; font-weight:700; color:var(--text-1); margin:0 0 .25rem; }
+.page-top p  { font-size:.82rem; color:var(--text-3); margin:0; }
+
+/* ── Buttons ── */
+.btn-flat { display:inline-flex; align-items:center; gap:.4rem; padding:.4rem .85rem; border-radius:var(--radius); font-size:.8rem; font-weight:600; font-family:inherit; cursor:pointer; border:1px solid transparent; transition:background .12s,color .12s,border-color .12s; white-space:nowrap; }
+.btn-flat:disabled { opacity:.5; cursor:not-allowed; }
+.btn-flat.primary   { background:var(--accent);      color:var(--accent-on);    border-color:var(--accent); }
+.btn-flat.primary:hover   { background:var(--accent-hover); border-color:var(--accent-hover); }
+.btn-flat.secondary { background:var(--surface-2);   color:var(--text-2);       border-color:var(--border); }
+.btn-flat.secondary:hover { border-color:var(--accent); color:var(--accent); }
+.btn-flat.success   { background:var(--success-bg);  color:var(--success-text); border-color:var(--success-border); }
+.btn-flat.success:hover   { background:var(--success);  color:#fff; border-color:var(--success); }
+.btn-flat.warning   { background:var(--warning-bg);  color:var(--warning-text); border-color:var(--warning-border); }
+.btn-flat.warning:hover   { background:var(--warning);  color:#fff; border-color:var(--warning); }
+.btn-flat.danger    { background:var(--danger-bg);   color:var(--danger-text);  border-color:var(--danger-border); }
+.btn-flat.danger:hover    { background:var(--danger);   color:#fff; border-color:var(--danger); }
+
+/* ── Filter Card ── */
+.filter-card { background:var(--surface); border:1px solid var(--border); border-radius:calc(var(--radius)+4px); padding:1.1rem 1.25rem; margin-bottom:1rem; box-shadow:var(--shadow-md); }
+.filter-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:.75rem; margin-bottom:.85rem; }
+.filter-group { display:flex; flex-direction:column; gap:.3rem; }
+.filter-group label { font-size:.72rem; font-weight:600; color:var(--text-3); display:flex; align-items:center; gap:.3rem; }
+.filter-group label i { color:var(--accent); }
+.filter-input { background:var(--bg) !important; border:1px solid var(--border) !important; border-radius:var(--radius) !important; color:var(--text-1) !important; font-family:inherit; font-size:.83rem; padding:.42rem .7rem; min-height:38px; transition:border-color .12s; }
+.filter-input:focus { border-color:var(--accent) !important; outline:none; box-shadow:0 0 0 3px var(--accent-subtle); }
+.filter-input::placeholder { color:var(--text-3) !important; }
+.filter-input option { background:var(--surface); color:var(--text-1); }
+.filter-actions { display:flex; align-items:center; gap:.5rem; flex-wrap:wrap; }
+.filter-badge { display:none; align-items:center; gap:.3rem; padding:.25rem .65rem; border-radius:999px; background:var(--accent-subtle); border:1px solid var(--border); color:var(--accent); font-size:.72rem; font-weight:700; }
+.filter-badge i { font-size:.65rem; }
+
+/* ── Bulk Bar ── */
+.bulk-bar { display:none; align-items:center; gap:.5rem; flex-wrap:wrap; padding:.65rem 1rem; background:var(--accent-subtle); border:1px solid var(--border); border-radius:calc(var(--radius)+4px); margin-bottom:1rem; }
+.bulk-bar.show { display:flex; }
+.bulk-count { font-size:.78rem; font-weight:700; color:var(--accent); margin-left:auto; }
+
+/* ── Card + Table Header ── */
+.card { background:var(--surface); border:1px solid var(--border); border-radius:calc(var(--radius)+4px); overflow:hidden; box-shadow:var(--shadow-md); }
+.table-header-bar { display:flex; align-items:center; justify-content:space-between; padding:.85rem 1.25rem; border-bottom:1px solid var(--border); background:var(--surface-2); }
+.table-header-bar h3 { font-size:.88rem; font-weight:700; color:var(--text-1); margin:0; }
+.results-pill { font-size:.72rem; font-weight:700; color:var(--text-3); background:var(--surface); border:1px solid var(--border); border-radius:999px; padding:.2rem .65rem; }
+
+/* ── Table ── */
+.table { width:100%; border-collapse:collapse; }
+.table thead th { background:var(--surface-2); padding:.65rem 1rem; text-align:left; font-size:.67rem; font-weight:700; text-transform:uppercase; letter-spacing:.07em; color:var(--text-3); border-bottom:1px solid var(--border); white-space:nowrap; }
+.table tbody td { padding:.7rem 1rem; border-bottom:1px solid var(--border); vertical-align:middle; color:var(--text-2); font-size:.83rem; background:var(--surface); }
+.table tbody tr:last-child td { border-bottom:none; }
+.table tbody tr:hover td { background:var(--surface-2); transition:background .1s; }
+
+/* ── Checkbox ── */
+.enhanced-checkbox { accent-color:var(--accent); width:15px; height:15px; cursor:pointer; }
+
+/* ── User / Exam Chips ── */
+.user-chip, .exam-chip { display:inline-flex; align-items:center; gap:.35rem; font-size:.8rem; font-weight:600; color:var(--text-1); }
+.user-chip i { color:var(--accent); font-size:.75rem; }
+.exam-chip i  { color:var(--info-text, var(--accent)); font-size:.75rem; }
+.id-text { font-size:.68rem; color:var(--text-3); margin-top:.1rem; }
+
+/* ── Remaining / Used Badges ── */
+.used-badge { display:inline-flex; align-items:center; padding:.15rem .55rem; border-radius:999px; font-size:.75rem; font-weight:700; background:var(--surface-2); border:1px solid var(--border); color:var(--text-2); }
+.remaining-val { font-size:.85rem; font-weight:700; color:var(--success-text); }
+.remaining-val.unlimited { color:var(--accent); }
+.remaining-val.exhausted  { color:var(--danger-text); }
+
+/* ── Action Buttons ── */
+.action-cell { display:flex; gap:.3rem; }
+.icon-btn { width:30px; height:30px; border-radius:8px; background:var(--surface-2); border:1px solid var(--border); color:var(--text-2); display:inline-flex; align-items:center; justify-content:center; cursor:pointer; transition:background .12s,color .12s,border-color .12s; font-size:.72rem; }
+.icon-btn.reset:hover { background:var(--warning-bg); color:var(--warning-text); border-color:var(--warning-border); }
+.icon-btn.inc:hover   { background:var(--success-bg); color:var(--success-text); border-color:var(--success-border); }
+.icon-btn.dec:hover   { background:var(--danger-bg);  color:var(--danger-text);  border-color:var(--danger-border); }
+
+/* ── Skeleton ── */
+.skeleton { height:14px; border-radius:6px; background:linear-gradient(90deg,var(--surface-2) 25%,var(--border) 50%,var(--surface-2) 75%); background-size:200% 100%; animation:sk-sh 1.4s infinite; }
+@keyframes sk-sh { to { background-position:-200% 0; } }
+
+/* ── Pagination ── */
+.pagination-bar { display:flex; align-items:center; justify-content:space-between; padding:.6rem 1.25rem; border-top:1px solid var(--border); background:var(--surface-2); flex-wrap:wrap; gap:.4rem; }
+.pagination-info { font-size:.75rem; color:var(--text-3); }
+.pg-btn { padding:.25rem .6rem; border-radius:6px; border:1px solid var(--border); background:var(--surface); color:var(--text-2); font-size:.78rem; font-weight:600; cursor:pointer; transition:background .1s,color .1s; font-family:inherit; }
+.pg-btn:hover:not(:disabled) { border-color:var(--accent); color:var(--accent); }
+.pg-btn.active { background:var(--accent); color:var(--accent-on); border-color:var(--accent); }
+.pg-btn:disabled { opacity:.4; cursor:not-allowed; }
+
+/* ── Empty State ── */
+.empty-state { text-align:center; padding:3rem 1rem; }
+.empty-state i { font-size:2rem; color:var(--text-3); opacity:.35; display:block; margin-bottom:.75rem; }
+.empty-state p { color:var(--text-3); margin:0; font-size:.88rem; }
+
+/* ── Custom Modals ── */
+.modal-bd { display:none; position:fixed; inset:0; z-index:1055; background:rgba(0,0,0,.55); backdrop-filter:blur(4px); align-items:center; justify-content:center; }
+.modal-bd.show { display:flex; }
+.modal-box { background:var(--surface); border:1px solid var(--border); border-radius:calc(var(--radius)+6px); width:90%; max-width:420px; box-shadow:var(--shadow-lg); overflow:hidden; }
+.mhdr { display:flex; align-items:center; justify-content:space-between; padding:.9rem 1.2rem; background:var(--surface-2); border-bottom:1px solid var(--border); }
+.mhdr h5 { margin:0; font-size:.92rem; font-weight:700; color:var(--text-1); }
+.modal-close { background:none; border:none; color:var(--text-3); cursor:pointer; font-size:.82rem; padding:.2rem .35rem; border-radius:6px; line-height:1; transition:color .1s; }
+.modal-close:hover { color:var(--text-1); }
+.mbody { padding:1.1rem 1.2rem; }
+.mfooter { display:flex; justify-content:flex-end; gap:.5rem; padding:.75rem 1.2rem; border-top:1px solid var(--border); }
+.modal-label { display:block; font-size:.75rem; font-weight:600; color:var(--text-2); margin-bottom:.35rem; }
+.modal-input { background:var(--bg) !important; border:1px solid var(--border) !important; border-radius:var(--radius) !important; color:var(--text-1) !important; font-family:inherit; font-size:.85rem; padding:.4rem .7rem; }
+.modal-input:focus { border-color:var(--accent) !important; outline:none; box-shadow:0 0 0 3px var(--accent-subtle); }
+.modal-info-box { background:var(--surface-2); border:1px solid var(--border); border-radius:var(--radius); padding:.65rem .85rem; font-size:.8rem; color:var(--text-2); margin:.5rem 0; line-height:1.7; }
+.modal-info-box strong { color:var(--text-1); }
+
+/* ── Selected Items List ── */
+.selected-list { display:flex; flex-direction:column; gap:4px; max-height:160px; overflow-y:auto; margin:.5rem 0; scrollbar-width:thin; scrollbar-color:var(--border) transparent; }
+.selected-item { display:flex; align-items:center; justify-content:space-between; padding:.4rem .7rem; background:var(--surface-2); border:1px solid var(--border); border-radius:var(--radius); font-size:.79rem; color:var(--text-2); }
+.selected-item strong { color:var(--text-1); }
+.selected-item small  { color:var(--text-3); font-size:.7rem; }
+</style>
+
+<div class="page-top">
+  <div>
+    <h1><i class="fas fa-users-cog me-2" style="color:var(--accent)"></i>Attempts Management</h1>
+    <p>Reset, increase, or decrease user exam attempts. Type username to search.</p>
+  </div>
+</div>
+
+<div class="filter-card">
+  <div class="filter-grid">
+    <div class="filter-group">
+      <label><i class="fas fa-user me-1"></i>Username</label>
+      <input type="text" id="userFilter" class="filter-input" placeholder="Search username…" oninput="debounceSearch()">
+    </div>
+    <div class="filter-group">
+      <label><i class="fas fa-file-alt me-1"></i>Exam</label>
+      <select id="examFilter" class="filter-input" onchange="fetchAttempts(1)">
+        <option value="">All Exams</option>
+        {% for exam in exams %}
+        <option value="{{ exam.id }}">{{ exam.name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="filter-group">
+      <label><i class="fas fa-chart-bar me-1"></i>Status</label>
+      <select id="statusFilter" class="filter-input" onchange="fetchAttempts(1)">
+        <option value="">All Status</option>
+        <option value="unlimited">Unlimited</option>
+        <option value="available">Has Remaining</option>
+        <option value="exhausted">Exhausted</option>
+      </select>
+    </div>
+  </div>
+  <div class="filter-actions">
+    <button class="btn-flat secondary" onclick="clearFilters()"><i class="fas fa-times"></i>Clear</button>
+    <span class="filter-badge" id="filterBadge"><i class="fas fa-check-circle"></i>Filters Active</span>
+    <span style="font-size:0.78rem;color:var(--text-3);margin-left:auto">
+      <i class="fas fa-info-circle me-1"></i>Type a username to load results
+    </span>
+  </div>
+</div>
+
+<div class="bulk-bar" id="bulkBar">
+  <button class="btn-flat primary"   onclick="openBulkModal('reset')">   <i class="fas fa-redo"></i>Bulk Reset</button>
+  <button class="btn-flat success"   onclick="openBulkModal('increase')"><i class="fas fa-plus"></i>Bulk +</button>
+  <button class="btn-flat warning"   onclick="openBulkModal('decrease')"><i class="fas fa-minus"></i>Bulk -</button>
+  <button class="btn-flat secondary" onclick="clearAllSelections()">     <i class="fas fa-times"></i>Clear</button>
+  <span class="bulk-count" id="selectedCount">0 selected</span>
+</div>
+
+<div class="card">
+  <div class="table-header-bar">
+    <h3><i class="fas fa-table me-2" style="color:var(--accent)"></i>Attempts Overview</h3>
+    <span class="results-pill" id="resultsCounter">—</span>
+  </div>
+  <div class="table-responsive">
+    <table class="table mb-0">
+      <thead>
+        <tr>
+          <th style="width:40px"><input type="checkbox" id="selectAll" class="enhanced-checkbox" onchange="toggleSelectAll()"></th>
+          <th>User</th><th>Exam</th><th>Max</th><th>Used</th><th>Remaining</th><th>Actions</th>
+        </tr>
+      </thead>
+      <tbody id="attemptsBody">
+        <tr><td colspan="7">
+          <div class="empty-state">
+            <i class="fas fa-search"></i>
+            <p><strong>Enter a username above to search</strong><br>
+            <span style="font-size:0.8rem">Or select an exam filter to browse all attempts</span></p>
+          </div>
+        </td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="pagination-bar">
+    <span class="pagination-info" id="paginationInfo"></span>
+    <div style="display:flex;gap:0.3rem;flex-wrap:wrap" id="paginatorBtns"></div>
+  </div>
+</div>
+
+<!-- Single Action Modal -->
+<div class="modal-bd" id="actionModal">
+  <div class="modal-box">
+    <div class="mhdr">
+      <h5 id="modalTitle">Confirm Action</h5>
+      <button class="modal-close" onclick="closeModal()"><i class="fas fa-times"></i></button>
+    </div>
+    <div class="mbody">
+      <p style="font-size:0.83rem;color:var(--text-2);margin:0 0 0.25rem" id="modalMessage"></p>
+      <div class="modal-info-box" id="modalInfoBox"></div>
+      <div id="amountWrap" style="display:none">
+        <label class="modal-label">Amount</label>
+        <input type="number" id="amount" class="modal-input" min="1" value="1" style="width:120px">
+      </div>
+    </div>
+    <div class="mfooter">
+      <button class="btn-flat secondary" onclick="closeModal()">Cancel</button>
+      <button class="btn-flat primary" id="confirmBtn" onclick="confirmAction()">Confirm</button>
+    </div>
+  </div>
+</div>
+
+<!-- Bulk Modal -->
+<div class="modal-bd" id="bulkModal">
+  <div class="modal-box">
+    <div class="mhdr">
+      <h5 id="bulkModalTitle">Bulk Action</h5>
+      <button class="modal-close" onclick="closeBulkModal()"><i class="fas fa-times"></i></button>
+    </div>
+    <div class="mbody">
+      <p style="font-size:0.83rem;color:var(--text-2);margin:0 0 0.25rem" id="bulkModalMsg"></p>
+      <div class="selected-list" id="selectedItemsList"></div>
+      <div id="bulkAmountWrap" style="display:none;margin-top:0.5rem">
+        <label class="modal-label">Amount</label>
+        <input type="number" id="bulkAmount" class="modal-input" min="1" value="1" style="width:120px">
+      </div>
+    </div>
+    <div class="mfooter">
+      <button class="btn-flat secondary" onclick="closeBulkModal()">Cancel</button>
+      <button class="btn-flat primary" id="bulkConfirmBtn" onclick="confirmBulkAction()">Confirm</button>
+    </div>
+  </div>
+</div>
+<script>
+/* ═══════════════════════════════════════════════
+   STATE
+═══════════════════════════════════════════════ */
+let _page         = 1;
+let _searchTimer  = null;
+let _isProcessing = false;
+let _selectedItems = new Set();   // "sid-eid" keys, persists across pages
+let _currentAction = null, _currentSid = null, _currentEid = null;
+let _currentBulkAction = null;
+// Store current page row data for bulk modal labels
+let _currentRows = [];
+
+/* ═══════════════════════════════════════════════
+   SEARCH / FETCH
+═══════════════════════════════════════════════ */
+function debounceSearch() {
+  clearTimeout(_searchTimer);
+  _searchTimer = setTimeout(() => fetchAttempts(1), 400);
+}
+
+function fetchAttempts(page) {
+  _page = page;
+  const q      = document.getElementById('userFilter').value.trim();
+  const examId = document.getElementById('examFilter').value;
+  const status = document.getElementById('statusFilter').value;
+
+  // Show hint if no filters at all
+  if (!q && !examId && !status) {
+    document.getElementById('attemptsBody').innerHTML = `
+      <tr><td colspan="7"><div class="empty-state">
+        <i class="fas fa-search"></i>
+        <p><strong>Enter a username or select an exam</strong><br>
+        <span style="font-size:0.8rem">Results will load here</span></p>
+      </div></td></tr>`;
+    document.getElementById('resultsCounter').textContent = '—';
+    document.getElementById('paginationInfo').textContent = '';
+    document.getElementById('paginatorBtns').innerHTML   = '';
+    return;
+  }
+
+  // Show skeleton
+  const tbody = document.getElementById('attemptsBody');
+  tbody.innerHTML = Array(5).fill(0).map(() =>
+    `<tr><td colspan="7"><div class="skeleton" style="width:${55+Math.random()*35|0}%"></div></td></tr>`
+  ).join('');
+
+  const badge = document.getElementById('filterBadge');
+  badge.style.display = (q || examId || status) ? 'inline-flex' : 'none';
+
+  const params = new URLSearchParams({ page, q, exam_id: examId, status });
+  fetch(`/api/v01/admin/attempts/search?${params}`)
+    .then(r => r.json())
+    .then(d => {
+      if (d.success === false) { renderError(d.message); return; }
+      _currentRows = d.rows || [];
+      renderRows(_currentRows);
+      renderPaginator(d.page, d.total_pages, d.total);
+      document.getElementById('resultsCounter').textContent =
+        `${d.total} result${d.total!==1?'s':''}`;
+    })
+    .catch(err => renderError('Network error: ' + err));
+}
+
+/* ═══════════════════════════════════════════════
+   RENDER ROWS
+═══════════════════════════════════════════════ */
+function renderRows(rows) {
+  const tbody = document.getElementById('attemptsBody');
+  if (!rows.length) {
+    tbody.innerHTML = `<tr><td colspan="7"><div class="empty-state">
+      <i class="fas fa-search"></i>
+      <p><strong>No Results</strong><br><span style="font-size:0.8rem">Adjust filters to see entries.</span></p>
+    </div></td></tr>`;
+    syncSelectAll(); return;
+  }
+
+  tbody.innerHTML = rows.map(r => {
+    const remCls = r.remaining === '∞' ? 'unlimited' : r.remaining === 0 ? 'exhausted' : '';
+    const isSel  = _selectedItems.has(`${r.student_id}-${r.exam_id}`);
+    const esc    = s => String(s).replace(/'/g, "\\'");
+    return `
+    <tr data-student-id="${r.student_id}" data-exam-id="${r.exam_id}">
+      <td><input type="checkbox" class="enhanced-checkbox row-select" ${isSel?'checked':''}
+          onchange="onRowCheck(this,'${r.student_id}','${r.exam_id}')"></td>
+      <td>
+        <span class="user-chip"><i class="fas fa-user"></i>${r.username}</span>
+        <div class="id-text">ID: ${r.student_id}</div>
+      </td>
+      <td>
+        <span class="exam-chip"><i class="fas fa-file-alt"></i>${r.exam_name}</span>
+        <div class="id-text">EID: ${r.exam_id}</div>
+      </td>
+      <td><strong style="color:var(--text-1)">${r.max_attempts}</strong></td>
+      <td><span class="used-badge">${r.attempts_used}</span></td>
+      <td><span class="remaining-val ${remCls}">${r.remaining}</span></td>
+      <td>
+        <div class="action-cell">
+          <button class="icon-btn reset" title="Reset"  onclick="openModal('reset',   '${r.student_id}','${r.exam_id}','${esc(r.username)}','${esc(r.exam_name)}')"><i class="fas fa-redo"></i></button>
+          <button class="icon-btn inc"   title="Add"    onclick="openModal('increase','${r.student_id}','${r.exam_id}','${esc(r.username)}','${esc(r.exam_name)}')"><i class="fas fa-plus"></i></button>
+          <button class="icon-btn dec"   title="Remove" onclick="openModal('decrease','${r.student_id}','${r.exam_id}','${esc(r.username)}','${esc(r.exam_name)}')"><i class="fas fa-minus"></i></button>
+        </div>
+      </td>
+    </tr>`;
+  }).join('');
+
+  syncSelectAll();
+}
+
+function renderError(msg) {
+  document.getElementById('attemptsBody').innerHTML =
+    `<tr><td colspan="7" style="text-align:center;padding:2rem;color:var(--danger-text)">
+      <i class="fas fa-exclamation-circle me-2"></i>${msg}
+    </td></tr>`;
+}
+
+/* ═══════════════════════════════════════════════
+   PAGINATOR
+═══════════════════════════════════════════════ */
+function renderPaginator(page, totalPages, total) {
+  const perPage = 50;
+  const start   = (page-1)*perPage+1, end = Math.min(page*perPage, total);
+  document.getElementById('paginationInfo').textContent =
+    total ? `Showing ${start}–${end} of ${total}` : 'No entries';
+
+  const wrap = document.getElementById('paginatorBtns');
+  if (totalPages <= 1) { wrap.innerHTML=''; return; }
+
+  let pages = [];
+  if (totalPages <= 7) { pages = Array.from({length:totalPages},(_,i)=>i+1); }
+  else {
+    pages = [1];
+    const s=Math.max(2,page-2), e=Math.min(totalPages-1,page+2);
+    if(s>2) pages.push('…');
+    for(let i=s;i<=e;i++) pages.push(i);
+    if(e<totalPages-1) pages.push('…');
+    pages.push(totalPages);
+  }
+
+  wrap.innerHTML = `
+    <button class="pg-btn" ${page===1?'disabled':''} onclick="fetchAttempts(${page-1})">‹</button>
+    ${pages.map(p => p==='…'
+      ? `<span style="color:var(--text-3);padding:0 4px">…</span>`
+      : `<button class="pg-btn${p===page?' active':''}" onclick="fetchAttempts(${p})">${p}</button>`
+    ).join('')}
+    <button class="pg-btn" ${page===totalPages?'disabled':''} onclick="fetchAttempts(${page+1})">›</button>`;
+}
+
+/* ═══════════════════════════════════════════════
+   FILTER HELPERS
+═══════════════════════════════════════════════ */
+function clearFilters() {
+  document.getElementById('userFilter').value = '';
+  document.getElementById('examFilter').value = '';
+  document.getElementById('statusFilter').value = '';
+  document.getElementById('filterBadge').style.display = 'none';
+  // Reset to empty hint state
+  fetchAttempts(1);
+}
+
+/* ═══════════════════════════════════════════════
+   SELECTION
+═══════════════════════════════════════════════ */
+function onRowCheck(cb, sid, eid) {
+  const key = `${sid}-${eid}`;
+  if (cb.checked) _selectedItems.add(key);
+  else            _selectedItems.delete(key);
+  syncSelectAll(); updateBulkBar();
+}
+
+function toggleSelectAll() {
+  const chk = document.getElementById('selectAll').checked;
+  document.querySelectorAll('#attemptsBody .row-select').forEach(cb => {
+    cb.checked = chk;
+    const tr = cb.closest('tr');
+    const sid = tr?.dataset.studentId, eid = tr?.dataset.examId;
+    if (sid && eid) {
+      const key = `${sid}-${eid}`;
+      if (chk) _selectedItems.add(key); else _selectedItems.delete(key);
+    }
+  });
+  updateBulkBar();
+}
+
+function syncSelectAll() {
+  const all = document.querySelectorAll('#attemptsBody .row-select');
+  const chk = document.querySelectorAll('#attemptsBody .row-select:checked');
+  const sa  = document.getElementById('selectAll'); if (!sa) return;
+  if (!all.length)              { sa.indeterminate=false; sa.checked=false; }
+  else if (!chk.length)         { sa.indeterminate=false; sa.checked=false; }
+  else if(chk.length===all.length){ sa.indeterminate=false; sa.checked=true; }
+  else                          { sa.indeterminate=true; }
+}
+
+function updateBulkBar() {
+  const n = _selectedItems.size;
+  document.getElementById('bulkBar').classList.toggle('show', n>0);
+  document.getElementById('selectedCount').textContent = `${n} selected`;
+}
+
+function clearAllSelections() {
+  _selectedItems.clear();
+  document.querySelectorAll('#attemptsBody .row-select').forEach(cb => cb.checked=false);
+  const sa = document.getElementById('selectAll');
+  if(sa){sa.checked=false;sa.indeterminate=false;}
+  updateBulkBar();
+}
+
+/* ═══════════════════════════════════════════════
+   SINGLE ACTION MODAL
+═══════════════════════════════════════════════ */
+function openModal(action, sid, eid, uname, ename) {
+  _currentAction = action; _currentSid = sid; _currentEid = eid;
+  const titles = {reset:'Reset Attempts', increase:'Add Attempts', decrease:'Remove Attempts'};
+  const msgs   = {reset:'This will reset ALL attempts. Cannot be undone.', increase:'Add extra attempts for this user.', decrease:'Remove attempts from this user.'};
+  document.getElementById('modalTitle').textContent   = titles[action];
+  document.getElementById('modalMessage').textContent = msgs[action];
+  document.getElementById('modalInfoBox').innerHTML   = `<strong>User:</strong> ${uname}<br><strong>Exam:</strong> ${ename}`;
+  document.getElementById('amountWrap').style.display = action==='reset'?'none':'block';
+  if (action !== 'reset') document.getElementById('amount').value = 1;
+  document.getElementById('actionModal').classList.add('show');
+}
+
+function closeModal() { document.getElementById('actionModal').classList.remove('show'); }
+
+async function confirmAction() {
+  if (_isProcessing) return;
+  _isProcessing = true;
+  const btn = document.getElementById('confirmBtn'), orig = btn.innerHTML;
+  btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+  try {
+    const r = await fetch("{{ url_for('admin_api.attempts_modify') }}", {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({
+        student_id: _currentSid, exam_id: _currentEid,
+        action: _currentAction,
+        amount: parseInt(document.getElementById('amount').value || 1)
+      })
+    });
+    const d = await r.json();
+    if (d.success) {
+      adminToast('Done!', 'success');
+      closeModal();
+      fetchAttempts(_page);
+    } else {
+      adminToast(d.message || 'Failed', 'danger');
+    }
+  } catch {
+    adminToast('Network error', 'danger');
+  } finally {
+    _isProcessing = false;
+    btn.innerHTML = orig; btn.disabled = false;
+  }
+}
+
+/* ═══════════════════════════════════════════════
+   BULK MODAL
+═══════════════════════════════════════════════ */
+function openBulkModal(action) {
+  if (!_selectedItems.size) { adminToast('Select at least one item', 'warning'); return; }
+  _currentBulkAction = action;
+  const titles = {reset:'Bulk Reset', increase:'Bulk Add Attempts', decrease:'Bulk Remove Attempts'};
+  document.getElementById('bulkModalTitle').textContent = titles[action];
+  document.getElementById('bulkModalMsg').textContent   =
+    `${action==='reset'?'Reset':'Modify'} attempts for ${_selectedItems.size} item(s).`;
+
+  // Build list from stored row data
+  const rowMap = {};
+  _currentRows.forEach(r => { rowMap[`${r.student_id}-${r.exam_id}`] = r; });
+
+  let html = '';
+  _selectedItems.forEach(key => {
+    const r = rowMap[key];
+    if (r) html += `<div class="selected-item"><span><strong>${r.username}</strong> — ${r.exam_name}</span><small>#${r.student_id}</small></div>`;
+    else {
+      const [s,e] = key.split('-');
+      html += `<div class="selected-item"><span>User ${s} — Exam ${e}</span></div>`;
+    }
+  });
+  document.getElementById('selectedItemsList').innerHTML = html;
+  document.getElementById('bulkAmountWrap').style.display = action==='reset'?'none':'block';
+  if (action !== 'reset') document.getElementById('bulkAmount').value = 1;
+  document.getElementById('bulkModal').classList.add('show');
+}
+
+function closeBulkModal() { document.getElementById('bulkModal').classList.remove('show'); }
+
+async function confirmBulkAction() {
+  if (_isProcessing) return;
+  _isProcessing = true;
+  const btn = document.getElementById('bulkConfirmBtn'), orig = btn.innerHTML;
+  btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+  const items = Array.from(_selectedItems).map(k => {
+    const [s,e] = k.split('-'); return {student_id:s, exam_id:e};
+  });
+  try {
+    const r = await fetch("{{ url_for('admin_api.attempts_bulk_modify') }}", {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({
+        items, action: _currentBulkAction,
+        amount: parseInt(document.getElementById('bulkAmount').value || 1)
+      })
+    });
+    const d = await r.json();
+    if (d.success) {
+      adminToast(`Done! ${d.processed} processed.`, 'success');
+      closeBulkModal();
+      clearAllSelections();
+      fetchAttempts(_page);
+    } else {
+      adminToast(d.message || 'Failed', 'danger');
+    }
+  } catch {
+    adminToast('Network error', 'danger');
+  } finally {
+    _isProcessing = false;
+    btn.innerHTML = orig; btn.disabled = false;
+  }
+}
+
+/* ═══════════════════════════════════════════════
+   KEYBOARD & CLICK-OUTSIDE
+═══════════════════════════════════════════════ */
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') { closeModal(); closeBulkModal(); }
+});
+document.getElementById('actionModal').addEventListener('click', e => {
+  if (e.target === e.currentTarget) closeModal();
+});
+document.getElementById('bulkModal').addEventListener('click', e => {
+  if (e.target === e.currentTarget) closeBulkModal();
+});
+
+/* ═══════════════════════════════════════════════
+   THEMED DROPDOWNS
+═══════════════════════════════════════════════ */
+// Same component used elsewhere in the admin UI (static/admin/select-enhance.js) —
+// the underlying <select> stays fully functional, so fetchAttempts()/clearFilters()
+// above (which read/set .value and rely on the "change" event) need no changes.
+enhanceSelect(document.getElementById('examFilter'), { icon: 'fas fa-file-alt' });
+enhanceSelect(document.getElementById('statusFilter'), { icon: 'fas fa-chart-bar' });
+</script>
+{% endblock %}

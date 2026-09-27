@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% block title %}Registration Complete - SmartAIExam{% endblock %}
+{% block content %}
+<div class="auth-page">
+<div class="auth-card">
+  <div class="auth-logo">
+    <video src="{{ url_for('static', filename='logo.mp4') }}" autoplay loop muted playsinline style="height:40px;width:auto"></video>
+  </div>
+  <div class="auth-title">Registration Complete</div>
+  <div class="auth-sub">Your account setup is ready to be completed</div>
+
+  <div class="success-steps">
+    <div class="sst"><span class="sst-num">1</span><div class="sst-info"><strong>Check your email</strong><span>Look in inbox and spam folder</span></div></div>
+    <div class="sst"><span class="sst-num">2</span><div class="sst-info"><strong>Click the setup link</strong><span>Opens secure password creation form</span></div></div>
+    <div class="sst"><span class="sst-num">3</span><div class="sst-info"><strong>Create your password</strong><span>Choose a strong, secure password</span></div></div>
+    <div class="sst"><span class="sst-num">4</span><div class="sst-info"><strong>Sign in</strong><span>Login and start using SmartAIExam</span></div></div>
+  </div>
+
+  <a href="{{ url_for('auth.login') }}" class="auth-btn" style="margin-top:1rem;text-decoration:none">
+    <i class="fas fa-sign-in-alt"></i> Go to Login
+  </a>
+  <div class="auth-note" style="text-align:center;margin-top:.75rem">
+    <i class="fas fa-info-circle"></i> Didn't receive the email? Check your spam folder or contact support.
+  </div>
+</div>
+</div>
+{% endblock %}

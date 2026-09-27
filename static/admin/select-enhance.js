@@ -1,0 +1,316 @@
+/* static/admin/select-enhance.js
+ * Turns a plain <select> into the same themed dropdown-button look used
+ * elsewhere in the admin UI, instead of the browser's unstyled native
+ * option list. Purely a presentation layer: the original <select> stays
+ * in the DOM (just hidden) and fully functional, so any existing code that
+ * reads el.value or listens for its 'change' event — e.g. the filters={}
+ * wiring in static/admin/list-controller.js — needs zero changes.
+ *
+ * enhanceSelect(selectEl, { icon: 'fas fa-layer-group', block: true }) -> { refresh() }
+ * icon is optional, shown before the current label. block (default false)
+ * makes it a full-width form field matching .form-control/.form-select,
+ * for a select sitting in a form grid rather than a compact filter toolbar.
+ *
+ * search: true (optional, with searchPlaceholder) adds a search box to the menu and turns each option into a two-line row:
+ * its text, and under it the option's data-meta (e.g. <option data-meta="SSC JE · Surveying · 8 questions">). The box
+ * matches every word you type against the option's data-search, or its text when there is none. The chosen option shows
+ * its detail line in the button too, so two options with the same name can be told apart. The <select> stays the source
+ * of truth (its value, `required`, form submission), exactly as for a plain enhanced select.
+ *
+ * Also exposes FloatingPanel (below): the same open/close rules for a larger popover.
+ */
+(function (global) {
+  let _openWrap = null; // only one enhanced dropdown open at a time, page-wide
+
+  function closeOpen() {
+    if (_openWrap) { _openWrap.classList.remove('open'); _openWrap = null; }
+  }
+  // A search box inside the open menu has to survive what focusing it does on a phone: the on-screen keyboard resizes the
+  // window and the browser may scroll the page to bring the field into view. Neither should close the menu that owns it.
+  function searchHasFocus() {
+    const a = document.activeElement;
+    return !!(_openWrap && a && a.tagName === 'INPUT' && _openWrap.contains(a));
+  }
+  document.addEventListener('click', () => closeOpen());
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') closeOpen(); });
+  // The open menu's position is computed once, at open time (see
+  // positionMenu() below) — close instead of leaving it stale if the page
+  // scrolls or resizes underneath it. Scroll events don't bubble, but a
+  // capture-phase listener on window still sees every one of them as they
+  // travel down to their real target — including the open menu's OWN
+  // internal overflow-y:auto scrollbar (long option lists, see
+  // select-enhance.css's max-height), whose target is the menu itself.
+  // Without the guard below, that self-scroll was indistinguishable from
+  // "the page scrolled underneath the menu" and closed the dropdown on the
+  // very first wheel/touch scroll tick inside it. Skip closing only when
+  // the scroll came from inside the currently-open menu — any other
+  // scroll (the page, a modal body, etc.) still closes it as before.
+  window.addEventListener('scroll', e => {
+    if (_openWrap && e.target && typeof e.target.contains === 'function' && _openWrap.contains(e.target)) return;
+    if (searchHasFocus()) return;
+    closeOpen();
+  }, true);
+  window.addEventListener('resize', () => { if (!searchHasFocus()) closeOpen(); });
+
+  function enhanceSelect(selectEl, opts) {
+    if (!selectEl || selectEl._enhanced) return null;
+    selectEl._enhanced = true;
+    opts = opts || {};
+
+    const wrap = document.createElement('div');
+    wrap.className = 'sel-enh' + (opts.block ? ' sel-enh-block' : '');
+
+    const trigger = document.createElement('button');
+    trigger.type = 'button';
+    trigger.className = 'sel-enh-trigger';
+    trigger.innerHTML =
+      (opts.icon ? `<i class="${opts.icon}"></i>` : '') +
+      '<span class="sel-enh-label"></span><i class="fas fa-chevron-down sel-enh-chev"></i>';
+
+    const menu = document.createElement('div');
+    menu.className = 'sel-enh-menu';
+
+    wrap.appendChild(trigger);
+    wrap.appendChild(menu);
+    selectEl.insertAdjacentElement('afterend', wrap);
+    selectEl.style.display = 'none';
+
+    const rich = !!opts.search;
+
+    // an option's name with its detail line under it (built with textContent, never as HTML)
+    function fillFace(el, opt) {
+      const name = document.createElement('span');
+      name.className = 'sel-enh-name';
+      name.textContent = opt.textContent;
+      el.appendChild(name);
+      if (opt.dataset.meta) {
+        const meta = document.createElement('span');
+        meta.className = 'sel-enh-meta';
+        meta.textContent = opt.dataset.meta;
+        el.appendChild(meta);
+      }
+    }
+
+    function render() {
+      menu.innerHTML = '';
+      menu.classList.toggle('sel-enh-menu-rich', rich);
+      let search = null;
+      if (rich) {
+        const bar = document.createElement('div');
+        bar.className = 'sel-enh-searchbar';
+        search = document.createElement('input');
+        search.type = 'text';
+        search.className = 'sel-enh-search';
+        search.autocomplete = 'off';
+        search.placeholder = opts.searchPlaceholder || 'Search…';
+        bar.appendChild(search);
+        menu.appendChild(bar);
+      }
+      menu._search = search;
+      const items = [];
+      Array.from(selectEl.options).forEach(opt => {
+        const item = document.createElement('button');
+        item.type = 'button';
+        item.className = 'sel-enh-item' + (opt.value === selectEl.value ? ' active' : '') + (rich ? ' rich' : '');
+        if (rich) fillFace(item, opt); else item.textContent = opt.textContent;
+        item.dataset.search = (opt.dataset.search || opt.textContent).toLowerCase();
+        item.dataset.blank = opt.value === '' ? '1' : '';
+        items.push(item);
+        item.addEventListener('click', e => {
+          e.stopPropagation();
+          if (selectEl.value !== opt.value) {
+            selectEl.value = opt.value; // triggers render() itself — see the wrapped setter below
+            selectEl.dispatchEvent(new Event('change', { bubbles: true }));
+          }
+          closeOpen();
+        });
+        menu.appendChild(item);
+      });
+      if (rich) {
+        const empty = document.createElement('div');
+        empty.className = 'sel-enh-empty';
+        empty.textContent = 'Nothing matches your search.';
+        empty.style.display = 'none';
+        menu.appendChild(empty);
+        const firstMatch = () => items.find(it => it.style.display !== 'none' && it.dataset.blank !== '1');
+        search.addEventListener('input', () => {
+          const words = search.value.trim().toLowerCase().split(/\s+/).filter(Boolean);
+          items.forEach(it => {
+            // the empty "Choose..." row only makes sense with no search; every typed word must appear in a real row
+            it.style.display = !words.length || (it.dataset.blank !== '1' && words.every(w => it.dataset.search.indexOf(w) !== -1)) ? '' : 'none';
+          });
+          empty.style.display = words.length && !firstMatch() ? '' : 'none';
+        });
+        search.addEventListener('keydown', e => {
+          if (e.key === 'Enter') { e.preventDefault(); const first = firstMatch(); if (first) first.click(); }
+        });
+      }
+      const current = Array.from(selectEl.options).find(o => o.value === selectEl.value);
+      const label = trigger.querySelector('.sel-enh-label');
+      label.textContent = '';
+      if (rich && current && current.dataset.meta) {
+        fillFace(label, current);
+        trigger.classList.add('sel-enh-trigger-rich');
+      } else {
+        label.textContent = current ? current.textContent : '';
+        trigger.classList.remove('sel-enh-trigger-rich');
+      }
+    }
+
+    // The menu is positioned with `fixed` coordinates computed here, not
+    // CSS `position:absolute; top:100%` — a select sitting near the bottom
+    // of a rounded-corner .card (which needs `overflow:hidden` to clip the
+    // table inside it) would otherwise have its dropdown silently clipped
+    // by that same boundary despite `display:block` and a high z-index —
+    // overflow:hidden clips absolutely-positioned descendants regardless of
+    // stacking order. `fixed` coordinates escape that (as long as no
+    // ancestor has transform/filter/perspective, which none here do).
+    function positionMenu() {
+      const rect = trigger.getBoundingClientRect();
+      menu.style.position = 'fixed';
+      menu.style.left = rect.left + 'px';
+      menu.style.minWidth = rect.width + 'px';
+      // select-enhance.css gives the "block" (full-width form field) variant
+      // `width:100%` so it matches the field while the menu is `absolute` —
+      // but position:fixed's containing block is the viewport, not this
+      // wrap, so that 100% would otherwise stretch the menu across the
+      // whole screen. Pin it to the trigger's real width instead.
+      if (wrap.classList.contains('sel-enh-block')) menu.style.width = rect.width + 'px';
+      menu.style.top = (rect.bottom + 4) + 'px';
+      menu.style.bottom = '';
+      const menuRect = menu.getBoundingClientRect();
+      // Flip upward if there's not enough room below but there IS above —
+      // otherwise leave it below and let the menu's own max-height/scroll
+      // (see select-enhance.css) handle a genuinely short viewport.
+      if (menuRect.bottom > window.innerHeight && rect.top > menuRect.height) {
+        menu.style.top = (rect.top - menuRect.height - 4) + 'px';
+      }
+      // Clamp so it never runs past the right edge of the viewport.
+      if (rect.left + menuRect.width > window.innerWidth) {
+        menu.style.left = Math.max(4, window.innerWidth - menuRect.width - 4) + 'px';
+      }
+    }
+
+    trigger.addEventListener('click', e => {
+      e.stopPropagation();
+      const willOpen = !wrap.classList.contains('open');
+      closeOpen();
+      if (willOpen) {
+        wrap.classList.add('open');
+        _openWrap = wrap;
+        render();
+        positionMenu();
+        // typing straight away is the point on a desktop; on a touch screen it would pop the keyboard over the list
+        if (menu._search && window.matchMedia('(hover: hover)').matches) menu._search.focus({ preventScroll: true });
+      }
+    });
+    wrap.addEventListener('click', e => e.stopPropagation()); // clicks inside the open menu must not bubble to the page-level closer
+
+    // The underlying <select>'s own option list can be rebuilt elsewhere
+    // (e.g. a category filter repopulating a dependent subcategory filter)
+    // — watch for that instead of requiring every such call site to know
+    // this enhancement exists.
+    new MutationObserver(render).observe(selectEl, { childList: true });
+
+    // Existing code elsewhere on a page often sets selectEl.value directly
+    // (form reset, populating an Edit modal, preselecting from another
+    // field) with no option-list change for the MutationObserver above to
+    // catch. Wrapping the native value accessor makes ANY such assignment
+    // — past or future call sites, this page or any other — refresh the
+    // trigger label automatically, with zero changes needed at those call
+    // sites and no risk of the label silently going stale again later.
+    const nativeValueDesc = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value');
+    Object.defineProperty(selectEl, 'value', {
+      configurable: true,
+      get() { return nativeValueDesc.get.call(this); },
+      set(v) { nativeValueDesc.set.call(this, v); render(); },
+    });
+
+    render();
+    return { refresh: render };
+  }
+
+
+  /* FloatingPanel — the same interaction rules as the dropdown menus above, for a larger popover (e.g. a user's plan card)
+   *
+   *   FloatingPanel.open(anchor, panel, { resolve, onClose })   panel is an element with class "floating-panel"
+   *   FloatingPanel.reposition() / FloatingPanel.close() / FloatingPanel.current()
+   *
+   * One is open at a time, page-wide. It closes on Escape and on a press OUTSIDE it (pointerdown, so a drag on its own
+   * scrollbar or a touch inside it never counts as outside). Scrolling INSIDE it is never treated as the page moving, and
+   * select-enhance.css stops the scroll from chaining to the page (overscroll-behavior). When the PAGE scrolls or resizes
+   * the panel follows its anchor (fixed coordinates, so no parent container can clip it) and closes only if the anchor has
+   * left the screen. `resolve` returns the anchor again when the page re-rendered it; on a narrow screen it becomes a sheet.
+   */
+  const FloatingPanel = (function () {
+    let cur = null;   // { anchor, panel, opts, frame }
+
+    function anchorEl() {
+      if (!cur) return null;
+      if (cur.anchor && cur.anchor.isConnected) return cur.anchor;
+      const found = cur.opts.resolve ? cur.opts.resolve() : null;
+      if (found) cur.anchor = found;
+      return found;
+    }
+
+    function place() {
+      if (!cur) return;
+      const anchor = anchorEl();
+      const panel = cur.panel;
+      if (!anchor) return;                                   // the page is re-rendering it right now: stay where the panel is
+      const r = anchor.getBoundingClientRect();
+      if (r.bottom < 0 || r.top > window.innerHeight) { close(); return; }
+      const sheet = window.innerWidth <= 640;
+      panel.classList.toggle('is-sheet', sheet);
+      if (sheet) { panel.style.left = panel.style.top = ''; return; }
+      const w = panel.offsetWidth, h = panel.offsetHeight;
+      panel.style.left = Math.min(Math.max(8, r.left), Math.max(8, window.innerWidth - w - 8)) + 'px';
+      let top = r.bottom + 6;
+      if (top + h > window.innerHeight - 8) {
+        const above = r.top - h - 6;
+        top = above >= 8 ? above : Math.max(8, window.innerHeight - h - 8);
+      }
+      panel.style.top = top + 'px';
+    }
+
+    function schedule() {
+      if (!cur || cur.frame) return;
+      cur.frame = requestAnimationFrame(() => { if (cur) { cur.frame = 0; place(); } });
+    }
+
+    function close() {
+      if (!cur) return;
+      const { panel, opts, frame } = cur;
+      cur = null;
+      if (frame) cancelAnimationFrame(frame);
+      panel.remove();
+      if (opts.onClose) opts.onClose();
+    }
+
+    function open(anchor, panel, opts) {
+      close();
+      cur = { anchor, panel, opts: opts || {}, frame: 0 };
+      panel.classList.add('floating-panel');
+      document.body.appendChild(panel);
+      place();
+    }
+
+    document.addEventListener('pointerdown', e => {
+      if (!cur || cur.panel.contains(e.target)) return;
+      const anchor = anchorEl();
+      if (anchor && anchor.contains(e.target)) return;      // the anchor's own click decides (open again / close)
+      close();
+    }, true);
+    document.addEventListener('keydown', e => { if (e.key === 'Escape') close(); });
+    window.addEventListener('scroll', e => {
+      if (!cur || (e.target && typeof e.target.contains === 'function' && cur.panel.contains(e.target))) return;
+      schedule();
+    }, true);
+    window.addEventListener('resize', schedule);
+
+    return { open, close, reposition: schedule, current: () => (cur ? cur.panel : null) };
+  })();
+  global.FloatingPanel = FloatingPanel;
+
+  global.enhanceSelect = enhanceSelect;
+})(window);

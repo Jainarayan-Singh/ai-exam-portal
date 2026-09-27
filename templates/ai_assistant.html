@@ -1,0 +1,158 @@
+{% extends "base.html" %}
+{% set active_nav = 'ai' %}
+{% block title %}AI Assistant - SmartAIExam{% endblock %}
+{# The Assistant is an application screen: the page itself never scrolls (see .ai-fit in chat.css). #}
+{% block body_class %}ai-fit{% endblock %}
+
+{% block content %}
+{% from 'partials/_ai_badge.html' import ai_model_badge %}
+<link rel="stylesheet" href="{{ url_for('static', filename='ai_assistant/chat.css') }}">
+
+<div class="ai-shell">
+
+  {# ── Sidebar ─────────────────────────────────────────────────────── #}
+  <aside class="ai-sidebar" id="aiSidebar">
+    <div class="ai-sb-top">
+      <button class="ai-sb-collapse-btn" id="sbCollapseBtn" title="Collapse sidebar" type="button"><i class="fas fa-angles-left"></i></button>
+    </div>
+    <button class="ai-new-chat-btn" id="newChatBtn" type="button">
+      <i class="fas fa-plus"></i><span class="ai-sb-label">New Chat</span>
+    </button>
+    <div class="ai-search-box">
+      <i class="fas fa-search input-icon"></i>
+      <input type="text" id="chatSearchInput" placeholder="Search chats…">
+    </div>
+    <div class="ai-conv-list" id="convList"></div>
+    <div class="ai-sb-loadmore" id="loadMoreRow" hidden>
+      <button id="loadMoreBtn" type="button">Load more</button>
+    </div>
+  </aside>
+  <div class="ai-sidebar-overlay" id="aiSbOverlay"></div>
+
+  {# ── Main chat column ────────────────────────────────────────────── #}
+  <div class="ai-page">
+
+    <div class="ai-header">
+      <div class="ai-header-left">
+        <button class="ai-mobile-menu-btn" id="aiMobileMenuBtn" type="button" title="Chats"><i class="fas fa-bars"></i></button>
+        <div class="ai-avatar"><i class="fas fa-robot"></i></div>
+        <div style="min-width:0">
+          <div class="ai-header-title" id="aiHeaderTitle">AI Study Assistant</div>
+          <div class="ai-header-sub">
+            <span class="ai-status"><span class="ai-status-dot"></span> Online &amp; Ready</span>
+            {# Which provider + model answers here right now: read from the central AI registry, never typed in. #}
+            {{ ai_model_badge('assistant_chat', label='Powered by') }}
+          </div>
+        </div>
+      </div>
+
+      <div class="ai-stats">
+        <div class="ai-stat-item"><span class="ai-stat-lbl">Limit</span><span class="ai-stat-val" id="dailyLimit">—</span></div>
+        <div class="ai-stat-item"><span class="ai-stat-lbl">Used</span><span class="ai-stat-val" id="usedToday">—</span></div>
+        <div class="ai-stat-item"><span class="ai-stat-lbl">Left</span><span class="ai-stat-val" id="remaining">—</span></div>
+      </div>
+    </div>
+
+    <div class="ai-limit-banner" id="dailyLimitBanner">
+      <span><i class="fas fa-circle-exclamation"></i> Your daily AI limit has been reached. You can continue reading your existing chats or start again after the limit resets.</span>
+    </div>
+    <div class="ai-limit-banner" id="convLimitBanner">
+      <span><i class="fas fa-circle-exclamation"></i> This conversation has reached its message limit. Start a new chat to continue.</span>
+      <button type="button" onclick="assistant.newChat()"><i class="fas fa-plus"></i> New Chat</button>
+    </div>
+
+    {# "Discuss with AI": which question this chat is about. References and labels only — the question itself is
+       never copied here; "View Question" opens the existing response page on it. Filled in by chat.js. #}
+    <div class="ai-context" id="aiContext" hidden>
+      <div class="ai-context-icon"><i class="fas fa-circle-question"></i></div>
+      <div class="ai-context-main">
+        <div class="ai-context-title" id="aiContextTitle"></div>
+        <div class="ai-context-meta" id="aiContextMeta"></div>
+      </div>
+      <div class="ai-context-actions">
+        <a class="ai-context-view" id="aiContextView" href="#" target="_blank" rel="noopener">
+          <i class="fas fa-up-right-from-square"></i><span>View Question</span>
+        </a>
+        <button type="button" class="ai-context-close" id="aiContextClose" title="Remove question context" aria-label="Remove question context">
+          <i class="fas fa-xmark"></i>
+        </button>
+      </div>
+    </div>
+
+    <div class="ai-messages-wrap">
+      <div class="ai-messages" id="chatMessages" tabindex="-1"></div>
+      <button type="button" class="ai-jump-latest" id="jumpLatestBtn" hidden>
+        <i class="fas fa-arrow-down"></i> New messages
+      </button>
+    </div>
+
+    <div class="ai-input-area">
+      <div class="ai-chips" id="aiChips" hidden></div>
+      <div class="ai-input-row">
+        <textarea class="chat-input" id="chatInput" placeholder="Ask me anything about your studies…" rows="1"></textarea>
+        <button class="send-btn" id="sendBtn" onclick="sendMessage()">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </button>
+      </div>
+      <div class="ai-input-hint">
+        <span id="hintText">Loading…</span>
+        <span>AI responses may be inaccurate — verify important details</span>
+      </div>
+    </div>
+
+  </div>{# /ai-page #}
+
+</div>{# /ai-shell #}
+
+{# Delete confirmation modal #}
+<div class="confirmation-modal" id="confirmModal">
+  <div class="modal-content">
+    <div class="modal-header">
+      <div class="modal-icon"><i class="fas fa-exclamation-triangle"></i></div>
+      <div class="modal-title">Delete this conversation?</div>
+    </div>
+    <div class="modal-body">This conversation and its messages will be permanently removed. This action cannot be undone.</div>
+    <div class="modal-actions">
+      <button class="modal-btn cancel" onclick="closeConfirmModal()">Cancel</button>
+      <button class="modal-btn confirm" onclick="confirmDeleteConversation()">Delete</button>
+    </div>
+  </div>
+</div>
+
+{# Remove question context confirmation (the × on the context bar). Same shell as the modals above. #}
+<div class="confirmation-modal" id="contextModal" role="dialog" aria-modal="true" aria-labelledby="contextModalTitle">
+  <div class="modal-content">
+    <div class="modal-header">
+      <div class="modal-icon info"><i class="fas fa-circle-question"></i></div>
+      <div class="modal-title" id="contextModalTitle">Remove Question Context?</div>
+    </div>
+    <div class="modal-body">Removing the question context will switch this conversation back to general study mode. Your existing conversation messages will not be deleted.</div>
+    <div class="modal-actions">
+      <button class="modal-btn cancel" id="contextModalKeep" type="button">Keep Context</button>
+      <button class="modal-btn primary" id="contextModalRemove" type="button">Remove Context</button>
+    </div>
+  </div>
+</div>
+
+{# Rename modal #}
+<div class="confirmation-modal" id="renameModal">
+  <div class="modal-content">
+    <div class="modal-header">
+      <div class="modal-icon info"><i class="fas fa-pen"></i></div>
+      <div class="modal-title">Rename chat</div>
+    </div>
+    <input type="text" id="renameInput" class="ai-rename-input" maxlength="70" placeholder="Chat title">
+    <div class="modal-actions">
+      <button class="modal-btn cancel" onclick="closeRenameModal()">Cancel</button>
+      <button class="modal-btn primary" onclick="submitRename()">Save</button>
+    </div>
+  </div>
+</div>
+
+<script>
+window.AI_ASSISTANT_USER_INITIAL = {{ (session.get("full_name","U")[:1])|tojson }};
+window.AI_ASSISTANT_AVATAR_URL = {{ (NAV_AVATAR_URL or none)|tojson }};
+</script>
+{% endblock %}
+
+{% block scripts %}<script type="module" src="{{ url_for('static', filename='ai_assistant/chat.js') }}"></script>{% endblock %}

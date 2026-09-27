@@ -1,0 +1,270 @@
+{% extends "base.html" %}
+{% set active_nav = 'results' %}
+{% block title %}Results History - SmartAIExam{% endblock %}
+{% block content %}
+<style>
+.rh-main { flex:1; min-width:0; padding:1.5rem 1.75rem; }
+.rh-head { margin-bottom:1.25rem; }
+.rh-head h1 { font-size:1.2rem; font-weight:700; color:var(--text-1); letter-spacing:-.02em; margin-bottom:.2rem; }
+.rh-head p  { font-size:.8rem; color:var(--text-3); }
+
+.rh-filters {
+  display:flex; align-items:center; gap:.6rem; flex-wrap:wrap;
+  background:var(--surface); border:1px solid var(--border);
+  border-radius:var(--radius); padding:.75rem 1rem; margin-bottom:1rem;
+}
+.rh-input { flex:1; min-width:130px; padding:.42rem .75rem; background:var(--bg); border:1px solid var(--border); border-radius:var(--radius); color:var(--text-1); font-family:inherit; font-size:.8rem; outline:none; transition:border-color .15s,box-shadow .15s; }
+.rh-input::placeholder { color:var(--text-3); }
+.rh-input:focus { border-color:var(--border-focus); box-shadow:0 0 0 3px var(--accent-subtle); }
+.rh-select { padding:.42rem .7rem; background:var(--bg); border:1px solid var(--border); border-radius:var(--radius); color:var(--text-1); font-family:inherit; font-size:.8rem; outline:none; cursor:pointer; }
+.rh-select:focus { border-color:var(--border-focus); }
+.rh-btn { display:inline-flex; align-items:center; gap:.35rem; padding:.42rem .85rem; border-radius:var(--radius); font-size:.78rem; font-weight:600; font-family:inherit; border:none; cursor:pointer; transition:background .12s; white-space:nowrap; }
+.rh-btn.primary { background:var(--accent); color:var(--accent-on); }
+.rh-btn.primary:hover { background:var(--accent-hover); }
+.rh-btn.ghost { background:var(--surface-2); color:var(--text-2); border:1px solid var(--border); }
+.rh-btn.ghost:hover { border-color:var(--accent); color:var(--accent); }
+
+.rh-table-wrap { background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); overflow:hidden; }
+.rh-table { width:100%; border-collapse:collapse; }
+.rh-table thead th { background:var(--surface-2); padding:.65rem 1rem; text-align:left; font-size:.68rem; font-weight:700; text-transform:uppercase; letter-spacing:.07em; color:var(--text-3); border-bottom:1px solid var(--border); white-space:nowrap; }
+.rh-table tbody td { padding:.72rem 1rem; font-size:.82rem; color:var(--text-2); border-bottom:1px solid var(--border); vertical-align:middle; white-space:nowrap; }
+.rh-table tbody tr:last-child td { border-bottom:none; }
+.rh-table tbody tr:hover td { background:var(--surface-2); }
+.rh-table .exam-col { font-weight:600; color:var(--text-1); max-width:200px; overflow:hidden; text-overflow:ellipsis; }
+.sched-ico { color:var(--accent); font-size:.68rem; margin-left:.3rem; }
+
+.score-ok  { color:var(--success-text); font-weight:700; }
+.score-err { color:var(--danger-text);  font-weight:700; }
+
+.pct { display:inline-flex; align-items:center; padding:.18rem .55rem; border-radius:20px; font-size:.72rem; font-weight:700; border:1px solid; }
+.pct-green  { background:var(--success-bg); color:var(--success-text); border-color:var(--success-border); }
+.pct-info   { background:var(--info-bg);    color:var(--info-text);    border-color:var(--info-border); }
+.pct-warn   { background:var(--warning-bg); color:var(--warning-text); border-color:var(--warning-border); }
+.pct-danger { background:var(--danger-bg);  color:var(--danger-text);  border-color:var(--danger-border); }
+
+.grade-pill { display:inline-flex; align-items:center; justify-content:center; width:26px; height:26px; border-radius:50%; font-size:.7rem; font-weight:800; background:var(--accent-subtle); color:var(--accent); border:1px solid var(--border); }
+
+.tbl-btn { display:inline-flex; align-items:center; gap:.3rem; padding:.28rem .6rem; border-radius:var(--radius); font-size:.7rem; font-weight:600; font-family:inherit; border:1px solid; cursor:pointer; text-decoration:none; transition:background .12s; margin-right:.25rem; }
+.tbl-btn.view { background:var(--accent-subtle); color:var(--accent); border-color:var(--border); }
+.tbl-btn.view:hover { background:var(--accent); color:var(--accent-on); border-color:var(--accent); }
+.tbl-btn.resp { background:var(--success-bg); color:var(--success-text); border-color:var(--success-border); position:relative; }
+.tbl-btn.resp:hover { background:var(--success); color:#fff; border-color:var(--success); }
+.tbl-btn.resp.loading { opacity:.65; pointer-events:none; }
+.tbl-btn.pend { background:var(--warning-bg); color:var(--warning-text); border-color:var(--warning-border); }
+.tbl-btn-bar { position:absolute; left:0; right:0; top:100%; margin-top:3px; height:3px; border-radius:2px; background:var(--success-bg); overflow:hidden; }
+.tbl-btn-bar span { display:block; height:100%; width:40%; background:var(--success-text); border-radius:2px; animation:tblBarLoad .9s ease-in-out infinite; }
+@keyframes tblBarLoad { 0%{margin-left:-40%;} 100%{margin-left:100%;} }
+
+.rh-pager { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:.75rem; padding:.7rem 1rem; border-top:1px solid var(--border); background:var(--surface-2); }
+.rh-pager-btns { display:flex; gap:.3rem; }
+.pg-btn { display:inline-flex; align-items:center; gap:.25rem; padding:.32rem .65rem; border-radius:var(--radius); font-size:.73rem; font-weight:600; font-family:inherit; background:var(--surface); border:1px solid var(--border); color:var(--text-2); cursor:pointer; transition:all .12s; }
+.pg-btn:hover:not(:disabled) { border-color:var(--accent); color:var(--accent); background:var(--accent-subtle); }
+.pg-btn:disabled { opacity:.35; cursor:not-allowed; }
+.pg-info { font-size:.73rem; color:var(--text-3); }
+.pg-size { padding:.3rem .55rem; background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); color:var(--text-1); font-family:inherit; font-size:.73rem; cursor:pointer; outline:none; }
+
+.rh-empty { text-align:center; padding:4rem 2rem; background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); }
+.rh-empty i { font-size:1.8rem; color:var(--text-3); opacity:.3; display:block; margin-bottom:.75rem; }
+.rh-empty h3 { font-size:.9rem; font-weight:700; color:var(--text-2); margin-bottom:.3rem; }
+.rh-empty p  { font-size:.78rem; color:var(--text-3); }
+
+/* Mobile cards */
+.rh-cards { display:none; }
+.rh-card { background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); padding:.9rem 1rem; margin-bottom:.75rem; }
+.rh-card-top { display:flex; justify-content:space-between; align-items:flex-start; gap:.5rem; margin-bottom:.55rem; }
+.rh-card-name { font-weight:700; color:var(--text-1); font-size:.85rem; }
+.rh-card-date { font-size:.7rem; color:var(--text-3); flex-shrink:0; }
+.rh-card-meta { display:flex; flex-wrap:wrap; gap:.35rem; font-size:.73rem; color:var(--text-2); margin-bottom:.7rem; }
+.rh-card-meta span { background:var(--surface-2); padding:.15rem .5rem; border-radius:20px; }
+.rh-card-actions { display:flex; gap:.4rem; flex-wrap:wrap; }
+
+@media(max-width:768px){
+  .rh-main { padding:1rem; }
+  .rh-table-wrap { display:none; }
+  .rh-cards { display:block; }
+  .rh-filters { flex-direction:column; gap:.5rem; }
+  .rh-input, .rh-select { width:100%; }
+}
+</style>
+
+<main class="rh-main">
+  <div class="rh-head">
+    <h1><i class="fas fa-history" style="color:var(--accent);margin-right:.45rem"></i>Results History</h1>
+    <p>All your past exam attempts, scores and responses</p>
+  </div>
+
+  {% if results %}
+  <div class="rh-filters">
+    <input class="rh-input" id="fDate"    placeholder="Search date…">
+    <input class="rh-input" id="fExam"    placeholder="Search exam…">
+    <input class="rh-input" id="fSubject" placeholder="Search subject…">
+    <select class="rh-select" id="fSort">
+      <option value="">Sort by date</option>
+      <option value="newest">Newest first</option>
+      <option value="oldest">Oldest first</option>
+    </select>
+    <button class="rh-btn primary" id="applyBtn"><i class="fas fa-search"></i> Filter</button>
+    <button class="rh-btn ghost"   id="clearBtn"><i class="fas fa-times"></i> Clear</button>
+  </div>
+
+  <div class="rh-table-wrap">
+    <table class="rh-table" id="rhTable">
+      <thead>
+        <tr>
+          <th>Date</th><th>Exam</th><th>Subject</th>
+          <th>Correct</th><th>Wrong</th><th>Skipped</th>
+          <th>Score</th><th>Pct</th><th>Grade</th><th>Time</th><th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for r in results %}
+        {% set pct = (r.percentage or 0)|float %}
+        {% set vis = r.result_visible if r.result_visible is defined else true %}
+        <tr data-date="{{ r.completed_at }}" data-exam="{{ r.exam_name|lower }}" data-sub="{{ r.subject|lower }}">
+          <td style="color:var(--text-3);font-size:.73rem">{{ r.completed_at | display_dt }}</td>
+          <td class="exam-col">{{ r.exam_name }}{% if r.is_scheduled %}<i class="fas fa-calendar-check sched-ico" title="Scheduled Exam"></i>{% endif %}</td>
+          <td>{{ r.subject }}</td>
+          {% if vis %}
+          <td><span class="score-ok">{{ r.correct_answers }}</span></td>
+          <td><span class="score-err">{{ r.incorrect_answers }}</span></td>
+          <td>{{ r.unanswered_questions }}</td>
+          <td style="font-weight:600;color:var(--text-1)">{{ r.score }}/{{ r.max_score }}</td>
+          <td><span class="pct {% if pct>=80 %}pct-green{% elif pct>=60 %}pct-info{% elif pct>=40 %}pct-warn{% else %}pct-danger{% endif %}">{{ '%.1f'|format(pct) }}%</span></td>
+          <td><span class="grade-pill">{{ r.grade }}</span></td>
+          <td style="color:var(--text-3);font-size:.73rem">{{ r.time_taken_minutes }}m</td>
+          <td>
+            <a href="{{ url_for('result.result', exam_id=r.exam_id, result_id=r.id, from_history=1) }}" class="tbl-btn view"><i class="fas fa-eye"></i> Result</a>
+            <a href="{{ url_for('result.response_page', exam_id=r.exam_id, result_id=r.id, from_history=1) }}" class="tbl-btn resp"><i class="fas fa-clipboard-check"></i> Response</a>
+          </td>
+          {% else %}
+          <td colspan="7" style="color:var(--text-3);font-size:.77rem"><i class="fas fa-lock" style="color:var(--warning-text);margin-right:.3rem"></i>{{ r.pending_reason or 'Result not yet released' }}</td>
+          <td><a href="{{ url_for('result.result_pending', exam_id=r.exam_id, result_id=r.id) }}" class="tbl-btn pend"><i class="fas fa-clock"></i> Pending</a></td>
+          {% endif %}
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    <div class="rh-pager">
+      <div class="rh-pager-btns">
+        <button class="pg-btn" id="pgFirst"><i class="fas fa-angle-double-left"></i></button>
+        <button class="pg-btn" id="pgPrev"><i class="fas fa-angle-left"></i> Prev</button>
+        <button class="pg-btn" id="pgNext">Next <i class="fas fa-angle-right"></i></button>
+        <button class="pg-btn" id="pgLast"><i class="fas fa-angle-double-right"></i></button>
+      </div>
+      <span class="pg-info" id="pgInfo"></span>
+      <div style="display:flex;align-items:center;gap:.45rem">
+        <span style="font-size:.72rem;color:var(--text-3)">Rows:</span>
+        <select class="pg-size" id="pgSize">
+          <option value="10" selected>10</option>
+          <option value="25">25</option>
+          <option value="50">50</option>
+          <option value="0">All</option>
+        </select>
+      </div>
+    </div>
+  </div>
+
+  {# Mobile cards #}
+  <div class="rh-cards" id="rhCards">
+    {% for r in results %}
+    {% set pct = (r.percentage or 0)|float %}
+    {% set vis = r.result_visible if r.result_visible is defined else true %}
+    <div class="rh-card" data-date="{{ r.completed_at }}" data-exam="{{ r.exam_name|lower }}" data-sub="{{ r.subject|lower }}">
+      <div class="rh-card-top">
+        <div class="rh-card-name">{{ r.exam_name }}{% if r.is_scheduled %}<i class="fas fa-calendar-check sched-ico" title="Scheduled Exam"></i>{% endif %}</div>
+        <div class="rh-card-date">{{ r.completed_at | display_dt }}</div>
+      </div>
+      {% if vis %}
+      <div class="rh-card-meta">
+        <span>{{ r.subject }}</span>
+        <span>{{ r.score }}/{{ r.max_score }}</span>
+        <span class="pct {% if pct>=80 %}pct-green{% elif pct>=60 %}pct-info{% elif pct>=40 %}pct-warn{% else %}pct-danger{% endif %}">{{ '%.1f'|format(pct) }}%</span>
+        <span>Grade: <strong style="color:var(--text-1)">{{ r.grade }}</strong></span>
+        <span>{{ r.time_taken_minutes }}m</span>
+      </div>
+      <div class="rh-card-actions">
+        <a href="{{ url_for('result.result', exam_id=r.exam_id, result_id=r.id, from_history=1) }}" class="tbl-btn view"><i class="fas fa-eye"></i> Result</a>
+        <a href="{{ url_for('result.response_page', exam_id=r.exam_id, result_id=r.id, from_history=1) }}" class="tbl-btn resp"><i class="fas fa-clipboard-check"></i> Response</a>
+      </div>
+      {% else %}
+      <div style="font-size:.77rem;color:var(--text-3);margin-bottom:.55rem"><i class="fas fa-lock" style="color:var(--warning-text);margin-right:.3rem"></i>{{ r.pending_reason or 'Result not yet released' }}</div>
+      <a href="{{ url_for('result.result_pending', exam_id=r.exam_id, result_id=r.id) }}" class="tbl-btn pend"><i class="fas fa-clock"></i> Pending</a>
+      {% endif %}
+    </div>
+    {% endfor %}
+  </div>
+
+  {% else %}
+  <div class="rh-empty"><i class="fas fa-clipboard-list"></i><h3>No results yet</h3><p>Complete an exam to see your results here.</p></div>
+  {% endif %}
+</main>
+
+<script>
+document.addEventListener('DOMContentLoaded',function(){
+  var aR=Array.from(document.querySelectorAll('#rhTable tbody tr'));
+  var aC=Array.from(document.querySelectorAll('#rhCards .rh-card'));
+  var ps=10, pg=1;
+
+  function filt(items){
+    var d=(document.getElementById('fDate')||{}).value||'';
+    var e=(document.getElementById('fExam')||{}).value||'';
+    var s=(document.getElementById('fSubject')||{}).value||'';
+    return items.filter(function(el){
+      return(!d||(el.dataset.date||'').includes(d))&&(!e||(el.dataset.exam||'').includes(e.toLowerCase()))&&(!s||(el.dataset.sub||'').includes(s.toLowerCase()));
+    });
+  }
+
+  function render(){
+    var fr=filt(aR), fc=filt(aC), tot=Math.max(fr.length,fc.length);
+    var sz=ps===0?tot||1:ps, pages=Math.max(1,Math.ceil(tot/sz));
+    if(pg>pages) pg=pages;
+    aR.forEach(function(r){r.style.display='none';}); aC.forEach(function(c){c.style.display='none';});
+    var s=(pg-1)*sz, en=ps===0?tot:s+sz;
+    fr.slice(s,en).forEach(function(r){r.style.display='';}); fc.slice(s,en).forEach(function(c){c.style.display='';});
+    var pi=document.getElementById('pgInfo'); if(pi) pi.textContent='Page '+pg+' of '+pages+' — '+tot+' results';
+    ['pgFirst','pgPrev'].forEach(function(id){var b=document.getElementById(id);if(b)b.disabled=pg<=1;});
+    ['pgNext','pgLast'].forEach(function(id){var b=document.getElementById(id);if(b)b.disabled=pg>=pages;});
+  }
+
+  function srt(){
+    var v=(document.getElementById('fSort')||{}).value||''; if(!v)return;
+    function cmp(a,b){var da=new Date(a.dataset.date||0),db=new Date(b.dataset.date||0);return v==='newest'?db-da:da-db;}
+    aR.sort(cmp); var tb=document.querySelector('#rhTable tbody'); if(tb)aR.forEach(function(r){tb.appendChild(r);});
+    aC.sort(cmp); var cl=document.getElementById('rhCards'); if(cl)aC.forEach(function(c){cl.appendChild(c);});
+  }
+
+  document.getElementById('applyBtn')&&document.getElementById('applyBtn').addEventListener('click',function(){srt();pg=1;render();});
+  document.getElementById('clearBtn')&&document.getElementById('clearBtn').addEventListener('click',function(){
+    ['fDate','fExam','fSubject'].forEach(function(id){var el=document.getElementById(id);if(el)el.value='';});
+    var fs=document.getElementById('fSort');if(fs)fs.value=''; pg=1;render();
+  });
+  ['fDate','fExam','fSubject'].forEach(function(id){
+    var el=document.getElementById(id); if(el)el.addEventListener('keydown',function(e){if(e.key==='Enter'){srt();pg=1;render();}});
+  });
+  document.getElementById('pgFirst')&&document.getElementById('pgFirst').addEventListener('click',function(){pg=1;render();});
+  document.getElementById('pgPrev')&&document.getElementById('pgPrev').addEventListener('click',function(){if(pg>1){pg--;render();}});
+  document.getElementById('pgNext')&&document.getElementById('pgNext').addEventListener('click',function(){pg++;render();});
+  document.getElementById('pgLast')&&document.getElementById('pgLast').addEventListener('click',function(){
+    var fr=filt(aR);var sz=ps===0?fr.length||1:ps;pg=Math.max(1,Math.ceil(fr.length/sz));render();
+  });
+  document.getElementById('pgSize')&&document.getElementById('pgSize').addEventListener('change',function(){ps=this.value==='0'?0:parseInt(this.value);pg=1;render();});
+
+  document.querySelectorAll('a.tbl-btn.resp').forEach(function(btn){
+    btn.addEventListener('click',function(e){
+      if(btn.classList.contains('loading')){e.preventDefault();return;}
+      e.preventDefault();
+      btn.classList.add('loading');
+      var href=btn.href;
+      var bar=document.createElement('div'); bar.className='tbl-btn-bar'; bar.innerHTML='<span></span>'; btn.appendChild(bar);
+      fetch(href,{credentials:'same-origin'}).then(function(r){return r.text();}).then(function(html){
+        var doc=new DOMParser().parseFromString(html,'text/html');
+        var srcs=Array.from(doc.images).map(function(im){return im.src;}).filter(Boolean);
+        return Promise.all(srcs.map(function(src){return new Promise(function(res){var im=new Image();im.onload=im.onerror=res;im.src=src;});}));
+      }).catch(function(){}).then(function(){window.location.href=href;});
+    });
+  });
+
+  render();
+});
+</script>
+{% endblock %}

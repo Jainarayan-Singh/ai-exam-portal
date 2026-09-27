@@ -1,0 +1,606 @@
+{% extends "base.html" %}
+{% block title %}Support Center - SmartAIExam{% endblock %}
+{% set org_name = "SmartAIExam" %}
+{% block content %}
+<style>
+.sp-wrap {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 2.5rem 1.5rem 4rem;
+}
+
+/* ── PAGE HEADER ── */
+.sp-phdr {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 2.5rem;
+  flex-wrap: wrap;
+}
+.sp-phdr-left h1 {
+  font-size: 1.55rem;
+  font-weight: 800;
+  color: var(--text-1);
+  margin: 0 0 .3rem;
+  letter-spacing: -.02em;
+  display: flex;
+  align-items: center;
+  gap: .55rem;
+}
+.sp-phdr-left h1 i { color: var(--accent); font-size: 1.2rem; }
+.sp-phdr-left p { font-size: .83rem; color: var(--text-3); margin: 0; }
+.sp-back {
+  display: inline-flex;
+  align-items: center;
+  gap: .4rem;
+  font-size: .75rem;
+  font-weight: 600;
+  color: var(--text-3);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: .38rem .75rem;
+  text-decoration: none;
+  transition: border-color .12s, color .12s;
+  flex-shrink: 0;
+  margin-top: .25rem;
+}
+.sp-back:hover { border-color: var(--accent); color: var(--accent); }
+
+/* ── CONTACT CARDS ── */
+.sp-contact-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+.sp-ccard {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: calc(var(--radius) + 4px);
+  padding: 1.1rem 1.15rem;
+  display: flex;
+  flex-direction: column;
+  gap: .55rem;
+  transition: border-color .12s;
+}
+.sp-ccard:hover { border-color: var(--accent); }
+.sp-ccard-icon {
+  width: 34px;
+  height: 34px;
+  border-radius: 9px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: .82rem;
+  flex-shrink: 0;
+}
+.sp-ccard h5 {
+  font-size: .82rem;
+  font-weight: 700;
+  color: var(--text-1);
+  margin: 0;
+}
+.sp-ccard-val {
+  font-size: .78rem;
+  font-weight: 600;
+  color: var(--accent);
+}
+.sp-ccard-sub {
+  font-size: .68rem;
+  color: var(--text-3);
+  line-height: 1.5;
+}
+
+/* ── TWO-COL LAYOUT ── */
+.sp-cols {
+  display: grid;
+  grid-template-columns: 1fr 320px;
+  gap: 1.5rem;
+  align-items: start;
+}
+@media (max-width: 820px) { .sp-cols { grid-template-columns: 1fr; } }
+
+/* ── SECTION CARD ── */
+.sp-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: calc(var(--radius) + 4px);
+  overflow: hidden;
+  margin-bottom: 1.25rem;
+}
+.sp-card:last-child { margin-bottom: 0; }
+.sp-card-hdr {
+  padding: .85rem 1.25rem;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: .5rem;
+}
+.sp-card-hdr-left {
+  display: flex;
+  align-items: center;
+  gap: .5rem;
+}
+.sp-card-hdr h3 {
+  margin: 0;
+  font-size: .88rem;
+  font-weight: 700;
+  color: var(--text-1);
+}
+.sp-card-hdr i { color: var(--accent); font-size: .8rem; }
+.sp-card-body { padding: 1.1rem 1.25rem; }
+
+/* ── FAQ ── */
+.sp-faq-item {
+  border-bottom: 1px solid var(--border);
+}
+.sp-faq-item:last-child { border-bottom: none; }
+.sp-faq-q {
+  width: 100%;
+  background: none;
+  border: none;
+  padding: .85rem 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  font-size: .8rem;
+  font-weight: 700;
+  color: var(--text-1);
+  cursor: pointer;
+  font-family: inherit;
+  text-align: left;
+  transition: color .1s;
+}
+.sp-faq-q:hover { color: var(--accent); }
+.sp-faq-q i {
+  font-size: .65rem;
+  color: var(--text-3);
+  flex-shrink: 0;
+  transition: transform .2s;
+}
+.sp-faq-item.open .sp-faq-q i { transform: rotate(180deg); color: var(--accent); }
+.sp-faq-a {
+  display: none;
+  font-size: .78rem;
+  color: var(--text-2);
+  line-height: 1.75;
+  padding: 0 0 .9rem;
+}
+.sp-faq-item.open .sp-faq-a { display: block; }
+
+/* ── TROUBLESHOOT ── */
+.sp-ts-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+}
+@media (max-width: 580px) { .sp-ts-grid { grid-template-columns: 1fr; } }
+.sp-ts-box {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1rem 1.1rem;
+}
+.sp-ts-box h5 {
+  font-size: .78rem;
+  font-weight: 700;
+  color: var(--text-1);
+  margin: 0 0 .65rem;
+  display: flex;
+  align-items: center;
+  gap: .4rem;
+}
+.sp-ts-box ul {
+  margin: 0;
+  padding-left: 1.1rem;
+  font-size: .75rem;
+  color: var(--text-2);
+  line-height: 2;
+}
+
+/* ── TECH REQ ── */
+.sp-tech-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1rem;
+}
+@media (max-width: 580px) { .sp-tech-grid { grid-template-columns: 1fr; } }
+.sp-tech-box {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1rem;
+  text-align: center;
+}
+.sp-tech-box > i {
+  font-size: 1.3rem;
+  margin-bottom: .55rem;
+  display: block;
+}
+.sp-tech-box h5 {
+  font-size: .78rem;
+  font-weight: 700;
+  color: var(--text-1);
+  margin: 0 0 .55rem;
+}
+.sp-tech-box ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: .72rem;
+  color: var(--text-2);
+  line-height: 2;
+}
+.sp-tech-box small {
+  font-size: .65rem;
+  color: var(--text-3);
+  margin-top: .5rem;
+  display: block;
+}
+
+/* ── RIGHT SIDEBAR ── */
+.sp-info-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: calc(var(--radius) + 4px);
+  overflow: hidden;
+  margin-bottom: 1.25rem;
+}
+.sp-info-card:last-child { margin-bottom: 0; }
+.sp-info-hdr {
+  padding: .75rem 1.1rem;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  gap: .45rem;
+  font-size: .78rem;
+  font-weight: 700;
+  color: var(--text-1);
+}
+.sp-info-hdr i { color: var(--accent); font-size: .72rem; }
+.sp-info-body { padding: .85rem 1.1rem; }
+
+/* Response times */
+.sp-rt-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: .5rem;
+  padding: .55rem 0;
+  border-bottom: 1px solid var(--border);
+  font-size: .75rem;
+}
+.sp-rt-item:last-child { border-bottom: none; padding-bottom: 0; }
+.sp-rt-left {
+  display: flex;
+  align-items: center;
+  gap: .5rem;
+  color: var(--text-2);
+}
+.sp-rt-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.sp-rt-time {
+  font-size: .7rem;
+  color: var(--text-3);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+/* Hours */
+.sp-hours-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: .42rem 0;
+  border-bottom: 1px solid var(--border);
+  font-size: .75rem;
+}
+.sp-hours-item:last-child { border-bottom: none; }
+.sp-hours-day { color: var(--text-2); font-weight: 600; }
+.sp-hours-time { color: var(--text-3); }
+.sp-hours-avail {
+  display: inline-flex;
+  align-items: center;
+  gap: .3rem;
+  font-size: .65rem;
+  font-weight: 700;
+  padding: .18rem .55rem;
+  border-radius: 20px;
+}
+.sp-hours-avail.open  { background: var(--success-bg); color: var(--success-text); }
+.sp-hours-avail.close { background: var(--danger-bg);  color: var(--danger-text); }
+
+/* Notice box */
+.sp-notice {
+  background: var(--warning-bg);
+  border: 1px solid var(--warning-border);
+  border-radius: var(--radius);
+  padding: .85rem 1rem;
+  display: flex;
+  gap: .65rem;
+  align-items: flex-start;
+  font-size: .78rem;
+  color: var(--warning-text);
+  line-height: 1.6;
+  margin-bottom: 1.5rem;
+}
+.sp-notice i { flex-shrink: 0; margin-top: .15rem; }
+.sp-notice strong { display: block; margin-bottom: .2rem; }
+</style>
+
+<div class="sp-wrap">
+
+  <!-- Page Header -->
+  <div class="sp-phdr">
+    <div class="sp-phdr-left">
+      <h1><i class="fas fa-life-ring"></i> Support Center</h1>
+      <p>Get help, find answers, and resolve issues quickly</p>
+    </div>
+      <div style="display:flex;gap:.5rem;">
+        <a href="{{ url_for('misc.home') }}" class="sp-back"><i class="fas fa-home"></i> Home</a>
+        <a href="javascript:history.back()" class="sp-back"><i class="fas fa-arrow-left"></i> Back</a>
+      </div>
+  </div>
+
+  <!-- Notice -->
+  <div class="sp-notice">
+    <i class="fas fa-lightbulb"></i>
+    <div>
+      <strong>Before raising a ticket</strong>
+      Check the FAQ and Troubleshooting sections below — most common issues are covered there. It's the fastest way to get unblocked.
+    </div>
+  </div>
+
+  <!-- Contact cards -->
+  {% if PUBLIC_SUPPORT_EMAIL %}
+  <div class="sp-contact-grid">
+    <div class="sp-ccard">
+      <div class="sp-ccard-icon" style="background:var(--info-bg);color:var(--info-text);">
+        <i class="fas fa-envelope"></i>
+      </div>
+      <h5>Email Support</h5>
+      <div class="sp-ccard-val">{{ PUBLIC_SUPPORT_EMAIL }}</div>
+      <div class="sp-ccard-sub">For general queries and non-urgent issues.</div>
+    </div>
+    <div class="sp-ccard">
+      <div class="sp-ccard-icon" style="background:var(--accent-subtle);color:var(--accent);">
+        <i class="fas fa-bug"></i>
+      </div>
+      <h5>Report a Bug</h5>
+      <div class="sp-ccard-val">{{ PUBLIC_SUPPORT_EMAIL }}</div>
+      <div class="sp-ccard-sub">Include your browser, OS, and a screenshot if possible.</div>
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- Two-col layout -->
+  <div class="sp-cols">
+
+    <!-- Left -->
+    <div>
+
+      <!-- FAQ -->
+      <div class="sp-card">
+        <div class="sp-card-hdr">
+          <div class="sp-card-hdr-left">
+            <i class="fas fa-question-circle"></i>
+            <h3>Frequently Asked Questions</h3>
+          </div>
+        </div>
+        <div class="sp-card-body" style="padding-top:.3rem;padding-bottom:.3rem;">
+
+          <div class="sp-faq-item">
+            <button class="sp-faq-q" onclick="toggleFaq(this)">
+              How do I reset my password?
+              <i class="fas fa-chevron-down"></i>
+            </button>
+            <div class="sp-faq-a">Click "Forgot Password" on the login page and follow the link sent to your registered email. If it doesn't arrive within a few minutes, check your spam folder. The link expires in 30 minutes — request a new one if needed.</div>
+          </div>
+
+          <div class="sp-faq-item">
+            <button class="sp-faq-q" onclick="toggleFaq(this)">
+              My exam is not loading. What should I do?
+              <i class="fas fa-chevron-down"></i>
+            </button>
+            <div class="sp-faq-a">First, check your internet connection and try a hard refresh (Ctrl+Shift+R on Windows, Cmd+Shift+R on Mac). Disable browser extensions like ad-blockers that can interfere with exam loading. If it still doesn't work, switch to Chrome or Edge and try again. For ongoing live exams, call us directly.</div>
+          </div>
+
+          <div class="sp-faq-item">
+            <button class="sp-faq-q" onclick="toggleFaq(this)">
+              Can I pause or resume an exam mid-way?
+              <i class="fas fa-chevron-down"></i>
+            </button>
+            <div class="sp-faq-a">No — once an exam starts, the timer runs continuously and cannot be paused. Ensure you have a stable connection and enough uninterrupted time before starting. If you accidentally close the tab, re-opening the exam link will resume from where you left off as long as the session hasn't expired.</div>
+          </div>
+
+          <div class="sp-faq-item">
+            <button class="sp-faq-q" onclick="toggleFaq(this)">
+              When and how can I view my results?
+              <i class="fas fa-chevron-down"></i>
+            </button>
+            <div class="sp-faq-a">Results appear in your dashboard under Results History immediately after submission and auto-evaluation. You can see your score, per-question breakdown, correct answers, and time spent. For exams that require manual review by an admin, results may take longer.</div>
+          </div>
+
+          <div class="sp-faq-item">
+            <button class="sp-faq-q" onclick="toggleFaq(this)">
+              What happens if I lose internet during an exam?
+              <i class="fas fa-chevron-down"></i>
+            </button>
+            <div class="sp-faq-a">Your answers are saved periodically as you attempt questions. If you reconnect within the remaining exam time, you can continue. If the timer expires while you're disconnected, the exam is auto-submitted with whatever answers were saved. We recommend using a wired or stable Wi-Fi connection for exams.</div>
+          </div>
+
+          <div class="sp-faq-item">
+            <button class="sp-faq-q" onclick="toggleFaq(this)">
+              Which browsers are supported?
+              <i class="fas fa-chevron-down"></i>
+            </button>
+            <div class="sp-faq-a">Chrome 90+, Firefox 88+, Edge 90+, and Safari 14+ are all supported. Chrome is recommended for the most consistent experience, especially for exams that require fullscreen mode. Mobile browsers work but a laptop or desktop is preferred for exams.</div>
+          </div>
+
+          <div class="sp-faq-item">
+            <button class="sp-faq-q" onclick="toggleFaq(this)">
+              Why does my exam keep going out of fullscreen?
+              <i class="fas fa-chevron-down"></i>
+            </button>
+            <div class="sp-faq-a">Some exams enforce fullscreen lockdown. Pressing Escape, switching tabs, or using keyboard shortcuts (Alt+Tab, Win key etc.) can trigger a warning or flag your session. Stay in fullscreen and avoid switching windows during the exam. If you're on macOS, make sure notifications are silenced.</div>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- Troubleshooting -->
+      <div class="sp-card">
+        <div class="sp-card-hdr">
+          <div class="sp-card-hdr-left">
+            <i class="fas fa-tools"></i>
+            <h3>Troubleshooting Guide</h3>
+          </div>
+        </div>
+        <div class="sp-card-body">
+          <div class="sp-ts-grid">
+            <div class="sp-ts-box">
+              <h5><i class="fas fa-wifi" style="color:var(--info-text);"></i> Connection Issues</h5>
+              <ul>
+                <li>Check network stability before starting</li>
+                <li>Use wired connection if possible</li>
+                <li>Hard refresh with Ctrl+Shift+R</li>
+                <li>Disable VPN or proxy temporarily</li>
+                <li>Restart your router if unstable</li>
+              </ul>
+            </div>
+            <div class="sp-ts-box">
+              <h5><i class="fas fa-window-maximize" style="color:var(--success-text);"></i> Browser Issues</h5>
+              <ul>
+                <li>Clear cache and cookies first</li>
+                <li>Enable JavaScript (required)</li>
+                <li>Update to latest browser version</li>
+                <li>Try incognito / private mode</li>
+                <li>Disable all extensions temporarily</li>
+              </ul>
+            </div>
+            <div class="sp-ts-box">
+              <h5><i class="fas fa-expand" style="color:var(--warning-text);"></i> Fullscreen Problems</h5>
+              <ul>
+                <li>Allow fullscreen in browser prompt</li>
+                <li>Silence system notifications</li>
+                <li>Disable multiple monitors if possible</li>
+                <li>Don't use Alt+Tab during exam</li>
+                <li>Check browser fullscreen permissions</li>
+              </ul>
+            </div>
+            <div class="sp-ts-box">
+              <h5><i class="fas fa-calculator" style="color:var(--accent);"></i> Formula Not Rendering</h5>
+              <ul>
+                <li>Wait for MathJax to fully load</li>
+                <li>Refresh page if symbols show</li>
+                <li>Use Chrome for best rendering</li>
+                <li>Disable math-related extensions</li>
+                <li>Report if issue persists</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Technical requirements -->
+      <div class="sp-card">
+        <div class="sp-card-hdr">
+          <div class="sp-card-hdr-left">
+            <i class="fas fa-cog"></i>
+            <h3>Technical Requirements</h3>
+          </div>
+        </div>
+        <div class="sp-card-body">
+          <div class="sp-tech-grid">
+            <div class="sp-tech-box">
+              <i class="fas fa-desktop" style="color:var(--info-text);"></i>
+              <h5>Supported Browsers</h5>
+              <ul>
+                <li>Chrome 90+</li>
+                <li>Firefox 88+</li>
+                <li>Edge 90+</li>
+                <li>Safari 14+</li>
+              </ul>
+              <small>Always use the latest version</small>
+            </div>
+            <div class="sp-tech-box">
+              <i class="fas fa-wifi" style="color:var(--success-text);"></i>
+              <h5>Internet Speed</h5>
+              <ul>
+                <li>Minimum: 1 Mbps</li>
+                <li>Recommended: 5+ Mbps</li>
+                <li>Stable connection required</li>
+                <li>Avoid public Wi-Fi</li>
+              </ul>
+              <small>Test speed at fast.com before exams</small>
+            </div>
+            <div class="sp-tech-box">
+              <i class="fas fa-laptop" style="color:var(--warning-text);"></i>
+              <h5>Device</h5>
+              <ul>
+                <li>Laptop / Desktop preferred</li>
+                <li>4 GB RAM minimum</li>
+                <li>Updated OS</li>
+                <li>Webcam if proctored</li>
+              </ul>
+              <small>Mobile devices not recommended for exams</small>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Right sidebar -->
+    <div>
+
+      <!-- Contact info -->
+      <div class="sp-info-card">
+        <div class="sp-info-hdr"><i class="fas fa-envelope"></i> Direct Contact</div>
+        <div class="sp-info-body" style="font-size:.78rem;color:var(--text-2);line-height:1.9;">
+          {% if PUBLIC_SUPPORT_EMAIL %}<div><i class="fas fa-at" style="color:var(--text-3);margin-right:.5rem;width:13px;text-align:center;"></i>{{ PUBLIC_SUPPORT_EMAIL }}</div>{% endif %}
+          {% if PUBLIC_CONTACT_PHONE %}<div><i class="fas fa-phone" style="color:var(--text-3);margin-right:.5rem;width:13px;text-align:center;"></i>{{ PUBLIC_CONTACT_PHONE }}</div>{% endif %}
+          <div><i class="fas fa-globe" style="color:var(--text-3);margin-right:.5rem;width:13px;text-align:center;"></i>{{ PUBLIC_ADDRESS or "Online platform" }}</div>
+          <a href="{{ url_for('misc.contact') }}" style="display:inline-flex;align-items:center;gap:.35rem;margin-top:.9rem;font-size:.73rem;font-weight:600;color:var(--accent);text-decoration:none;">
+            Contact page <i class="fas fa-arrow-right" style="font-size:.6rem;"></i>
+          </a>
+        </div>
+      </div>
+
+      <!-- Still stuck -->
+      <div class="sp-info-card">
+        <div class="sp-info-hdr"><i class="fas fa-headset"></i> Still Stuck?</div>
+        <div class="sp-info-body" style="font-size:.78rem;color:var(--text-2);line-height:1.7;">
+          If the FAQ and troubleshooting steps didn't resolve your issue, reach out directly. Include:
+          <ul style="margin:.65rem 0 0;padding-left:1.1rem;line-height:2;">
+            <li>Your username or registered email</li>
+            <li>Browser and OS version</li>
+            <li>What you were doing when it happened</li>
+            <li>Any error message shown</li>
+            <li>Screenshot if possible</li>
+          </ul>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<script>
+function toggleFaq(btn){
+  var item = btn.closest('.sp-faq-item');
+  var isOpen = item.classList.contains('open');
+  document.querySelectorAll('.sp-faq-item.open').forEach(function(el){ el.classList.remove('open'); });
+  if(!isOpen) item.classList.add('open');
+}
+</script>
+{% endblock %}

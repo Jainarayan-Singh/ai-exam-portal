@@ -1,0 +1,1096 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <link rel="icon" type="image/x-icon" href="{{ url_for('static', filename='logo.png') }}">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Admin - {% block title %}{% endblock %}</title>
+
+  <!--
+    ══ CENTRALIZED THEME INIT ══════════════════════════════════
+    Reads landingTheme from localStorage (set by index.html).
+    Maps all 5 landing themes to portal data-theme values.
+    Admin sidebar stays dark always — only content area changes.
+    To add a new theme: add it in index.html + theme.css only.
+    ============================================================
+  -->
+  <script>
+  (function(){
+    var lt = localStorage.getItem('landingTheme') || 'sunset';
+    var t  = (lt === 'paper') ? 'light' : lt;
+    document.documentElement.setAttribute('data-theme', t);
+    if (localStorage.getItem('adminSidebarCollapsed') === 'true')
+      document.documentElement.setAttribute('data-sidebar', 'collapsed');
+  })();
+  </script>
+
+  <!-- ── CENTRALIZED THEME CSS ── -->
+  <link href="{{ url_for('static', filename='theme.css') }}" rel="stylesheet">
+  <link href="{{ url_for('static', filename='shared/ai-badge.css') }}" rel="stylesheet">
+  <link href="{{ url_for('static', filename='shared/plan-badge.css') }}" rel="stylesheet">
+
+  <!-- ── VENDOR ── -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet"/>
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet"/>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=DM+Serif+Display&display=swap" rel="stylesheet"/>
+
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
+  <script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js" defer></script>
+  <script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js" defer></script>
+
+  <!-- MathJax bootstrap — single shared instance for every admin page.
+       See templates/base.html for the full rationale (same pattern, kept in
+       sync deliberately): config must be set before the library script
+       loads; window.mathJaxTypeset() is the one safe/serialized way to
+       typeset; startup.typeset:false stops MathJax's own automatic
+       whole-page pass from racing that queue. Previously this page loaded
+       an unconfigured, unpinned MathJax script here AND individual admin
+       templates (e.g. view_responses_popup.html) each loaded their own
+       second, differently-configured MathJax instance in their own
+       extra-head block — two competing instances/configs on the same page,
+       which is why LaTeX rendering was inconsistent/blank on admin pages. -->
+  <script>
+  window._mathJaxReady = false;
+  window._mathJaxReadyPromise = new Promise(function(resolve){ window._mathJaxReadyResolve = resolve; });
+  window.MathJax={
+    loader:{load:['[tex]/mhchem']},
+    tex:{
+      packages:{'[+]':['mhchem']},
+      inlineMath:[['$','$'],['\\(','\\)']],
+      displayMath:[['$$','$$'],['\\[','\\]']],
+      processEscapes:true,
+      processEnvironments:true
+    },
+    chtml:{linebreaks:{automatic:true,width:"container"}},
+    options:{skipHtmlTags:['script','noscript','style','textarea','pre','code']},
+    startup:{
+      typeset:false,
+      ready(){
+        MathJax.startup.defaultReady();
+        window._mathJaxReady = true;
+        window._mathJaxReadyResolve();
+      }
+    }
+  };
+  window._mathJaxQueue = Promise.resolve();
+  window.mathJaxTypeset = function(elements){
+    window._mathJaxQueue = window._mathJaxQueue
+      .then(function(){ return window._mathJaxReady ? null : window._mathJaxReadyPromise; })
+      .then(function(){
+        if (!window.MathJax || typeof MathJax.typesetPromise !== 'function') return;
+        if (elements && typeof MathJax.typesetClear === 'function') {
+          try { MathJax.typesetClear(elements); } catch(e) {}
+        }
+        return MathJax.typesetPromise(elements);
+      })
+      .catch(function(e){ console.warn('[MathJax]', e); });
+    return window._mathJaxQueue;
+  };
+  </script>
+  <script id="MathJax-script" src="https://cdn.jsdelivr.net/npm/mathjax@3.2.2/es5/tex-mml-chtml.js" async></script>
+
+  <!-- KaTeX auto-render trigger — runs after all deferred scripts load -->
+  <script>
+    document.addEventListener("DOMContentLoaded", function() {
+      if (typeof renderMathInElement === 'function') {
+        renderMathInElement(document.body, {
+          delimiters: [
+            { left: "$$", right: "$$", display: true  },
+            { left: "$",  right: "$",  display: false },
+            { left: "\\(", right: "\\)", display: false },
+            { left: "\\[", right: "\\]", display: true  }
+          ],
+          throwOnError: false
+        });
+      }
+    });
+  </script>
+
+  {% block extra_head %}{% endblock %}
+
+  <style>
+  /* ══ ADMIN LAYOUT (structural — no color tokens here) ══ */
+  *, *::before, *::after { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+
+  /* ── Footer ── */
+  .professional-footer {
+    background: var(--surface);
+    border-top: 1px solid var(--border);
+    padding: .75rem 0;
+  }
+  .footer-content {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: .75rem;
+  }
+  .footer-brand {
+    display: flex;
+    align-items: center;
+    gap: .45rem;
+    font-size: .82rem;
+    font-weight: 700;
+    color: var(--text-2);
+  }
+  .footer-links {
+    display: flex;
+    gap: 1.1rem;
+    flex-wrap: wrap;
+  }
+  .footer-links a {
+    font-size: .75rem;
+    color: var(--text-3);
+    text-decoration: none;
+    transition: color .15s;
+  }
+  .footer-links a:hover { color: var(--text-1); }
+  .footer-copy {
+    font-size: .75rem;
+    color: var(--text-3);
+  }
+
+  .admin-wrapper { display: flex; min-height: 100vh; position: relative; }
+
+  /* ── Reset theme.css .modal/.modal-backdrop overrides for Bootstrap ──
+     theme.css defines .modal for the user portal custom modal system.
+     Admin portal uses Bootstrap modals — so we reset conflicting properties. */
+  .modal {
+    background: none !important;
+    border: none !important;
+    border-radius: 0 !important;
+    width: 100% !important;
+    max-width: none !important;
+    box-shadow: none !important;
+    transform: none !important;
+    transition: none !important;
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    height: 100% !important;
+    z-index: 1055 !important;
+  }
+  .modal-backdrop {
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    width: 100vw !important;
+    height: 100vh !important;
+    background: rgba(0,0,0,.5) !important;
+    display: block !important;
+    opacity: 0;
+    transition: opacity .15s linear !important;
+    backdrop-filter: none !important;
+    align-items: unset !important;
+    justify-content: unset !important;
+    padding: 0 !important;
+    pointer-events: auto !important;
+  }
+  .modal-backdrop.show { opacity: .5 !important; }
+
+  /* ── Bootstrap modal-content: force theme tokens ── */
+  .modal-content {
+    background: var(--surface) !important;
+    border: 1px solid var(--border) !important;
+    color: var(--text-1) !important;
+  }
+  .modal-header {
+    background: var(--surface-2) !important;
+    border-bottom-color: var(--border) !important;
+  }
+  .modal-footer {
+    background: var(--surface-2) !important;
+    border-top-color: var(--border) !important;
+  }
+  .modal-body {
+    background: var(--surface) !important;
+  }
+
+  /* ── SIDEBAR WIDTHS ── */
+  :root {
+    --sb-w-open:   240px;
+    --sb-w-closed: 68px;
+    --sb-ease:     cubic-bezier(0.4, 0, 0.2, 1);
+    --sb-dur:      0.22s;
+  }
+
+  .sidebar {
+    position: sticky; top: 0; height: 100vh;
+    width: var(--sb-w-open); min-width: var(--sb-w-open);
+    background: var(--sb-bg);
+    border-right: 1px solid var(--sb-border);
+    display: flex; flex-direction: column;
+    flex-shrink: 0; overflow: hidden;
+    transition: width var(--sb-dur) var(--sb-ease),
+                min-width var(--sb-dur) var(--sb-ease);
+    z-index: 200;
+  }
+  .sidebar.is-collapsed { width: var(--sb-w-closed); min-width: var(--sb-w-closed); }
+
+  /* Sidebar header */
+  .sb-header {
+    display: flex; align-items: center;
+    min-height: 60px; padding: 8px 12px; gap: 8px;
+    border-bottom: 1px solid var(--sb-border);
+    flex-shrink: 0; flex-wrap: nowrap;
+  }
+  .is-collapsed .sb-header { justify-content: center; gap: 6px; }
+
+  .brand-text { flex: 1; min-width: 0; overflow: hidden; display: flex; flex-direction: column; justify-content: center; }
+  .brand-text.sb-hide { display: none; }
+  .brand-name { font-family: 'DM Serif Display', serif; font-size: 0.88rem; color: var(--sb-text-hover); line-height: 1.25; white-space: nowrap; }
+  .brand-sub  { font-size: 0.56rem; color: var(--sb-section); letter-spacing: 0.1em; text-transform: uppercase; font-weight: 600; }
+
+  /* Toggle button */
+  .sb-toggle {
+    flex-shrink: 0; display: flex; align-items: center; justify-content: center;
+    width: 28px; height: 28px; border-radius: 7px;
+    background: var(--sb-toggle-bg); border: 1px solid var(--sb-border);
+    color: var(--sb-toggle-c); cursor: pointer; font-size: 0.65rem; margin-left: auto;
+    transition: background 0.15s, color 0.15s, transform var(--sb-dur) var(--sb-ease);
+  }
+  .sb-toggle:hover { background: var(--sb-hover-bg); color: var(--sb-text-hover); }
+  .is-collapsed .sb-toggle { transform: rotate(180deg); margin-left: 0; }
+
+  /* Nav scroll area */
+  /* min-height:0 is required here — a flex child defaults to min-height:auto,
+     which refuses to shrink below its natural content height, so with enough
+     nav items this wrapper silently grows past the sidebar's 100vh instead of
+     scrolling; the parent's overflow:hidden (needed for the width-collapse
+     transition) then clips whatever didn't fit. This was always latent and
+     only became visible once mobile's shorter viewport + more nav items
+     pushed content past the fold. */
+  .sb-nav-wrap { flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden; padding: 8px; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
+  .sb-nav-wrap::-webkit-scrollbar { display: none; }
+  .is-collapsed .sb-nav-wrap { padding: 6px; }
+
+  /* Nav list */
+  .sb-nav { list-style: none; padding: 0; margin: 0; }
+  .sb-nav > li { margin-bottom: 1px; }
+
+  /* Section labels */
+  .section-label {
+    display: block; font-size: 0.57rem; font-weight: 700;
+    letter-spacing: 0.1em; text-transform: uppercase;
+    color: var(--sb-section); padding: 14px 8px 4px;
+    white-space: nowrap; pointer-events: none; user-select: none;
+  }
+  .section-label.sb-hide {
+    font-size: 0; padding: 0; margin: 6px 6px;
+    height: 1px; background: var(--sb-border);
+    display: block; pointer-events: none;
+  }
+
+  /* Nav link */
+  .sb-nav .nav-link {
+    display: flex; align-items: center; gap: 10px; padding: 6px 8px;
+    border-radius: 8px; color: var(--sb-text); font-size: 0.835rem;
+    font-weight: 500; text-decoration: none; cursor: pointer;
+    border: 1px solid transparent; background: transparent;
+    width: 100%; text-align: left; font-family: inherit;
+    transition: background 0.15s, color 0.15s, border-color 0.15s;
+  }
+  .is-collapsed .sb-nav .nav-link { justify-content: center; padding: 6px 0; gap: 0; }
+  /* locked: listed but not granted to this admin. Dimmed, with a small lock; the click explains instead of navigating. */
+  .sb-nav .nav-link.locked .nav-icon, .sb-nav .nav-link.locked .nav-label { opacity: 0.5; }
+  .nav-lock { margin-left: auto; font-size: 0.62rem; opacity: 0.6; flex-shrink: 0; }
+  .is-collapsed .nav-lock { display: none; }
+
+  /* Icon wrapper */
+  .nav-icon {
+    display: flex; align-items: center; justify-content: center;
+    width: 36px; height: 36px; min-width: 36px; flex-shrink: 0;
+    border-radius: 7px; opacity: 0.6;
+    transition: background 0.15s, opacity 0.15s;
+  }
+  .nav-icon i { font-size: 0.88rem; line-height: 1; }
+
+  /* Profile & Account's real photo (NAV_AVATAR_URL) instead of a generic glyph — sits in the
+     exact same fixed 36x36 .nav-icon slot every other nav item uses, which doesn't change size
+     between expanded/collapsed (only the surrounding .nav-link's padding/gap and the label do —
+     see .is-collapsed rules above), so this looks right in both states with no extra variants.
+     Full opacity (glyph icons dim to 0.6 by default, brightening on hover/active) — a real photo
+     read as "washed out" at 60% in a way a generic icon glyph doesn't. */
+  .nav-icon-avatar { opacity: 1; }
+  .nav-avatar-img { width: 100%; height: 100%; border-radius: 50%; object-fit: cover; }
+
+  .nav-label { flex: 1; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+  .nav-label.sb-hide { display: none; }
+
+  .nav-badge {
+    flex-shrink: 0; background: var(--danger); color: #fff;
+    border-radius: 20px; padding: 1px 6px; font-size: 0.59rem;
+    font-weight: 700; min-width: 17px; text-align: center;
+  }
+  .nav-badge.sb-hide { display: none; }
+
+  /* Hover */
+  .sb-nav .nav-link:hover { background: var(--sb-hover-bg); color: var(--sb-text-hover); border-color: var(--sb-border); }
+  .sb-nav .nav-link:hover .nav-icon { opacity: 1; }
+
+  /* Active */
+  .sb-nav .nav-link.active { background: var(--sb-active-bg); color: var(--accent); border-color: var(--sb-active-border); font-weight: 700; }
+  .sb-nav .nav-link.active .nav-icon { opacity: 1; background: var(--sb-active-bg); }
+
+  /* Focus */
+  .sb-nav .nav-link:focus-visible,
+  .sb-toggle:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  /* Logout */
+  .sb-nav .nav-link.nav-logout { color: var(--danger-text); opacity: 0.7; }
+  .sb-nav .nav-link.nav-logout:hover { background: var(--danger-bg); color: var(--danger-text); border-color: var(--danger-border); opacity: 1; }
+
+  /* Logo video hidden when collapsed */
+  .sb-logo-video { display: block; }
+  .is-collapsed .sb-logo-video { display: none; }
+
+  /* Tooltip */
+  #sb-tooltip {
+    position: fixed; background: var(--surface); color: var(--text-1);
+    font-size: 0.73rem; font-weight: 600; font-family: 'DM Sans', system-ui, sans-serif;
+    white-space: nowrap; padding: 5px 10px; border-radius: 7px;
+    border: 1px solid var(--border); box-shadow: var(--shadow-md);
+    pointer-events: none; z-index: 9999; opacity: 0; transition: opacity 0.1s ease;
+  }
+  #sb-tooltip.visible { opacity: 1; }
+
+  /* Content area */
+  .content-wrap {
+    flex: 1; min-width: 0; padding: 1.75rem 2rem;
+    background: var(--bg); transition: background 0.3s;
+  }
+
+  /* Bootstrap modal theme — btn-close visibility */
+  .btn-close {
+    filter: var(--btn-close-filter, none);
+  }
+
+  /* SSR pre-paint collapsed */
+  [data-sidebar="collapsed"] #adminSidebar { width: var(--sb-w-closed) !important; min-width: var(--sb-w-closed) !important; }
+
+  /* Mobile */
+  .mobile-menu-toggle {
+    display: none; position: fixed; top: 14px; left: 14px; z-index: 1001;
+    background: var(--accent); border: none; border-radius: 9px;
+    width: 38px; height: 38px; color: var(--accent-on); font-size: 0.9rem;
+    cursor: pointer; align-items: center; justify-content: center;
+  }
+  .mobile-overlay {
+    display: none; position: fixed; inset: 0;
+    background: rgba(0,0,0,0.52); z-index: 999;
+    backdrop-filter: blur(2px);
+  }
+  .mobile-overlay.active { display: block; }
+
+  @media (max-width: 768px) {
+    .mobile-menu-toggle { display: flex; }
+    .admin-wrapper { flex-direction: column; }
+    .sidebar {
+      position: fixed !important; top: 0; left: -100%;
+      width: 260px !important; min-width: 260px !important;
+      height: 100vh; height: 100dvh; z-index: 1000; overflow-x: hidden !important; overflow-y: auto !important;
+      transition: left 0.24s ease !important;
+      border-radius: 0 12px 12px 0;
+    }
+    .sidebar.mobile-open { left: 0; }
+    .sidebar.mobile-open .brand-text,
+    .sidebar.mobile-open .nav-label,
+    .sidebar.mobile-open .nav-badge { display: block !important; }
+    .sidebar.mobile-open .section-label {
+      font-size: 0.57rem !important; padding: 14px 8px 4px !important;
+      background: none !important; height: auto !important;
+      margin: 0 !important; display: block !important;
+    }
+    .sidebar.mobile-open .sb-header { justify-content: flex-start !important; gap: 8px !important; }
+    /* .sb-toggle stays visible on mobile — reused as the single close
+       control for the drawer (same pattern as the User Portal's sidebar,
+       whose desktop collapse chevron doubles as its mobile close button)
+       instead of introducing a second, separate close button. */
+    .sidebar.mobile-open .sb-nav .nav-link { justify-content: flex-start !important; padding: 6px 8px !important; gap: 10px !important; }
+    .content-wrap { padding: 4.5rem 1rem 1.5rem; }
+  }
+  @media (max-width: 576px) {
+    .content-wrap { padding: 4rem 0.75rem 1rem; }
+  }
+
+  /* Small screens (a phone, or a phone held sideways): the WHOLE sidebar scrolls, not only the nav area between the header and
+     the bottom. dvh above is the visible height (100vh, the fallback, is taller than the screen while a phone's browser
+     toolbar is showing, which left the bottom items underneath it). The header stays on top while the list scrolls. */
+  @media (max-width: 768px), (max-height: 520px) {
+    .sidebar { overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; scrollbar-width: none; }
+    .sidebar::-webkit-scrollbar { display: none; }
+    .sb-header { position: sticky; top: 0; z-index: 2; background: var(--sb-bg); }
+    .sb-nav-wrap { flex: 1 0 auto; overflow: visible; padding-bottom: calc(8px + env(safe-area-inset-bottom)); }
+  }
+
+  /* Account settings modal rows */
+  .accs-opt-row {
+    display: flex; align-items: center; gap: 0.7rem;
+    padding: 0.6rem 0.85rem; border-radius: 9px;
+    border: 1px solid var(--border); cursor: pointer;
+    transition: background 0.12s, border-color 0.12s; user-select: none;
+  }
+  .accs-opt-row:hover { background: var(--sb-hover-bg); border-color: var(--border); }
+  .accs-opt-row.accs-selected { background: var(--accent-subtle); border-color: var(--accent); }
+  .accs-opt-radio {
+    width: 15px; height: 15px; min-width: 15px; border-radius: 50%;
+    border: 2px solid var(--border); display: flex;
+    align-items: center; justify-content: center; flex-shrink: 0;
+    transition: border-color 0.12s, background 0.12s; position: relative;
+  }
+  .accs-opt-row.accs-selected .accs-opt-radio { border-color: var(--accent); background: var(--accent); }
+  .accs-opt-row.accs-selected .accs-opt-radio::after {
+    content: ''; position: absolute; width: 5px; height: 5px;
+    border-radius: 50%; background: #fff;
+  }
+  .accs-opt-icon {
+    width: 28px; height: 28px; border-radius: 7px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 0.76rem; flex-shrink: 0;
+    background: var(--surface-2); color: var(--text-2);
+    transition: background 0.12s, color 0.12s;
+  }
+  .accs-opt-row.accs-selected .accs-opt-icon { background: var(--accent-subtle); color: var(--accent); }
+  .accs-opt-name { font-size: 0.82rem; font-weight: 600; color: var(--text-1); line-height: 1.2; }
+  .accs-opt-desc { font-size: 0.67rem; color: var(--text-3); margin-top: 1px; }
+
+  /* ══ GLOBAL ADMIN TOAST ══════════════════════════════════ */
+  #adminToastContainer {
+    position: fixed; bottom: 1.5rem; right: 1.5rem;
+    z-index: 9999;
+    display: flex; flex-direction: column; gap: .4rem;
+    pointer-events: none;
+  }
+  .admin-toast {
+    display: flex; align-items: flex-start; gap: .6rem;
+    padding: .65rem 1rem;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow-lg);
+    pointer-events: auto;
+    animation: admin-tin .2s ease-out;
+    min-width: 220px; max-width: 340px;
+  }
+  @keyframes admin-tin {
+    from { opacity: 0; transform: translateY(6px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  .admin-toast-icon { font-size: .9rem; flex-shrink: 0; margin-top: .05rem; }
+  .admin-toast.success .admin-toast-icon { color: var(--success-text); }
+  .admin-toast.danger  .admin-toast-icon { color: var(--danger-text); }
+  .admin-toast.warning .admin-toast-icon { color: var(--warning-text); }
+  .admin-toast-msg { font-size: .82rem; font-weight: 600; color: var(--text-1); }
+  .admin-toast-sub { font-size: .72rem; color: var(--text-3); margin-top: .08rem; }
+  </style>
+</head>
+<body>
+
+{% set standalone = standalone|default(false) %}
+<div class="admin-wrapper">
+
+  {% if not standalone %}
+  <!-- ════ SIDEBAR ════════════════════════════════════════ -->
+  <aside class="sidebar" id="adminSidebar" role="navigation" aria-label="Admin navigation">
+
+    <div class="sb-header">
+      <video src="{{ url_for('static', filename='logo.mp4') }}" autoplay loop muted playsinline
+             class="sb-logo-video" style="height:44px;width:auto;max-width:200px;flex-shrink:0;"></video>
+      <div class="brand-text" style="display:none;"></div>
+      <button class="sb-toggle" id="sidebarToggleBtn" aria-label="Collapse sidebar">
+        <i class="fas fa-chevron-left" aria-hidden="true"></i>
+      </button>
+    </div>
+
+    <div class="sb-nav-wrap">
+      {# A feature this admin has not been granted stays listed, marked locked: the admin can see what exists and what they hold.
+         The lock is display only; the pages and APIs behind it refuse an admin without the grant, whatever the menu shows. #}
+      {% macro lock_attrs(perm) %}{% if not admin_can(perm) %} data-locked="{{ admin_feature_label(perm) }}" aria-disabled="true"{% endif %}{% endmacro %}
+      {% macro lock_icon(perm) %}{% if not admin_can(perm) %}<i class="fas fa-lock nav-lock" aria-hidden="true"></i>{% endif %}{% endmacro %}
+      <ul class="sb-nav" role="list">
+
+        <li>
+          <a class="nav-link {% if request.endpoint and request.endpoint.startswith('admin.dashboard') %}active{% endif %}"
+             href="{{ url_for('admin.dashboard') }}" data-tooltip="Dashboard" aria-label="Dashboard">
+            <span class="nav-icon"><i class="fas fa-home"></i></span>
+            <span class="nav-label">Dashboard</span>
+          </a>
+        </li>
+
+        <li><span class="section-label">Content</span></li>
+
+        <li>
+          <a class="nav-link{{ ' locked' if not admin_can('category_management') }} {% if request.endpoint and request.endpoint.startswith('admin.categories') %}active{% endif %}"
+             href="{{ url_for('admin.categories') }}" data-tooltip="Manage Categories"{{ lock_attrs('category_management') }} aria-label="Manage Categories">
+            <span class="nav-icon"><i class="fas fa-layer-group"></i></span>
+            <span class="nav-label">Manage Categories</span>{{ lock_icon('category_management') }}
+          </a>
+        </li>
+        <li>
+          <a class="nav-link{{ ' locked' if not admin_can('exam_management') }} {% if request.endpoint and request.endpoint.startswith('admin.exams') %}active{% endif %}"
+             href="{{ url_for('admin.exams') }}" data-tooltip="Manage Exams"{{ lock_attrs('exam_management') }} aria-label="Manage Exams">
+            <span class="nav-icon"><i class="fas fa-file-alt"></i></span>
+            <span class="nav-label">Manage Exams</span>{{ lock_icon('exam_management') }}
+          </a>
+        </li>
+        <li>
+          <a class="nav-link{{ ' locked' if not admin_can('subject_management') }} {% if request.endpoint and request.endpoint.startswith('admin.subjects') %}active{% endif %}"
+             href="{{ url_for('admin.subjects') }}" data-tooltip="Manage Subjects"{{ lock_attrs('subject_management') }} aria-label="Manage Subjects">
+            <span class="nav-icon"><i class="fas fa-book"></i></span>
+            <span class="nav-label">Manage Subjects</span>{{ lock_icon('subject_management') }}
+          </a>
+        </li>
+        <li>
+          <a class="nav-link{{ ' locked' if not admin_can('question_management') }} {% if request.endpoint and (request.endpoint.startswith('admin.questions') or request.endpoint == 'admin.questions_index') %}active{% endif %}"
+             href="{{ url_for('admin.questions_index') }}" data-tooltip="Manage Questions"{{ lock_attrs('question_management') }} aria-label="Manage Questions">
+            <span class="nav-icon"><i class="fas fa-question-circle"></i></span>
+            <span class="nav-label">Manage Questions</span>{{ lock_icon('question_management') }}
+          </a>
+        </li>
+        <li>
+          <a class="nav-link{{ ' locked' if not admin_can('question_management') }} {% if request.endpoint and request.endpoint.startswith('admin.upload_images') %}active{% endif %}"
+             href="{{ url_for('admin.upload_images_page') }}" data-tooltip="Upload Images"{{ lock_attrs('question_management') }} aria-label="Upload Images">
+            <span class="nav-icon"><i class="fas fa-images"></i></span>
+            <span class="nav-label">Upload Images</span>{{ lock_icon('question_management') }}
+          </a>
+        </li>
+        <li>
+          <a class="nav-link{{ ' locked' if not admin_can('question_management') }} {% if request.endpoint and request.endpoint.startswith('admin.image_mapping') %}active{% endif %}"
+             href="{{ url_for('admin.image_mapping_page') }}" data-tooltip="Image Mapping"{{ lock_attrs('question_management') }} aria-label="Image Mapping">
+            <span class="nav-icon"><i class="fas fa-link"></i></span>
+            <span class="nav-label">Image Mapping</span>{{ lock_icon('question_management') }}
+          </a>
+        </li>
+        <li>
+          <button id="open-latex-editor-admin-base" class="nav-link{{ ' locked' if not admin_can('question_management') }}" data-tooltip="LaTeX Editor"{{ lock_attrs('question_management') }} aria-label="LaTeX Editor">
+            <span class="nav-icon"><i class="fas fa-square-root-alt"></i></span>
+            <span class="nav-label">LaTeX Editor</span>{{ lock_icon('question_management') }}
+          </button>
+        </li>
+        <li>
+          <a class="nav-link{{ ' locked' if not admin_can('storage_management') }} {% if request.endpoint and request.endpoint.startswith('admin.object_storage') %}active{% endif %}"
+             href="{{ url_for('admin.object_storage') }}" data-tooltip="Object Storage"{{ lock_attrs('storage_management') }} aria-label="Object Storage">
+            <span class="nav-icon"><i class="fas fa-hdd"></i></span>
+            <span class="nav-label">Object Storage</span>{{ lock_icon('storage_management') }}
+          </a>
+        </li>
+        <li>
+          <a class="nav-link{{ ' locked' if not admin_can('question_generation') }} {% if request.endpoint and request.endpoint.startswith('admin.ai_command_centre') %}active{% endif %}"
+             href="{{ url_for('admin.ai_command_centre') }}" data-tooltip="AI Command Centre"{{ lock_attrs('question_generation') }} aria-label="AI Command Centre">
+            <span class="nav-icon"><i class="fas fa-robot"></i></span>
+            <span class="nav-label">AI Command Centre</span>{{ lock_icon('question_generation') }}
+          </a>
+        </li>
+        <li>
+          <a class="nav-link{{ ' locked' if not admin_can('ai_configuration') }} {% if request.endpoint and request.endpoint.startswith('admin.ai_configuration') %}active{% endif %}"
+             href="{{ url_for('admin.ai_configuration') }}" data-tooltip="AI Configuration"{{ lock_attrs('ai_configuration') }} aria-label="AI Configuration">
+            <span class="nav-icon"><i class="fas fa-sliders-h"></i></span>
+            <span class="nav-label">AI Configuration</span>{{ lock_icon('ai_configuration') }}
+          </a>
+        </li>
+
+        <li><span class="section-label">Management</span></li>
+
+        <li>
+          <a class="nav-link{{ ' locked' if not admin_can('user_management') }} {% if request.endpoint and (request.endpoint.startswith('admin.requests') or request.endpoint.startswith('admin.new_requests') or request.endpoint.startswith('admin.requests_history')) %}active{% endif %}"
+             href="{{ url_for('admin.requests_dashboard') }}" data-tooltip="Users & Requests"{{ lock_attrs('user_management') }} aria-label="Users & Requests">
+            <span class="nav-icon"><i class="fas fa-user-plus"></i></span>
+            <span class="nav-label">Users &amp; Requests</span>{{ lock_icon('user_management') }}
+            <span class="nav-badge" id="requestsBadge" style="display:none">0</span>
+          </a>
+        </li>
+        <li>
+          <a class="nav-link{{ ' locked' if not admin_can('attempt_management') }} {% if request.endpoint and request.endpoint.startswith('admin.attempts') %}active{% endif %}"
+             href="{{ url_for('admin.attempts') }}" data-tooltip="Manage Attempts"{{ lock_attrs('attempt_management') }} aria-label="Manage Attempts">
+            <span class="nav-icon"><i class="fas fa-list-ol"></i></span>
+            <span class="nav-label">Manage Attempts</span>{{ lock_icon('attempt_management') }}
+          </a>
+        </li>
+
+        <li><span class="section-label">Analytics</span></li>
+
+        <li>
+          <a class="nav-link{{ ' locked' if not admin_can('user_analytics') }} {% if request.endpoint and request.endpoint.startswith('admin.users_analytics') %}active{% endif %}"
+             href="{{ url_for('admin.users_analytics') }}" data-tooltip="Users Analytics"{{ lock_attrs('user_analytics') }} aria-label="Users Analytics">
+            <span class="nav-icon"><i class="fas fa-chart-line"></i></span>
+            <span class="nav-label">Users Analytics</span>{{ lock_icon('user_analytics') }}
+          </a>
+        </li>
+
+        <li><span class="section-label">Account</span></li>
+
+        <li>
+          <a class="nav-link {% if request.endpoint == 'admin.guide' %}active{% endif %}"
+             href="{{ url_for('admin.guide') }}" data-tooltip="Admin Guide" aria-label="Admin Guide">
+            <span class="nav-icon"><i class="fas fa-book-open"></i></span>
+            <span class="nav-label">Admin Guide</span>
+          </a>
+        </li>
+        <li>
+          <a class="nav-link {% if request.endpoint == 'admin.profile' %}active{% endif %}"
+             href="{{ url_for('admin.profile') }}" data-tooltip="Profile &amp; Account" aria-label="Profile &amp; Account">
+            <span class="nav-icon{{ ' nav-icon-avatar' if NAV_AVATAR_URL else '' }}">
+              {% if NAV_AVATAR_URL %}<img src="{{ NAV_AVATAR_URL }}" alt="" class="nav-avatar-img">{% else %}<i class="fas fa-user-circle"></i>{% endif %}
+            </span>
+            <span class="nav-label">Profile &amp; Account</span>
+          </a>
+        </li>
+
+      </ul>
+    </div>
+  </aside>
+  {% endif %}
+
+  <!-- ════ MAIN CONTENT ════════════════════════════════════ -->
+  <div class="content-wrap">
+    <div class="admin-topbar">
+      <!-- topbar slots for child pages if needed -->
+    </div>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        <script>
+        document.addEventListener('DOMContentLoaded', function() {
+          {% for category, message in messages %}
+          adminToast('{{ message | replace("'", "\\'") }}', '{{ "danger" if category in ("error","danger") else category }}');
+          {% endfor %}
+        });
+        </script>
+      {% endif %}
+    {% endwith %}
+
+    {% block content %}{% endblock %}
+  </div>
+
+</div>
+
+<!-- ════ FOOTER ══════════════════════════════════════════ -->
+<footer class="professional-footer">
+  <div class="container-fluid px-4">
+    <div class="footer-content">
+      <div class="footer-brand">
+        <video src="{{ url_for('static', filename='logo.mp4') }}" autoplay loop muted playsinline style="height:22px;width:auto;"></video>
+        AdminPortal
+      </div>
+      <div class="footer-links">
+        <a href="{{ url_for('misc.privacy_policy') }}">Privacy</a>
+        <a href="{{ url_for('misc.terms_of_service') }}">Terms</a>
+        <a href="{{ url_for('misc.account_deletion_policy') }}">Account &amp; Data Deletion</a>
+        <a href="{{ url_for('misc.support') }}">Support</a>
+        <a href="{{ url_for('misc.contact') }}">Contact</a>
+        <a href="{{ url_for('misc.about') }}">About</a>
+      </div>
+      <span class="footer-copy">&copy; {{ CURRENT_YEAR }} SmartAIExam Admin</span>
+    </div>
+  </div>
+</footer>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+
+<!-- ══ CENTRALIZED THEME ENGINE (Admin) ═══════════════════
+     Reads/writes landingTheme — same key as user portal and
+     index.html. All 5 themes automatically available.
+     To add a new theme: add in index.html + theme.css only.
+══════════════════════════════════════════════════════════ -->
+<script>
+(function(){
+  var KEY = 'landingTheme';
+  var html = document.documentElement;
+
+  function landingToPortal(lt) {
+    return (lt === 'paper') ? 'light' : (lt || 'sunset');
+  }
+
+  function applyTheme(landingTheme) {
+    var t = landingToPortal(landingTheme);
+    html.setAttribute('data-theme', t);
+    localStorage.setItem(KEY, landingTheme);
+    syncSettingsRows(landingTheme);
+    /* Notify admin popups (result, responses) */
+    try {
+      [window._resultPopup, window._responsesPopup].forEach(function(w) {
+        if (w && !w.closed) w.postMessage({type:'adminThemeChange', theme:t}, window.location.origin);
+      });
+    } catch(e) {}
+  }
+
+  function syncSettingsRows(landingTheme) {
+    document.querySelectorAll('[data-accs-theme]').forEach(function(el) {
+      el.classList.toggle('accs-selected', el.getAttribute('data-accs-theme') === landingTheme);
+    });
+  }
+
+  /* Init */
+  var current = localStorage.getItem(KEY) || 'sunset';
+  syncSettingsRows(current);
+
+  /* Cross-tab sync with index.html */
+  window.addEventListener('storage', function(e) {
+    if (e.key === KEY && e.newValue) {
+      html.setAttribute('data-theme', landingToPortal(e.newValue));
+      syncSettingsRows(e.newValue);
+    }
+  });
+
+  window.applyAdminTheme = function(landingTheme) { applyTheme(landingTheme); };
+  window.getPortalTheme  = function() { return html.getAttribute('data-theme'); };
+})();
+</script>
+
+<!-- ══ SIDEBAR TOGGLE ════════════════════════════════════ -->
+<script>
+(function(){
+  var STORE = 'adminSidebarCollapsed';
+  var DUR   = 230;
+  var sb    = document.getElementById('adminSidebar');
+  var btn   = document.getElementById('sidebarToggleBtn');
+  if (!sb || !btn) return;
+
+  function getHideEls() {
+    return sb.querySelectorAll('.nav-label, .nav-badge, .brand-text, .section-label');
+  }
+
+  var collapsed = localStorage.getItem(STORE) === 'true';
+
+  function applyCollapsed(animate) {
+    document.documentElement.removeAttribute('data-sidebar');
+    if (animate) {
+      getHideEls().forEach(function(el){ el.classList.add('sb-hide'); });
+      requestAnimationFrame(function(){ sb.classList.add('is-collapsed'); });
+    } else {
+      getHideEls().forEach(function(el){ el.classList.add('sb-hide'); });
+      sb.classList.add('is-collapsed');
+    }
+    btn.setAttribute('aria-label','Expand sidebar');
+  }
+
+  function applyExpanded(animate) {
+    document.documentElement.removeAttribute('data-sidebar');
+    if (animate) {
+      sb.classList.remove('is-collapsed');
+      setTimeout(function(){
+        getHideEls().forEach(function(el){ el.classList.remove('sb-hide'); });
+      }, DUR);
+    } else {
+      sb.classList.remove('is-collapsed');
+      getHideEls().forEach(function(el){ el.classList.remove('sb-hide'); });
+    }
+    btn.setAttribute('aria-label','Collapse sidebar');
+  }
+
+  function applyState(c, animate) {
+    collapsed = c;
+    localStorage.setItem(STORE, String(c));
+    if (c) applyCollapsed(animate);
+    else   applyExpanded(animate);
+  }
+
+  if (collapsed) applyCollapsed(false);
+  else document.documentElement.removeAttribute('data-sidebar');
+
+  btn.addEventListener('click', function(){
+    // On mobile this button is the drawer's sole close control instead of
+    // the desktop collapse toggle (mirrors the User Portal sidebar, whose
+    // own header button is reused the same way).
+    if (window.innerWidth <= 768) { if (window._adminCloseMobileSb) window._adminCloseMobileSb(); }
+    else { applyState(!collapsed, true); }
+  });
+  window._adminSidebarApplyState = applyState;
+})();
+</script>
+
+<!-- ══ MOBILE SIDEBAR ════════════════════════════════════ -->
+<script>
+(function(){
+  function init(){
+    if (!document.getElementById('adminSidebar')) return;
+    if (document.querySelector('.mobile-menu-toggle')) return;
+    var btn = document.createElement('button');
+    btn.className = 'mobile-menu-toggle';
+    btn.innerHTML = '<i class="fas fa-bars"></i>';
+    btn.setAttribute('aria-label','Open navigation');
+    document.body.appendChild(btn);
+
+    var ov = document.createElement('div');
+    ov.className = 'mobile-overlay';
+    document.body.appendChild(ov);
+
+    var sb = document.getElementById('adminSidebar');
+    // Single toggle icon throughout (never swaps to an "x") — the sidebar's
+    // own header button (#sidebarToggleBtn, wired up in the collapse script
+    // below) is the one and only close control while the drawer is open,
+    // same division of labor as the User Portal's mobile sidebar.
+    // The drawer covers the full viewport height (unlike the User Portal's,
+    // which starts below its top nav bar), so this floating button sits in
+    // the same top-left corner the open drawer's own header occupies —
+    // hide it while open, since the drawer's own header button is now the
+    // single close control (overlay click / Escape also close it).
+    function openM(){ sb.classList.add('mobile-open'); ov.classList.add('active'); document.body.style.overflow='hidden'; btn.style.display='none'; }
+    function closeM(){ sb.classList.remove('mobile-open'); ov.classList.remove('active'); document.body.style.overflow=''; if(window.innerWidth<=768) btn.style.display='flex'; }
+    btn.addEventListener('click', function(){ sb.classList.contains('mobile-open')?closeM():openM(); });
+    ov.addEventListener('click', closeM);
+    document.addEventListener('keydown', function(e){ if(e.key==='Escape') closeM(); });
+    window._adminCloseMobileSb = closeM;
+    document.querySelectorAll('.sidebar .nav-link').forEach(function(l){ l.addEventListener('click', function(){ setTimeout(closeM,150); }); });
+    function resize(){ if(window.innerWidth>768){ closeM(); btn.style.display='none'; } else if(!sb.classList.contains('mobile-open')) btn.style.display='flex'; }
+    window.addEventListener('resize', resize);
+    resize();
+  }
+  document.addEventListener('DOMContentLoaded', init);
+})();
+</script>
+
+<!-- ══ LATEX EDITOR ══════════════════════════════════════ -->
+<script>
+(function(){
+  function openEditor(){
+    var w=Math.max(Math.round(window.innerWidth*.6),900),h=Math.max(Math.round(window.innerHeight*.75),600);
+    window.open('/admin/latex_editor','latexEditor','width='+w+',height='+h+',left='+Math.round(window.screenX+(window.innerWidth-w)/2)+',top='+Math.round(window.screenY+(window.innerHeight-h)/2)+',resizable=yes');
+  }
+  ['open-latex-editor-admin-base','open-latex-editor-topbar'].forEach(function(id){
+    var el=document.getElementById(id);
+    if(el) el.addEventListener('click', openEditor);
+  });
+  window.addEventListener('message',function(ev){
+    try{
+      if(ev.origin!==window.location.origin) return;
+      var d=ev.data||{};
+      if(d.type!=='latex-selected'||typeof d.latex!=='string') return;
+      var latex=d.latex;
+      var target=document.querySelector('textarea[name="latex_content"],textarea#latex_editor,textarea[name="question_text"],textarea#question_text,textarea');
+      if(target){
+        var s=target.selectionStart||target.value.length,e=target.selectionEnd||s;
+        target.value=target.value.slice(0,s)+latex+target.value.slice(e);
+        target.focus();target.selectionStart=target.selectionEnd=s+latex.length;
+        target.dispatchEvent(new Event('input',{bubbles:true}));
+      } else {
+        var a=document.activeElement;
+        if(a&&(a.tagName==='TEXTAREA'||(a.tagName==='INPUT'&&a.type==='text'))){
+          var s=a.selectionStart||a.value.length,e=a.selectionEnd||s;
+          a.value=a.value.slice(0,s)+latex+a.value.slice(e);
+          a.selectionStart=a.selectionEnd=s+latex.length;
+          a.dispatchEvent(new Event('input',{bubbles:true}));
+        } else { alert('Paste manually:\n\n'+latex); }
+      }
+    }catch(ex){console.error(ex);}
+  },false);
+})();
+</script>
+
+<!-- ══ REQUESTS BADGE ════════════════════════════════════ -->
+{% if admin_can('user_management') %}
+<script>
+(function(){
+  function upd(){
+    fetch('/api/v01/admin/access-requests/stats').then(function(r){return r.json();}).then(function(d){
+      var b=document.getElementById('requestsBadge');
+      if(!b) return;
+      var n=d.pending||0;
+      b.textContent=n; b.style.display=n>0?'inline':'none';
+    }).catch(function(){});
+  }
+  upd();
+  if(window.location.pathname.startsWith('/admin/')) setInterval(upd,30000);
+})();
+</script>
+{% endif %}
+
+<!-- ══ AUTO-DISMISS ALERTS ════════════════════════════════ -->
+<script>
+document.addEventListener('DOMContentLoaded',function(){
+  document.querySelectorAll('.alert-success').forEach(function(a){
+    var t=a.textContent.toLowerCase();
+    if(t.includes('login successful')||t.includes('logged out')||t.includes('logout'))
+      setTimeout(function(){try{new bootstrap.Alert(a).close();}catch(e){}},600);
+  });
+});
+</script>
+
+<!-- ══ SIDEBAR TOOLTIPS ═══════════════════════════════════ -->
+<script>
+(function(){
+  var tip = document.createElement('div');
+  tip.id = 'sb-tooltip';
+  document.body.appendChild(tip);
+  var sb = document.getElementById('adminSidebar');
+  var hideTimer;
+  function show(el){
+    if (!sb.classList.contains('is-collapsed')) return;
+    var label = el.getAttribute('data-tooltip');
+    if (!label) return;
+    tip.textContent = label + (el.classList.contains('locked') ? ' \u00b7 locked' : '');
+    var r=el.getBoundingClientRect(), sbR=sb.getBoundingClientRect();
+    tip.style.top=Math.round(r.top+r.height/2)+'px';
+    tip.style.left=Math.round(sbR.right+8)+'px';
+    tip.style.transform='translateY(-50%)';
+    clearTimeout(hideTimer); tip.classList.add('visible');
+  }
+  function hide(){ hideTimer=setTimeout(function(){tip.classList.remove('visible');},80); }
+  document.querySelectorAll('.sidebar .nav-link[data-tooltip]').forEach(function(el){
+    el.addEventListener('mouseenter',function(){show(el);});
+    el.addEventListener('mouseleave',hide);
+    el.addEventListener('click',function(){tip.classList.remove('visible');});
+  });
+})();
+</script>
+
+
+<!-- ══ LOGOUT CONFIRM MODAL ══════════════════════════════ -->
+<div id="adminLogoutModal" style="display:none;position:fixed;inset:0;z-index:1060;background:rgba(0,0,0,.55);backdrop-filter:blur(4px);align-items:center;justify-content:center;">
+  <div style="background:var(--surface);border:1px solid var(--border);border-radius:calc(var(--radius) + 6px);padding:0;max-width:380px;width:90%;box-shadow:var(--shadow-lg);overflow:hidden;">
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:.9rem 1.2rem;background:var(--surface-2);border-bottom:1px solid var(--border);">
+      <h6 style="margin:0;font-size:.88rem;font-weight:700;color:var(--text-1);display:flex;align-items:center;gap:.45rem;">
+        <span style="width:26px;height:26px;border-radius:7px;background:var(--danger-bg);color:var(--danger-text);display:inline-flex;align-items:center;justify-content:center;font-size:.75rem;flex-shrink:0;border:1px solid var(--danger-border);">
+          <i class="fas fa-sign-out-alt"></i>
+        </span>
+        Confirm Logout
+      </h6>
+      <button onclick="closeAdminLogout()" style="background:none;border:none;color:var(--text-3);cursor:pointer;font-size:.82rem;padding:.2rem .35rem;border-radius:6px;line-height:1;" title="Close">
+        <i class="fas fa-times"></i>
+      </button>
+    </div>
+    <div style="padding:1.1rem 1.2rem;">
+      <p style="font-size:.85rem;color:var(--text-2);margin:0 0 .4rem;line-height:1.6;">Are you sure you want to log out?</p>
+      <p style="font-size:.78rem;color:var(--text-3);margin:0;">You will need to sign in again to access the admin panel.</p>
+    </div>
+    <div style="padding:.75rem 1.2rem;border-top:1px solid var(--border);display:flex;justify-content:flex-end;gap:.5rem;">
+      <button onclick="closeAdminLogout()" style="display:inline-flex;align-items:center;gap:.3rem;padding:.38rem .85rem;border-radius:var(--radius);font-size:.78rem;font-weight:600;font-family:inherit;cursor:pointer;background:var(--surface-2);color:var(--text-2);border:1px solid var(--border);transition:border-color .12s,color .12s;">
+        <i class="fas fa-times"></i> Cancel
+      </button>
+      <a id="adminLogoutConfirmBtn" href="{{ url_for('admin.logout') }}" onclick="adminLogoutStart(this)" style="display:inline-flex;align-items:center;gap:.3rem;padding:.38rem .85rem;border-radius:var(--radius);font-size:.78rem;font-weight:600;text-decoration:none;background:var(--danger);color:#fff;border:1px solid var(--danger);transition:opacity .12s;">
+        <i class="fas fa-sign-out-alt"></i> Yes, Logout
+      </a>
+    </div>
+  </div>
+</div>
+
+<script>
+function openAdminLogout() {
+  var m = document.getElementById('adminLogoutModal');
+  if (m) { m.style.display = 'flex'; }
+}
+function closeAdminLogout() {
+  var m = document.getElementById('adminLogoutModal');
+  if (m) m.style.display = 'none';
+}
+function adminLogoutStart(el) {
+  el.style.pointerEvents = 'none';
+  el.style.opacity = '.7';
+  el.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Logging out…';
+}
+document.addEventListener('DOMContentLoaded', function() {
+  var trigger = document.getElementById('adminLogoutTrigger');
+  if (trigger) trigger.addEventListener('click', openAdminLogout);
+  var m = document.getElementById('adminLogoutModal');
+  if (m) m.addEventListener('click', function(e) { if (e.target === this) closeAdminLogout(); });
+  document.addEventListener('keydown', function(e) { if (e.key === 'Escape') closeAdminLogout(); });
+});
+</script>
+
+<!-- ══ APPEARANCE (theme) ROWS — reused inline on the Profile & Account
+     page (templates/admin/profile.html); wired here so it works on
+     whichever page happens to render [data-accs-theme] rows. ══ -->
+<script>
+(function(){
+  document.addEventListener('DOMContentLoaded', function(){
+    function syncSelections(){
+      var storedTheme = localStorage.getItem('landingTheme') || 'sunset';
+      document.querySelectorAll('[data-accs-theme]').forEach(function(el){
+        el.classList.toggle('accs-selected', el.getAttribute('data-accs-theme') === storedTheme);
+      });
+    }
+    syncSelections();
+
+    document.querySelectorAll('[data-accs-theme]').forEach(function(el){
+      el.addEventListener('click', function(){
+        var lt = el.getAttribute('data-accs-theme');
+        if (typeof window.applyAdminTheme === 'function') window.applyAdminTheme(lt);
+        syncSelections();
+      });
+    });
+  });
+})();
+</script>
+
+<!-- ══ GLOBAL ADMIN TOAST ════════════════════════════════ -->
+<div id="adminToastContainer"></div>
+<script>
+window.adminToast = function(msg, type, sub, ms) {
+  ms = ms || 3000;
+  type = type || 'success';
+  var icons = { success: 'fa-check-circle', danger: 'fa-times-circle', warning: 'fa-exclamation-circle' };
+  var el = document.createElement('div');
+  el.className = 'admin-toast ' + type;
+  el.innerHTML =
+    '<i class="fas ' + (icons[type] || 'fa-info-circle') + ' admin-toast-icon"></i>' +
+    '<div><div class="admin-toast-msg">' + msg + '</div>' +
+      (sub ? '<div class="admin-toast-sub">' + sub + '</div>' : '') +
+    '</div>';
+  var c = document.getElementById('adminToastContainer');
+  if (!c) return;
+  c.appendChild(el);
+  setTimeout(function() { el.style.transition = 'opacity .3s'; el.style.opacity = '0'; }, ms - 300);
+  setTimeout(function() { el.remove(); }, ms);
+};
+
+/* A locked sidebar item explains itself instead of navigating. Purely a courtesy: the page and its API refuse this admin
+   on the server whatever the menu does. Capture phase + stopImmediatePropagation so no other handler (the LaTeX editor
+   popup button, for one) runs for a locked item. */
+document.addEventListener('click', function(e) {
+  var el = e.target.closest && e.target.closest('.sidebar .nav-link.locked');
+  if (!el) return;
+  e.preventDefault(); e.stopImmediatePropagation();
+  var esc = function(t) { return String(t).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); };
+  window.adminToast(esc(el.getAttribute('data-tooltip') || 'This feature') + ' is locked', 'warning',
+    'Your account does not have the ' + esc(el.getAttribute('data-locked') || 'required') + ' admin feature. Ask an Access control administrator to grant it.', 6500);
+}, true);
+</script>
+
+{# ══ NEW-WINDOW LOADING SCREEN ═══════════════════════════
+   Opening a result/response popup navigates straight to a route that can
+   take a while to build (many questions, many images). Without this, the
+   new window sits blank/white — indistinguishable from "stuck" — for that
+   whole time, since nothing paints until the server's response arrives.
+   This opens the window immediately and paints a self-contained loading
+   screen into it synchronously (no network involved, so it's instant),
+   then navigates that same window to the real URL — the loading screen
+   stays visible the whole time the real page is being generated. ══ #}
+<script>
+window.openLoadingWindow = function(url, name, features, opts) {
+  opts = opts || {};
+  var win;
+  try { win = window.open('about:blank', name || '_blank', features); } catch(e) { win = null; }
+  if (!win) { window.location.href = url; return null; }
+  try {
+    win.document.open();
+    win.document.write(
+      '<!doctype html><html><head><meta charset="utf-8">' +
+      '<title>' + (opts.title || 'Loading…') + '</title><style>' +
+      'html,body{margin:0;height:100%;background:#f7f4ee;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif}' +
+      '@media (prefers-color-scheme:dark){html,body{background:#1c1917}}' +
+      '.wrap{max-width:760px;margin:0 auto;padding:2.25rem 1.75rem}' +
+      '.hdr{display:flex;align-items:center;gap:.65rem;margin-bottom:1.6rem}' +
+      '.spin{width:20px;height:20px;border-radius:50%;border:2.5px solid rgba(120,100,80,.22);border-top-color:#c1602b;animation:spin .8s linear infinite;flex-shrink:0}' +
+      '@keyframes spin{to{transform:rotate(360deg)}}' +
+      '.htxt{font-size:.95rem;font-weight:600;color:#3a332b}' +
+      '@media (prefers-color-scheme:dark){.htxt{color:#f1ece3}}' +
+      '.sk{border-radius:10px;background:linear-gradient(90deg,rgba(120,100,80,.10) 25%,rgba(120,100,80,.18) 37%,rgba(120,100,80,.10) 63%);background-size:400% 100%;animation:shim 1.4s ease infinite}' +
+      '@keyframes shim{0%{background-position:100% 0}100%{background-position:0 0}}' +
+      '.bar{height:14px;margin-bottom:.6rem}.w60{width:60%}.w40{width:40%}.card{height:88px;margin-bottom:.85rem}' +
+      '</style></head><body><div class="wrap">' +
+      '<div class="hdr"><div class="spin"></div><div class="htxt">' + (opts.message || 'Loading…') + '</div></div>' +
+      '<div class="sk bar w60"></div><div class="sk bar w40" style="margin-bottom:1.4rem"></div>' +
+      '<div class="sk card"></div><div class="sk card"></div><div class="sk card"></div>' +
+      '</div></body></html>'
+    );
+    win.document.close();
+  } catch(e) {}
+  win.location.href = url;
+  return win;
+};
+</script>
+
+{% block scripts %}{% endblock %}
+</body>
+</html>

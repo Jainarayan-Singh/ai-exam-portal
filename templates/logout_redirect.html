@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block title %}Logging Out - SmartAIExam{% endblock %}
+{% block content %}
+<div class="auth-page">
+<div class="auth-card" style="text-align:center;max-width:360px">
+  <div style="width:56px;height:56px;border-radius:50%;background:var(--success-bg);border:2px solid var(--success-border);display:flex;align-items:center;justify-content:center;margin:0 auto 1.25rem;font-size:1.4rem;color:var(--success-text)">
+    <i class="fas fa-sign-out-alt"></i>
+  </div>
+  <div class="auth-title">Logging Out</div>
+  <div class="auth-sub" style="margin-bottom:1.25rem">Clearing your session securely…</div>
+  <div style="display:flex;justify-content:center;gap:5px;margin-bottom:1.5rem">
+    {% for i in range(3) %}
+    <div style="width:8px;height:8px;border-radius:50%;background:var(--accent);animation:ldot 1s ease-in-out {{ i * 0.2 }}s infinite"></div>
+    {% endfor %}
+  </div>
+  <div style="font-size:.75rem;color:var(--text-3)">You will be redirected shortly…</div>
+</div>
+</div>
+<style>@keyframes ldot{0%,100%{opacity:.2;transform:scale(.8)}50%{opacity:1;transform:scale(1)}}</style>
+<script>
+setTimeout(function(){window.location.href='{{ redirect_url or url_for("misc.home") }}';},{{ redirect_delay or 2000 }});
+</script>
+{% endblock %}

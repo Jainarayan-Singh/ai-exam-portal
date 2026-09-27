@@ -1,0 +1,411 @@
+"""
+app/__init__.py
+Flask application factory.
+Registers all blueprints, extensions, and socket events.
+"""
+
+import os
+import gc
+import threading
+import tempfile
+from datetime import timedelta
+
+from flask import Flask, request
+from flask_session import Session
+from flask_socketio import SocketIO
+
+import app.config as config
+
+# ─── Single global SocketIO instance ───────────────────────────────────────
+socketio = SocketIO()
+
+
+def create_app() -> Flask:
+    """Create and configure the Flask application."""
+    app = Flask(
+        __name__,
+        template_folder=os.path.join(os.path.dirname(os.path.dirname(__file__)), "templates"),
+        static_folder=os.path.join(os.path.dirname(os.path.dirname(__file__)), "static"),
+    )
+
+    # ── Core config ────────────────────────────────────────────────────────
+    app.secret_key = config.SECRET_KEY
+    # This used to be raised to 50MB because Notebook PDF export posted page images (base64) as
+    # a form field and was hitting Werkzeug's 500KB in-memory-form-field default, surfacing as a
+    # 500 — on a large notebook, that also meant buffering tens of MB of request body in the
+    # single Gunicorn worker this app runs on Render, which is what could OOM-crash the whole app.
+    # PDF export is now assembled entirely client-side (see static/notes/notebook-export.js) and
+    # posts nothing, so nothing in this app sends a large non-file form field anymore — left at
+    # Werkzeug's own default instead of carrying that raised cap forward as unused risk surface.
+
+    # ── Server-side session ────────────────────────────────────────────────
+    os.makedirs(config.SESSION_FILE_DIR, exist_ok=True)
+    app.config["SESSION_TYPE"] = config.SESSION_TYPE
+    app.config["SESSION_FILE_DIR"] = config.SESSION_FILE_DIR
+    app.config["SESSION_PERMANENT"] = False
+    app.config["PERMANENT_SESSION_LIFETIME"] = config.PERMANENT_SESSION_LIFETIME
+    app.config["SESSION_COOKIE_HTTPONLY"] = config.SESSION_COOKIE_HTTPONLY
+    app.config["SESSION_COOKIE_SECURE"] = config.SESSION_COOKIE_SECURE
+    Session(app)
+
+    # ── SocketIO ───────────────────────────────────────────────────────────
+    socketio.init_app(
+        app,
+        cors_allowed_origins="*",
+        async_mode="gevent",
+        manage_session=False,
+    )
+
+    # ── Google OAuth (Authlib) ─────────────────────────────────────────────
+    _init_google_oauth(app)
+    
+    from app.middleware.jwt_middleware import init_jwt_middleware
+    init_jwt_middleware(app)    
+
+    # ── GC tuning ──────────────────────────────────────────────────────────
+    gc.set_threshold(700, 10, 10)
+
+    # ── Register blueprints ────────────────────────────────────────────────
+    _register_blueprints(app)
+
+    # ── Register socket events ─────────────────────────────────────────────
+    _register_socket_events()
+
+    # ── After-request: disable browser caching ─────────────────────────────
+    @app.after_request
+    def add_cache_control(response):
+        if (not app.config.get("TESTING")
+                and not request.path.startswith("/static/")
+                and not request.path.startswith("/api/v01/images/")):
+            response.headers["Cache-Control"] = (
+                "no-store, no-cache, must-revalidate, "
+                "post-check=0, pre-check=0, max-age=0"
+            )
+            response.headers["Pragma"] = "no-cache"
+            response.headers["Expires"] = "0"
+        return response
+
+    # ── Before-request: portal conflict guard ──────────────────────────────
+    @app.before_request
+    def portal_guard():
+        from flask import session, redirect, url_for, flash
+
+        skip_prefixes = (
+            "/static/", "/login", "/admin/login",
+            "/", "/home", "/forgot-password", "/reset-password",
+            "/favicon.ico", "/api/", "/dashboard",
+        )
+        if any(request.path.startswith(p) for p in skip_prefixes):
+            return
+
+        if (
+            request.path.startswith("/admin/")
+            and session.get("user_id")
+            and not session.get("admin_id")
+        ):
+            flash("Please login as Admin to access Admin portal.", "warning")
+            return redirect(url_for("auth.login"))
+
+    # ── Date/time — central service + Jinja filters ────────────────────────
+    from app.utils.datetime_service import now_app_tz, format_display, format_display_date, format_calendar_date, format_calendar_time
+
+    app.jinja_env.filters["display_dt"] = format_display
+    app.jinja_env.filters["display_date"] = format_display_date
+    app.jinja_env.filters["calendar_date"] = format_calendar_date
+    app.jinja_env.filters["calendar_time"] = format_calendar_time
+
+    from app.utils.instructions_formatter import render_exam_instructions
+    app.jinja_env.filters["format_instructions"] = render_exam_instructions
+
+    # {{ ai_identity("assistant_chat") }} — which provider + model a feature uses right now, from the central
+    # AI registry (safe display data only). Used by templates/partials/_ai_badge.html. A problem in the AI
+    # configuration must never break the page that merely wants to label itself, so failures give None.
+    def _ai_identity(feature):
+        try:
+            from app.services.ai import public_identity
+            return public_identity(feature)
+        except Exception as e:
+            print(f"[ai] identity unavailable for '{feature}': {type(e).__name__}")
+            return None
+
+    app.jinja_env.globals["ai_identity"] = _ai_identity
+
+    # {{ user_plan() }} and {{ user_can("notebook") }}: the signed-in student's plan and what it allows, from app.entitlements (the
+    # very source the routes enforce), computed once per request. A visitor or an admin-portal session has no student plan:
+    # user_plan() is None and user_can() is True (nothing to lock).
+    from flask import g as _g, session as _session
+    from app import entitlements
+
+    def _user_plan():
+        uid = _session.get("user_id")
+        if not uid or _session.get("admin_id"):
+            return None
+        if not hasattr(_g, "plan_view"):
+            try:
+                _g.plan_view = entitlements.user_plan(int(uid))
+            except Exception as e:
+                print(f"[entitlements] plan unavailable for this page: {type(e).__name__}: {e}")
+                _g.plan_view = None
+        return _g.plan_view
+
+    def _user_can(feature):
+        view = _user_plan()
+        return True if view is None else any(f["key"] == feature and f["allowed"] for f in view["features"])
+
+    app.jinja_env.globals["user_plan"] = _user_plan
+    app.jinja_env.globals["user_can"] = _user_can
+
+    # {{ admin_can("exam_management") }}: whether the signed-in administrator has been granted that admin feature (menus and
+    # dashboard tiles only; the routes enforce it on the server). Computed once per request per feature.
+    def _admin_can(permission):
+        uid = _session.get("user_id")
+        if not uid or not _session.get("admin_id"):
+            return False
+        if not hasattr(_g, "admin_can_cache"):
+            _g.admin_can_cache = {}
+        cache = _g.admin_can_cache
+        if permission not in cache:
+            try:
+                cache[permission] = entitlements.has_admin_permission(int(uid), permission)
+            except Exception as e:
+                print(f"[entitlements] admin permission check failed for the menu: {type(e).__name__}: {e}")
+                cache[permission] = False
+        return cache[permission]
+
+    app.jinja_env.globals["admin_can"] = _admin_can
+
+    # {{ admin_feature_label("exam_management") }} -> "Exam management": the name from config/entitlements.json, for menus.
+    def _admin_feature_label(permission):
+        from app.entitlements.catalog import get_catalog
+        definition = get_catalog().features.get(f"admin.{permission}")
+        return definition.label if definition else permission
+
+    app.jinja_env.globals["admin_feature_label"] = _admin_feature_label
+
+    # Every url_for('static', ...) gets ?v=<the file's modified time>, so a changed CSS/JS file is fetched again by browsers and
+    # CDNs instead of an old cached copy being used after a deploy (an unchanged file keeps the same URL and stays cached).
+    @app.url_defaults
+    def _version_static_urls(endpoint, values):
+        if endpoint != "static" or "v" in values or not values.get("filename"):
+            return
+        try:
+            values["v"] = int(os.path.getmtime(os.path.join(app.static_folder, values["filename"])))
+        except (OSError, TypeError, ValueError):
+            pass
+
+    @app.context_processor
+    def inject_globals():
+        from flask import session
+
+        nav_avatar_url = None
+        if session.get("user_id") and session.get("profile_photo_key"):
+            from app.services.image_storage_service import profile_photo_url_from_key
+            nav_avatar_url = profile_photo_url_from_key(session["profile_photo_key"])
+        return {"CURRENT_YEAR": now_app_tz().year, "DISPLAY_DATE_FORMAT": config.DISPLAY_DATE_FORMAT,
+                "DISPLAY_DATETIME_FORMAT": config.DISPLAY_DATETIME_FORMAT,
+                "NAV_AVATAR_URL": nav_avatar_url,
+                "BASE_URL": config.BASE_URL,
+                # Public contact/footer info — see app/config.py for the
+                # "blank means hide, never fabricate" convention every
+                # footer/legal/about/contact/support template follows.
+                "PUBLIC_SUPPORT_EMAIL": config.PUBLIC_SUPPORT_EMAIL,
+                "PUBLIC_CONTACT_PHONE": config.PUBLIC_CONTACT_PHONE,
+                "PUBLIC_ADDRESS": config.PUBLIC_ADDRESS,
+                "PUBLIC_SOCIAL_TWITTER": config.PUBLIC_SOCIAL_TWITTER,
+                "PUBLIC_SOCIAL_LINKEDIN": config.PUBLIC_SOCIAL_LINKEDIN,
+                "PUBLIC_SOCIAL_GITHUB": config.PUBLIC_SOCIAL_GITHUB,
+                "PUBLIC_SOCIAL_INSTAGRAM": config.PUBLIC_SOCIAL_INSTAGRAM,
+                "LEGAL_PRIVACY_LAST_UPDATED": config.LEGAL_PRIVACY_LAST_UPDATED,
+                "LEGAL_TERMS_LAST_UPDATED": config.LEGAL_TERMS_LAST_UPDATED,
+                "LEGAL_ACCOUNT_DELETION_LAST_UPDATED": config.LEGAL_ACCOUNT_DELETION_LAST_UPDATED}
+
+    # ── Error handlers ─────────────────────────────────────────────────────
+    _register_error_handlers(app)
+
+    # ── Periodic background cache cleanup ──────────────────────────────────
+    _start_periodic_cleanup()
+
+    # ── Auto-submit sweep (Scheduled Exam deadline enforcement) ────────────
+    _start_auto_submit_sweep()
+
+    return app
+
+
+# ───────────────────────────────────────────────────────────────────────────
+# Private helpers
+# ───────────────────────────────────────────────────────────────────────────
+
+def _register_blueprints(app: Flask) -> None:
+    """
+    Import and register every blueprint.
+
+    Web (HTML) blueprints live under app/routes/web/ (registered with no
+    extra prefix, except admin which is mounted at /admin). JSON API
+    blueprints (versioned) live under app/routes/api/v01/ (each carries
+    its own /api/v01/... url_prefix, set on the Blueprint itself).
+    """
+    from flask import request  # needed inside after_request / before_request
+
+    # ── Web (HTML) ───────────────────────────────────────────────────────────
+    from app.routes.web.auth import auth_bp
+    from app.routes.web.dashboard import dashboard_bp
+    from app.routes.web.categories import categories_bp
+    from app.routes.web.misc import misc_bp
+    from app.routes.web.ai_assistant import ai_bp
+    from app.routes.web.results import result_bp
+    from app.routes.web.exams import exam_bp
+    from app.routes.web.notes import notes_bp
+    from app.routes.web.chat import chat_bp
+    from app.routes.web.admin import admin_bp
+    from app.routes.web.profile import profile_bp
+
+    # ── API v01 ──────────────────────────────────────────────────────────────
+    from app.routes.api.v01.auth import api_auth_bp
+    from app.routes.api.v01.access_requests import access_requests_bp
+    from app.routes.api.v01.assistant import assistant_api_bp
+    from app.routes.api.v01.explanations import explanation_bp
+    from app.routes.api.v01.exams import exam_api_bp, ping_api_bp
+    from app.routes.api.v01.images import images_api_bp
+    from app.routes.api.v01.notebooks import notes_api_bp
+    from app.routes.api.v01.discussions import discussion_bp, discussion_admin_bp
+    from app.routes.api.v01.chat import chat_api_bp
+    from app.routes.api.v01.admin import admin_api_bp
+    from app.routes.api.v01.profile import profile_api_bp
+    from app.routes.api.v01.plan import plan_api_bp
+    from app.routes.api.v01.dashboard import dashboard_api_bp
+    from app.routes.api.v01.portal import portal_bp
+
+    app.register_blueprint(api_auth_bp)
+    app.register_blueprint(access_requests_bp)
+    app.register_blueprint(assistant_api_bp)
+    app.register_blueprint(explanation_bp)
+    app.register_blueprint(exam_api_bp)
+    app.register_blueprint(ping_api_bp)
+    app.register_blueprint(images_api_bp)
+    app.register_blueprint(notes_api_bp)
+    app.register_blueprint(discussion_bp)
+    app.register_blueprint(discussion_admin_bp)
+    app.register_blueprint(chat_api_bp)
+    app.register_blueprint(admin_api_bp)
+    app.register_blueprint(profile_api_bp)
+    app.register_blueprint(plan_api_bp)
+    app.register_blueprint(dashboard_api_bp)
+    app.register_blueprint(portal_bp)
+
+    app.register_blueprint(notes_bp)
+    app.register_blueprint(auth_bp)
+    app.register_blueprint(categories_bp)
+    app.register_blueprint(dashboard_bp)
+    app.register_blueprint(exam_bp)
+    app.register_blueprint(result_bp)
+    app.register_blueprint(ai_bp)
+    app.register_blueprint(misc_bp)
+    app.register_blueprint(chat_bp)
+    app.register_blueprint(profile_bp)
+    app.register_blueprint(admin_bp, url_prefix="/admin")
+
+
+def _register_socket_events() -> None:
+    """Wire up SocketIO event handlers for chat and discussion."""
+    from app.routes.api.v01.chat import init_chat_socketio, register_chat_socketio_events
+    from app.routes.api.v01.discussions import init_socketio, register_socketio_events
+
+    init_socketio(socketio)
+    register_socketio_events(socketio)
+    init_chat_socketio(socketio)
+    register_chat_socketio_events(socketio)
+
+
+def _register_error_handlers(app: Flask) -> None:
+    from flask import render_template, request, jsonify, session, redirect, url_for, flash
+    from datetime import datetime
+
+    @app.errorhandler(404)
+    def not_found(e):
+        try:
+            return render_template("error.html", error_code=404, error_message="Page not found"), 404
+        except Exception:
+            return "404 - Page not found", 404
+
+    @app.errorhandler(500)
+    def server_error(e):
+        try:
+            return render_template("error.html", error_code=500, error_message="Internal server error"), 500
+        except Exception:
+            return "500 - Internal server error", 500
+
+    @app.errorhandler(Exception)
+    def handle_global(e):
+        import traceback
+        print(f"GLOBAL ERROR: {e}")
+        traceback.print_exc()
+
+        if request.is_json or "/api/" in request.path:
+            return {"error": "Server error occurred"}, 500
+
+        flash("A system error occurred. Please try again.", "error")
+        if "/admin/" in request.path:
+            return redirect(url_for("admin.admin_login"))
+        return redirect(url_for("auth.login"))
+
+
+def _start_periodic_cleanup() -> None:
+    """Run cache cleanup every 5 minutes in a background daemon thread."""
+    from app.utils.cache import cleanup_app_cache
+
+    def _loop():
+        import time
+        while True:
+            try:
+                time.sleep(300)
+                cleanup_app_cache()
+                from app.services.notes_service import cleanup_expired_trash
+                cleanup_expired_trash()
+                from app.services.exam_export_service import cleanup_expired_exports
+                cleanup_expired_exports()
+            except Exception as e:
+                print(f"[CLEANUP] Error: {e}")
+
+    t = threading.Thread(target=_loop, daemon=True)
+    t.start()
+
+
+def _start_auto_submit_sweep() -> None:
+    """Starts the server-side exam-deadline enforcement sweep as an
+    in-process daemon thread — the same threading.Thread(daemon=True)
+    pattern as _start_periodic_cleanup() above, not a new kind of
+    infrastructure. main.py runs this app with use_reloader=False, so
+    create_app() (and this) only ever executes once per process; under a
+    hypothetical multi-process deployment, each process's sweep thread is
+    still safe to run concurrently — see claim_due_attempts_batch() in
+    app/db/attempts.py, which uses FOR UPDATE SKIP LOCKED so two sweeps
+    never claim (or double-finalize) the same attempt."""
+    from app.services.auto_submit_service import run_sweep_loop
+
+    t = threading.Thread(target=run_sweep_loop, daemon=True)
+    t.start()
+
+
+def _init_google_oauth(app: Flask) -> None:
+    """Register Google as an Authlib OAuth provider."""
+    try:
+        if not config.GOOGLE_OAUTH_CLIENT_ID or not config.GOOGLE_OAUTH_CLIENT_SECRET:
+            print("ℹ️  Google OAuth: GOOGLE_OAUTH_CLIENT_ID/SECRET not set — Sign in with Google disabled")
+            return
+
+        from authlib.integrations.flask_client import OAuth
+        oauth = OAuth()
+        oauth.init_app(app)
+        oauth.register(
+            name="google",
+            client_id=config.GOOGLE_OAUTH_CLIENT_ID,
+            client_secret=config.GOOGLE_OAUTH_CLIENT_SECRET,
+            server_metadata_url="https://accounts.google.com/.well-known/openid-configuration",
+            client_kwargs={
+                "scope": "openid email profile",
+                "prompt": "select_account",
+            },
+        )
+        print("✅ Google OAuth: ACTIVE")
+    except Exception as e:
+        print(f"❌ Google OAuth init error: {e}")

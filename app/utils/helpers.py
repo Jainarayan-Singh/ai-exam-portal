@@ -1,0 +1,233 @@
+"""
+app/utils/helpers.py
+Small, pure utility functions with no dependencies on Flask or DB.
+"""
+
+import re
+import string
+import secrets
+
+# ─────────────────────────────────────────────
+# AI output sanitisation
+# ─────────────────────────────────────────────
+# Some LLMs (esp. "reasoning" models such as DeepSeek-R1 / Qwen3 / GPT-OSS
+# variants served on Groq) emit their internal chain-of-thought inline in the
+# response content, wrapped in structural tags. This must never reach the
+# student. We only strip known, structurally-delimited reasoning blocks -
+# never individual words - so legitimate educational content that happens to
+# mention "reasoning" or "analysis" is left untouched.
+_REASONING_TAG_RE = re.compile(
+    r"<\s*(think|thinking|reason|reasoning|analysis|scratchpad|internal)\s*>.*?<\s*/\s*\1\s*>",
+    re.IGNORECASE | re.DOTALL,
+)
+# Handles the case where a closing tag never arrived (e.g. truncated stream
+# or a model that only emits the opening tag before the real answer) - strip
+# from the opening tag onward only if it appears at the very start of the
+# response, so we never eat content the model intentionally wrote later.
+_LEADING_OPEN_TAG_RE = re.compile(
+    r"^\s*<\s*(think|thinking|reason|reasoning|analysis|scratchpad|internal)\s*>.*",
+    re.IGNORECASE | re.DOTALL,
+)
+
+
+def strip_ai_reasoning(text: str) -> str:
+    """
+    Remove structurally-delimited chain-of-thought / internal-reasoning
+    blocks from a raw LLM response, regardless of which model produced it.
+    Safe to call on any text - if no such tags are present it is a no-op.
+    """
+    if not text:
+        return text
+
+    cleaned = _REASONING_TAG_RE.sub("", text)
+
+    # If an unclosed reasoning tag survived (streaming edge case) and it's
+    # the very first thing in the response, drop the leading fragment up to
+    # the next blank line / double newline, which usually separates the
+    # leaked preamble from the real answer. If we can't find a clean split,
+    # leave the text as-is rather than risk deleting a real answer.
+    if _LEADING_OPEN_TAG_RE.match(cleaned):
+        parts = re.split(r"\n\s*\n", cleaned, maxsplit=1)
+        if len(parts) == 2:
+            cleaned = parts[1]
+
+    return cleaned.strip()
+
+
+def safe_float(value, default: float = 0.0) -> float:
+    if value is None or str(value).strip() in ("", "None", "null", "nan"):
+        return default
+    try:
+        return float(value)
+    except (ValueError, TypeError):
+        return default
+
+
+def safe_int(value, default: int = 0) -> int:
+    if value is None or str(value).strip() in ("", "None", "null", "nan"):
+        return default
+    try:
+        return int(float(value))
+    except (ValueError, TypeError):
+        return default
+
+
+# ─────────────────────────────────────────────
+# Name splitting for the Profile "Edit Name" form
+# ─────────────────────────────────────────────
+# users.full_name is one stored column (see database/full_database_clone.sql) — there is no first_name/last_name in the
+# schema, and registration already builds full_name the same way (`f"{first_name} {last_name}".strip()`, app/routes/web/
+# auth.py). Editing keeps that one column as the source of truth; these two functions are its only split/join point, used
+# by both portals' profile routes (to pre-fill the form) and by the profile API (to turn the form back into one string).
+MAX_NAME_PART_LENGTH = 60
+_NAME_CONTROL_CHARS_RE = re.compile(r"[\x00-\x1f\x7f]")
+
+
+def split_full_name(full_name) -> tuple:
+    """One stored name -> (first, last) for pre-filling the edit form. Splits on the FIRST space only, so "Mary Jane
+    Watson" is ("Mary", "Jane Watson") and a single-word name like "Cher" is ("Cher", "") — never forced to have a last
+    name. Missing/blank input is ("", "")."""
+    text = str(full_name or "").strip()
+    if not text:
+        return "", ""
+    first, _, rest = text.partition(" ")
+    return first, rest.strip()
+
+
+def join_full_name(first_name, last_name) -> str:
+    """The inverse of split_full_name: one storable string. A blank last name keeps a single-word name single-word
+    (never "Cher " with a trailing space)."""
+    first_name, last_name = str(first_name or "").strip(), str(last_name or "").strip()
+    return f"{first_name} {last_name}" if last_name else first_name
+
+
+def validate_name_part(value, label: str, *, required: bool) -> "str | None":
+    """None when `value` is acceptable for a Profile name field, otherwise the message to show. Length and control-
+    character checks only — real names legitimately contain almost any script, punctuation or accents."""
+    text = str(value or "").strip()
+    if not text:
+        return f"{label} is required." if required else None
+    if len(text) > MAX_NAME_PART_LENGTH:
+        return f"{label} must be at most {MAX_NAME_PART_LENGTH} characters."
+    if _NAME_CONTROL_CHARS_RE.search(text):
+        return f"{label} contains characters that aren't allowed."
+    return None
+
+
+def generate_username(full_name: str, existing_usernames: set) -> str:
+    """
+    Generate a unique username in FirstName.LastName format.
+    Appends a counter if the base name is already taken.
+    """
+    base = full_name.strip().lower().replace(" ", ".")
+    if base not in existing_usernames:
+        return base
+    counter = 1
+    while f"{base}{counter}" in existing_usernames:
+        counter += 1
+    return f"{base}{counter}"
+
+
+def generate_password(length: int = 8) -> str:
+    chars = string.ascii_letters + string.digits
+    return "".join(secrets.choice(chars) for _ in range(length))
+
+
+def is_valid_email(email: str) -> bool:
+    if "@" not in email or len(email) < 6:
+        return False
+    domain = email.split("@")[1].lower()
+    return "." in domain and len(domain) > 3
+
+
+def parse_max_attempts(raw) -> int | None:
+    """
+    Parse max_attempts field: returns None (unlimited) or a non-negative int.
+    Raises ValueError on invalid input.
+    """
+    if raw is None:
+        return None
+    s = str(raw).strip()
+    if s == "":
+        return None
+    if not s.isdigit():
+        raise ValueError("max_attempts must be a non-negative integer")
+    val = int(s)
+    if val < 0:
+        raise ValueError("max_attempts must be non-negative")
+    return val
+
+
+def parse_passing_percentage(raw) -> float | None:
+    """
+    Parse passing_percentage field: returns None (no cutoff configured) or a
+    float in [0, 100]. Raises ValueError on invalid input.
+    """
+    if raw is None:
+        return None
+    s = str(raw).strip()
+    if s == "":
+        return None
+    try:
+        val = float(s)
+    except ValueError:
+        raise ValueError("Passing percentage must be a number")
+    if val < 0 or val > 100:
+        raise ValueError("Passing percentage must be between 0 and 100")
+    return val
+
+
+_START_TIME_RE = re.compile(r"^([01]\d|2[0-3]):[0-5]\d$")
+_EXAM_DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+
+
+def parse_start_time(raw) -> str:
+    """
+    Validate an exam start_time string. Exact minute precision is allowed
+    (no interval restriction) - only the "HH:MM" 24-hour shape is enforced.
+    Raises ValueError on invalid input.
+    """
+    s = str(raw or "").strip()
+    if not _START_TIME_RE.match(s):
+        raise ValueError("Start time must be a valid 24-hour HH:MM value")
+    return s
+
+
+def parse_exam_date(raw) -> str:
+    """
+    Validate an exam date string ("YYYY-MM-DD"). Raises ValueError on invalid input.
+    """
+    s = str(raw or "").strip()
+    if not _EXAM_DATE_RE.match(s):
+        raise ValueError("Date must be a valid YYYY-MM-DD value")
+    return s
+
+
+def parse_scheduled_minutes_field(raw, field_label: str) -> int:
+    """
+    Parse a Scheduled Exam minutes field (preparation window / completion
+    buffer): a non-negative integer, blank treated as 0. Raises ValueError
+    (same convention as the other exam-form parsers above) on invalid
+    input — field_label is used verbatim in the error message so both
+    callers get a field-specific message from one implementation.
+    """
+    s = str(raw or "").strip()
+    if s == "":
+        return 0
+    if not s.isdigit():
+        raise ValueError(f"{field_label} must be a non-negative whole number of minutes")
+    return int(s)
+
+
+def parse_instructions_field(raw) -> str:
+    """
+    Parse the exam Instructions field: required, non-blank text. Raises
+    ValueError (same convention as the other exam-form parsers above) on
+    missing/whitespace-only input — enforced here so a request that
+    bypasses the frontend's `required` attribute (e.g. a direct POST)
+    still can't create/save an exam without instructions.
+    """
+    s = str(raw or "").strip()
+    if not s:
+        raise ValueError("Exam instructions are required.")
+    return s

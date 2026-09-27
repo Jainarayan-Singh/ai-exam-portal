@@ -1,0 +1,334 @@
+{% extends "base.html" %}
+
+{% block title %}Error {{ error_code }} - SmartAIExam{% endblock %}
+
+{% block content %}
+<style>
+  /* ── Override page-main so error fills the entire viewport ── */
+  .page-main { padding: 0 !important; overflow: hidden; }
+  .app-shell  { overflow: hidden; }
+
+  /* ── Canvas + scene ── */
+  #err-canvas {
+    position: fixed; inset: 0; z-index: 0;
+    pointer-events: none;
+  }
+
+  .err-scene {
+    position: relative; z-index: 1;
+    min-height: 100vh;
+    display: flex; align-items: center; justify-content: center;
+    padding: 2rem;
+    overflow: hidden;
+  }
+
+  /* ── Floating orbs ── */
+  .orb {
+    position: fixed; border-radius: 50%;
+    filter: blur(80px); opacity: .18;
+    animation: orbFloat 12s ease-in-out infinite;
+    pointer-events: none; z-index: 0;
+  }
+  .orb-1 { width: 480px; height: 480px; background: var(--accent); top: -120px; left: -100px; animation-delay: 0s; }
+  .orb-2 { width: 360px; height: 360px; background: #a855f7;   bottom: -80px; right: -60px;  animation-delay: -4s; }
+  .orb-3 { width: 260px; height: 260px; background: #06b6d4;   top: 40%;  left: 60%;        animation-delay: -8s; }
+
+  @keyframes orbFloat {
+    0%,100% { transform: translate(0,0) scale(1); }
+    33%      { transform: translate(30px,-40px) scale(1.05); }
+    66%      { transform: translate(-20px,25px) scale(.95); }
+  }
+
+  /* ── Grid overlay ── */
+  .err-grid {
+    position: fixed; inset: 0; z-index: 0; pointer-events: none;
+    background-image:
+      linear-gradient(var(--border) 1px, transparent 1px),
+      linear-gradient(90deg, var(--border) 1px, transparent 1px);
+    background-size: 60px 60px;
+    opacity: .35;
+    mask-image: radial-gradient(ellipse 80% 80% at 50% 50%, black 40%, transparent 100%);
+  }
+
+  /* ── Card ── */
+  .err-card {
+    position: relative; z-index: 2;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 24px;
+    padding: 3.5rem 4rem;
+    max-width: 600px; width: 100%;
+    box-shadow: 0 32px 80px rgba(0,0,0,.25), 0 0 0 1px var(--border);
+    animation: cardIn .7s cubic-bezier(.16,1,.3,1) both;
+    text-align: center;
+    overflow: hidden;
+  }
+  .err-card::before {
+    content: '';
+    position: absolute; inset: 0;
+    background: linear-gradient(135deg, rgba(var(--accent-rgb),.06) 0%, transparent 60%);
+    border-radius: inherit;
+    pointer-events: none;
+  }
+
+  @keyframes cardIn {
+    from { opacity: 0; transform: translateY(40px) scale(.96); }
+    to   { opacity: 1; transform: translateY(0)    scale(1); }
+  }
+
+  /* ── Big code ── */
+  .err-code-wrap {
+    position: relative;
+    margin-bottom: 1.5rem;
+    display: inline-block;
+  }
+  .err-code {
+    font-size: clamp(7rem, 18vw, 10rem);
+    font-weight: 900;
+    line-height: 1;
+    letter-spacing: -.04em;
+    background: linear-gradient(135deg, var(--accent) 0%, #a855f7 50%, #06b6d4 100%);
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    background-clip: text;
+    animation: codePulse 3s ease-in-out infinite;
+    display: block;
+  }
+  @keyframes codePulse {
+    0%,100% { filter: brightness(1); }
+    50%      { filter: brightness(1.15) drop-shadow(0 0 20px var(--accent)); }
+  }
+
+  /* glitch layers */
+  .err-code-wrap::before,
+  .err-code-wrap::after {
+    content: attr(data-code);
+    position: absolute; inset: 0;
+    font-size: clamp(7rem, 18vw, 10rem);
+    font-weight: 900; line-height: 1; letter-spacing: -.04em;
+    -webkit-text-fill-color: transparent;
+    background-clip: text; -webkit-background-clip: text;
+    pointer-events: none;
+  }
+  .err-code-wrap::before {
+    background: #06b6d4;
+    animation: glitchA 4s infinite;
+    clip-path: polygon(0 30%, 100% 30%, 100% 50%, 0 50%);
+  }
+  .err-code-wrap::after {
+    background: #a855f7;
+    animation: glitchB 4s infinite;
+    clip-path: polygon(0 60%, 100% 60%, 100% 75%, 0 75%);
+  }
+  @keyframes glitchA {
+    0%,89%,100% { transform: translate(0); opacity:0; }
+    90%          { transform: translate(-4px, 2px); opacity:.6; }
+    92%          { transform: translate(4px,-2px); opacity:.4; }
+    94%          { transform: translate(0); opacity:0; }
+  }
+  @keyframes glitchB {
+    0%,91%,100% { transform: translate(0); opacity:0; }
+    92%          { transform: translate(4px,3px); opacity:.5; }
+    94%          { transform: translate(-3px,-1px); opacity:.3; }
+    96%          { transform: translate(0); opacity:0; }
+  }
+
+  /* ── Status pill ── */
+  .err-pill {
+    display: inline-flex; align-items: center; gap: .45rem;
+    background: var(--surface-2); border: 1px solid var(--border);
+    border-radius: 999px;
+    padding: .28rem .85rem;
+    font-size: .72rem; font-weight: 700; letter-spacing: .08em;
+    text-transform: uppercase; color: var(--text-3);
+    margin-bottom: 1.1rem;
+    animation: cardIn .7s .1s cubic-bezier(.16,1,.3,1) both;
+  }
+  .err-pill-dot {
+    width: 6px; height: 6px; border-radius: 50%;
+    background: {% if error_code == 404 %}#f59e0b{% elif error_code == 500 %}#ef4444{% else %}#a855f7{% endif %};
+    animation: blink 1.4s ease-in-out infinite;
+  }
+  @keyframes blink { 0%,100%{opacity:1} 50%{opacity:.2} }
+
+  /* ── Text ── */
+  .err-title {
+    font-size: 1.4rem; font-weight: 800;
+    color: var(--text-1); margin: 0 0 .65rem;
+    animation: cardIn .7s .15s cubic-bezier(.16,1,.3,1) both;
+  }
+  .err-desc {
+    font-size: .88rem; color: var(--text-3); line-height: 1.65;
+    margin: 0 0 2rem;
+    animation: cardIn .7s .2s cubic-bezier(.16,1,.3,1) both;
+  }
+
+  /* ── Buttons ── */
+  .err-btns {
+    display: flex; gap: .75rem; justify-content: center; flex-wrap: wrap;
+    animation: cardIn .7s .25s cubic-bezier(.16,1,.3,1) both;
+  }
+  .err-btn {
+    display: inline-flex; align-items: center; gap: .5rem;
+    padding: .65rem 1.5rem;
+    border-radius: 12px;
+    font-size: .85rem; font-weight: 700; font-family: inherit;
+    cursor: pointer; text-decoration: none;
+    transition: transform .15s, box-shadow .15s, background .15s;
+    border: none;
+  }
+  .err-btn:hover { transform: translateY(-2px); }
+  .err-btn-primary {
+    background: var(--accent); color: var(--accent-on);
+    box-shadow: 0 4px 20px rgba(var(--accent-rgb),.35);
+  }
+  .err-btn-primary:hover {
+    background: var(--accent-hover);
+    box-shadow: 0 8px 28px rgba(var(--accent-rgb),.45);
+  }
+  .err-btn-ghost {
+    background: var(--surface-2); color: var(--text-2);
+    border: 1px solid var(--border);
+  }
+  .err-btn-ghost:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-subtle); }
+
+  /* ── Floating particles ── */
+  .particles { position: fixed; inset: 0; z-index: 0; pointer-events: none; overflow: hidden; }
+  .particle {
+    position: absolute;
+    width: 2px; height: 2px; border-radius: 50%;
+    background: var(--accent); opacity: 0;
+    animation: particleRise linear infinite;
+  }
+  @keyframes particleRise {
+    0%   { transform: translateY(0) scale(1);   opacity: 0; }
+    10%  { opacity: .6; }
+    90%  { opacity: .2; }
+    100% { transform: translateY(-100vh) scale(0); opacity: 0; }
+  }
+
+  /* ── Scan line ── */
+  .err-scanline {
+    position: fixed; inset: 0; z-index: 0; pointer-events: none;
+    background: repeating-linear-gradient(
+      0deg,
+      transparent,
+      transparent 2px,
+      rgba(0,0,0,.03) 2px,
+      rgba(0,0,0,.03) 4px
+    );
+    animation: scanMove 8s linear infinite;
+  }
+  @keyframes scanMove {
+    from { background-position: 0 0; }
+    to   { background-position: 0 200px; }
+  }
+
+  @media (max-width:600px) {
+    .err-card { padding: 2.5rem 1.75rem; }
+  }
+</style>
+
+<!-- Atmospheric layers -->
+<div class="orb orb-1"></div>
+<div class="orb orb-2"></div>
+<div class="orb orb-3"></div>
+<div class="err-grid"></div>
+<div class="err-scanline"></div>
+<div class="particles" id="particles"></div>
+
+<div class="err-scene">
+  <div class="err-card">
+
+    <!-- Glitch number -->
+    <div class="err-code-wrap" data-code="{{ error_code }}">
+      <span class="err-code">{{ error_code }}</span>
+    </div>
+
+    <!-- Status pill -->
+    <div class="err-pill">
+      <span class="err-pill-dot"></span>
+      {% if error_code == 404 %}Not Found
+      {% elif error_code == 500 %}Server Error
+      {% elif error_code == 403 %}Forbidden
+      {% else %}System Alert{% endif %}
+    </div>
+
+    <!-- Title -->
+    <h1 class="err-title">{{ error_message }}</h1>
+
+    <!-- Description -->
+    <p class="err-desc">
+      {% if error_code == 404 %}
+        The resource you're looking for has moved, been deleted, or never existed. Double-check the URL or head back to the platform.
+      {% elif error_code == 500 %}
+        Something went wrong on our end. Our team has been notified — please try again in a moment.
+      {% elif error_code == 403 %}
+        You don't have permission to access this page. If you think this is a mistake, contact your administrator.
+      {% else %}
+        An unexpected error occurred. Please navigate back to safety and try again.
+      {% endif %}
+    </p>
+
+    <!-- Actions -->
+    <div class="err-btns">
+      <a href="{{ url_for('dashboard.dashboard') if session.user_id else url_for('auth.login') }}"
+         class="err-btn err-btn-primary">
+        <i class="fas fa-home"></i>
+        Back to Platform
+      </a>
+      <button onclick="errorGoBack()" class="err-btn err-btn-ghost">
+        <i class="fas fa-arrow-left"></i>
+        Go Back
+      </button>
+    </div>
+
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// "Go Back" via history.back() silently does nothing when this page has no
+// history of its own to go back to — e.g. it was opened in a fresh tab
+// (any target="_blank" link that happens to 404). "Go Back" means return to
+// wherever the visitor actually came from, so the fallback is the referrer
+// (same-origin only, so this can't be sent off to some other site) — never
+// the login page, which would wrongly gate an anonymous visitor who was
+// only ever on public pages. The public landing page is the last resort.
+function errorGoBack() {
+  if (window.history.length > 1) {
+    history.back();
+    return;
+  }
+  try {
+    if (document.referrer && new URL(document.referrer).origin === window.location.origin) {
+      window.location.href = document.referrer;
+      return;
+    }
+  } catch (e) {}
+  window.location.href = {{ url_for('misc.home') | tojson }};
+}
+
+// Spawn floating particles
+(function() {
+  const container = document.getElementById('particles');
+  if (!container) return;
+  const colors = ['var(--accent)', '#a855f7', '#06b6d4', '#f59e0b'];
+  for (let i = 0; i < 40; i++) {
+    const p = document.createElement('div');
+    p.className = 'particle';
+    p.style.cssText = [
+      `left:${Math.random()*100}%`,
+      `bottom:${Math.random()*-20}%`,
+      `width:${Math.random()*3+1}px`,
+      `height:${Math.random()*3+1}px`,
+      `background:${colors[Math.floor(Math.random()*colors.length)]}`,
+      `animation-duration:${Math.random()*12+8}s`,
+      `animation-delay:${Math.random()*-15}s`,
+      `opacity:0`,
+    ].join(';');
+    container.appendChild(p);
+  }
+})();
+</script>
+{% endblock %}

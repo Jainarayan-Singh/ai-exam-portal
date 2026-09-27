@@ -1,0 +1,289 @@
+"""
+app/services/result_service.py
+Business logic for results:
+  - Result visibility gating (instant / delayed / manual)
+  - Student analytics calculation
+"""
+
+from datetime import datetime, timedelta
+from typing import Tuple, List, Dict, Optional
+
+import pandas as pd
+from app.utils.datetime_service import now_utc_naive, format_display
+
+
+# ─────────────────────────────────────────────
+# Visibility gating
+# ─────────────────────────────────────────────
+
+def can_user_see_result(exam: dict, result: dict) -> Tuple[bool, str]:
+    """
+    Returns (is_visible, reason_string).
+    Defaults to instant (visible) when result_mode is missing.
+    """
+    mode = (exam.get("result_mode") or "instant").strip().lower()
+
+    if mode in ("instant", ""):
+        return True, ""
+
+    if mode == "manual":
+        if exam.get("results_released"):
+            return True, ""
+        return False, "Results have not been released by your instructor yet. Please check back later."
+
+    if mode == "delayed":
+        delay_minutes = 0
+        try:
+            delay_minutes = int(exam.get("result_delay") or 0)
+        except (ValueError, TypeError):
+            delay_minutes = 0
+
+        if delay_minutes <= 0:
+            return True, ""
+
+        completed_at = result.get("completed_at")
+        if not completed_at:
+            return True, ""
+
+        try:
+            if isinstance(completed_at, str):
+                submitted_dt = datetime.fromisoformat(
+                    completed_at.replace("Z", "+00:00").replace("+00:00", "")
+                )
+            else:
+                submitted_dt = completed_at
+
+            visible_after = submitted_dt + timedelta(minutes=delay_minutes)
+            now = now_utc_naive()
+
+            if now >= visible_after:
+                return True, ""
+
+            remaining_secs = int((visible_after - now).total_seconds())
+            h = remaining_secs // 3600
+            m = (remaining_secs % 3600) // 60
+            s = remaining_secs % 60
+
+            time_str = (
+                f"{h}h {m}m" if h > 0
+                else f"{m}m {s}s" if m > 0
+                else f"{remaining_secs}s"
+            )
+            unlock = visible_after.strftime("%d %B %Y at %I:%M %p")
+            return False, f"Your result will be available in {time_str} (at {unlock})."
+
+        except Exception as e:
+            print(f"[result_service] can_user_see_result error: {e}")
+            return True, ""
+
+    # Unknown mode — safe fallback
+    return True, ""
+
+
+# ─────────────────────────────────────────────
+# Student dashboard exam cards — shared between the initial server render
+# (app/routes/web/dashboard.py) and the paginated "load more" AJAX endpoint
+# (app/routes/api/v01/portal.py), so both build cards identically.
+# ─────────────────────────────────────────────
+
+def build_result_map(user_results: List[Dict]) -> Dict[int, Dict]:
+    """exam_id -> most recent result, for attaching a score/grade to
+    completed-exam cards."""
+    result_map: Dict[int, Dict] = {}
+    for r in user_results:
+        eid = int(r.get("exam_id", 0))
+        if eid not in result_map or r.get("completed_at", "") > result_map[eid].get("completed_at", ""):
+            result_map[eid] = r
+    return result_map
+
+
+def build_exam_card(exam: Dict, result_map: Optional[Dict[int, Dict]] = None) -> Dict:
+    """Trim an exams-table row down to what the dashboard exam card needs,
+    and (for completed exams) attach the student's own result summary.
+
+    BUG FIX: this used to read the literal `status` column, which is
+    correct for a Manual Exam but is ALWAYS 'scheduled' (or 'cancelled')
+    for a Scheduled Exam — see app/services/exam_service.py
+    get_effective_status(), the single source of truth this app uses
+    everywhere else an exam's bucket/state is decided (dashboard listing
+    queries, admin list, notifications). Reading the literal column here
+    meant a completed Scheduled Exam's card never matched status=='completed'
+    below, so its result was never attached and the card showed "Result
+    Pending" forever, even after the student had a real, scored result.
+    Manual Exams are unaffected: get_effective_status() returns the exact
+    same literal column value for them, so this is a no-op for that case.
+
+    Also attaches:
+      prep_open — whether a Scheduled Exam's preparation window is open
+        right now (always False for a Manual Exam, which has no prep-
+        window concept). The dashboard's Upcoming card uses this to show
+        a real "Prepare Exam" link instead of a permanently-disabled
+        "Not started yet" button — before this, prep availability was
+        computed correctly server-side but never surfaced anywhere a
+        student could actually reach it from (the card had no link at
+        all), so the setting had no visible effect until the exact
+        official start second.
+      next_transition_iso — the next server-authoritative instant (ISO
+        8601, APP_TIMEZONE-aware) this card's rendered state will change
+        on its own: prep_start (not-yet-preparable -> "Prepare Exam"
+        available), scheduled_start (upcoming -> ongoing), or
+        official_end + completion_buffer (ongoing -> completed). None for
+        a Manual Exam (no automatic transition exists) or once already
+        completed/cancelled (nothing left to transition to). The
+        dashboard uses this to schedule a single client-side timer per
+        soonest transition, instead of polling — see
+        templates/dashboard.html.
+    """
+    from app.services.exam_service import get_effective_status, get_exam_time_window, is_prep_window_open
+
+    status = get_effective_status(exam)
+    is_scheduled = bool(exam.get("scheduled_mode"))
+    ed = {
+        "id":              int(exam.get("id", 0)),
+        "name":            exam.get("name", "Unnamed Exam"),
+        "date":            exam.get("date", ""),
+        "start_time":      exam.get("start_time", ""),
+        "duration":        exam.get("duration", 60),
+        "total_questions": exam.get("total_questions", 0),
+        "status":          status,
+        "instructions":    exam.get("instructions", ""),
+        "positive_marks":  exam.get("positive_marks", "1"),
+        "negative_marks":  exam.get("negative_marks", "0"),
+        "prep_open":       False,
+        "next_transition_iso": None,
+        # UI-only — see templates/_dashboard_exam_cards.html. Already on the
+        # `exam` row from the same query that built it; surfaced here rather
+        # than re-derived, so this costs nothing extra.
+        "is_scheduled":    is_scheduled,
+    }
+    if is_scheduled and status in ("upcoming", "ongoing"):
+        window = get_exam_time_window(exam)
+        if status == "ongoing":
+            ed["next_transition_iso"] = window.get("buffer_end_iso")
+        else:
+            prep_open = is_prep_window_open(exam)
+            ed["prep_open"] = prep_open
+            ed["next_transition_iso"] = window.get("start_iso") if prep_open else window.get("prep_start_iso")
+    if status == "completed" and result_map is not None:
+        r = result_map.get(int(ed["id"]))
+        # SECURITY: a result_mode of 'manual' (not yet released) or
+        # 'delayed' (delay window not yet elapsed) must hide the actual
+        # score/grade here exactly as it does on the Results page and
+        # Results History — this card is reached via a completely
+        # different path (the dashboard's Completed tab, both the initial
+        # render and the "Load more" AJAX pagination) and was previously
+        # never checking can_user_see_result() at all, so it kept showing
+        # the real score/grade on the card itself regardless of release
+        # status. Applies identically to Scheduled and Normal exams —
+        # can_user_see_result() only branches on result_mode, never on
+        # scheduled_mode.
+        visible = bool(r) and can_user_see_result(exam, r)[0]
+        ed["result"] = f"{r.get('score')}/{r.get('max_score')} ({r.get('grade', 'N/A')})" if visible else "Pending"
+    return ed
+
+
+# ─────────────────────────────────────────────
+# Student analytics
+# ─────────────────────────────────────────────
+
+def calculate_student_analytics(
+    results_list: List[Dict],
+    exams_list: List[Dict],
+    user_id: int,
+) -> Dict:
+    """
+    Compute analytics summary, trends, and grade distribution
+    from a list of result dicts.
+    """
+    if not results_list:
+        return {}
+
+    try:
+        df = pd.DataFrame(results_list)
+
+        # Parse timestamps
+        def _parse_dt(val):
+            if not val:
+                return None
+            try:
+                import re
+                s = re.sub(r"\.\d+", "", str(val).strip())
+                s = s.replace("T", " ")
+                s = re.sub(r"[+-]\d{2}:\d{2}$", "", s).strip()
+                return pd.Timestamp(s)
+            except Exception:
+                return None
+
+        df["completed_at"] = df["completed_at"].apply(_parse_dt)
+        df["percentage"] = pd.to_numeric(df["percentage"], errors="coerce").fillna(0)
+        df["score"] = pd.to_numeric(df["score"], errors="coerce").fillna(0)
+        df["max_score"] = pd.to_numeric(df["max_score"], errors="coerce").fillna(0)
+
+        df_asc = df.sort_values("completed_at", ascending=True, na_position="first")
+        df_desc = df.sort_values("completed_at", ascending=False, na_position="last")
+
+        exams_map = {str(e["id"]): e.get("name", f"Exam {e['id']}") for e in (exams_list or [])}
+
+        def _exam_name(exam_id) -> str:
+            return exams_map.get(str(exam_id), "Unknown Exam")
+
+        def _fmt(val) -> Optional[str]:
+            try:
+                return format_display(val) or None
+            except Exception:
+                return None
+
+        grade_counts = df["grade"].value_counts().to_dict()
+        total_grades = sum(grade_counts.values()) or 1
+
+        score_trend = [
+            {
+                "exam_name": _exam_name(row["exam_id"]),
+                "score": float(row["percentage"]),
+                "grade": row["grade"],
+                "date": _fmt(row["completed_at"]) or "",
+            }
+            for _, row in df_asc.iterrows()
+        ]
+
+        recent_perf = [
+            {
+                "exam_name": _exam_name(row["exam_id"]),
+                "score": f"{int(row['score'])}/{int(row['max_score'])}",
+                "percentage": float(row["percentage"]),
+                "grade": row["grade"],
+                "date": _fmt(row["completed_at"]),
+            }
+            for _, row in df_desc.head(10).iterrows()
+        ]
+
+        if len(df_asc) >= 2:
+            recent_avg = df_asc.tail(3)["percentage"].mean()
+            earlier = df_asc.iloc[:-3]
+            earlier_avg = (
+                earlier["percentage"].mean() if len(earlier) > 0
+                else float(df_asc.iloc[0]["percentage"])
+            )
+            improvement = round(recent_avg - earlier_avg, 2)
+        else:
+            improvement = 0
+
+        return {
+            "total_exams": len(df),
+            "average_score": round(float(df["percentage"].mean()), 2),
+            "highest_score": round(float(df["percentage"].max()), 2),
+            "lowest_score": round(float(df["percentage"].min()), 2),
+            "grade_distribution": {
+                g: {"count": c, "percentage": round(c / total_grades * 100, 1)}
+                for g, c in grade_counts.items()
+            },
+            "score_trend": score_trend,
+            "recent_performance": recent_perf,
+            "improvement_trend": improvement,
+        }
+
+    except Exception as e:
+        print(f"[result_service] calculate_student_analytics error: {e}")
+        import traceback
+        traceback.print_exc()
+        return {}

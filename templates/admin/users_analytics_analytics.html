@@ -1,0 +1,528 @@
+<!-- File: templates/admin/users_analytics_analytics.html -->
+
+<style>
+/* ── Scoped to this partial ── */
+.analytics-content { font-family:'DM Sans',system-ui,sans-serif; }
+
+.anl-filter-box { background:var(--surface-2); border:1px solid var(--border); border-radius:calc(var(--radius)+4px); padding:1rem 1.25rem; margin-bottom:1rem; }
+.anl-filter-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:.85rem; }
+.anl-filter-header h5 { font-size:.9rem; font-weight:700; color:var(--text-1); margin:0; display:flex; align-items:center; gap:.4rem; }
+.anl-filter-header h5 i { color:var(--accent); }
+.anl-filter-header small { font-size:.72rem; color:var(--text-3); }
+
+.anl-filter-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:.75rem; }
+.anl-label { font-size:.72rem; font-weight:600; color:var(--text-3); display:block; margin-bottom:.3rem; }
+.anl-select, .anl-input {
+  background:var(--bg) !important; border:1px solid var(--border) !important;
+  border-radius:var(--radius) !important; color:var(--text-1) !important;
+  font-family:inherit; font-size:.83rem; padding:.4rem .65rem;
+  min-height:36px; width:100%; transition:border-color .12s;
+}
+.anl-select:focus, .anl-input:focus { border-color:var(--accent) !important; outline:none; box-shadow:0 0 0 3px var(--accent-subtle); }
+.anl-select option { background:var(--surface); color:var(--text-1); }
+.anl-input::-webkit-calendar-picker-indicator { filter:var(--btn-close-filter,none); opacity:.6; }
+
+.btn-flat-anl { display:inline-flex; align-items:center; gap:.4rem; padding:.42rem .9rem; border-radius:var(--radius); font-size:.8rem; font-weight:600; font-family:inherit; cursor:pointer; border:1px solid var(--accent); background:var(--accent); color:var(--accent-on); transition:background .12s,border-color .12s; width:100%; justify-content:center; }
+.btn-flat-anl:hover { background:var(--accent-hover); border-color:var(--accent-hover); }
+
+/* ── Summary Grid ── */
+.anl-summary-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(130px,1fr)); gap:.75rem; margin-bottom:1rem; }
+.anl-summary-card { background:var(--surface-2); border:1px solid var(--border); border-radius:var(--radius); padding:.75rem 1rem; text-align:center; }
+.anl-summary-num  { font-size:1.35rem; font-weight:800; color:var(--accent); line-height:1; }
+.anl-summary-lbl  { font-size:.67rem; font-weight:600; color:var(--text-3); margin-top:.25rem; text-transform:uppercase; letter-spacing:.05em; }
+
+/* ── Analytics Charts Dashboard ── */
+.anl-charts-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(280px,1fr)); gap:1rem; margin-bottom:1rem; }
+.anl-chart-card  { background:var(--surface-2); border:1px solid var(--border); border-radius:var(--radius); overflow:hidden; }
+.anl-chart-hdr   { padding:.65rem .85rem; border-bottom:1px solid var(--border); background:var(--surface); }
+.anl-chart-title { font-size:.78rem; font-weight:700; color:var(--text-2); margin:0; display:flex; align-items:center; gap:.35rem; }
+.anl-chart-title i { color:var(--accent); }
+.anl-chart-body  { padding:.75rem; height:200px; position:relative; }
+
+/* ── Performance Tables ── */
+.anl-tables-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(280px,1fr)); gap:1rem; margin-bottom:1rem; }
+.anl-perf-card   { background:var(--surface-2); border:1px solid var(--border); border-radius:var(--radius); overflow:hidden; }
+.anl-perf-hdr    { padding:.65rem .85rem; border-bottom:1px solid var(--border); background:var(--surface); font-size:.78rem; font-weight:700; color:var(--text-2); }
+.anl-table       { width:100%; border-collapse:collapse; font-size:.8rem; }
+.anl-table thead th { background:var(--surface); padding:.5rem .75rem; text-align:left; font-size:.65rem; font-weight:700; text-transform:uppercase; letter-spacing:.07em; color:var(--text-3); border-bottom:1px solid var(--border); white-space:nowrap; }
+.anl-table tbody td { padding:.55rem .75rem; border-bottom:1px solid var(--border); color:var(--text-2); vertical-align:middle; background:var(--surface-2); }
+.anl-table tbody tr:last-child td { border-bottom:none; }
+.anl-table tbody tr:hover td { background:var(--surface); transition:background .1s; }
+
+/* ── Score Bar ── */
+.anl-score-bar  { height:6px; background:var(--border); border-radius:3px; overflow:hidden; margin-bottom:2px; }
+.anl-score-fill { height:100%; background:var(--accent); border-radius:3px; }
+.anl-score-text { font-size:.7rem; color:var(--text-3); }
+
+/* ── Rank Badge ── */
+.rank-badge      { display:inline-flex; align-items:center; justify-content:center; width:22px; height:22px; border-radius:6px; font-size:.72rem; font-weight:700; background:var(--surface); border:1px solid var(--border); color:var(--text-2); }
+.rank-badge.top3 { background:var(--accent-subtle); border-color:var(--accent); color:var(--accent); }
+</style>
+
+<div class="analytics-content">
+    <!-- Filters -->
+    <div class="anl-filter-box">
+        <div class="anl-filter-header">
+            <h5><i class="fas fa-sliders-h"></i>Analytics Filters</h5>
+            <small>Use filters to focus the analytics</small>
+        </div>
+
+        <div class="anl-filter-grid">
+            <div>
+                <label class="anl-label">Time Period</label>
+                <select id="timePeriodFilter" class="anl-select">
+                    <option value="all">All Time</option>
+                    <option value="today">Today</option>
+                    <option value="week">This Week</option>
+                    <option value="month">This Month</option>
+                    <option value="quarter">This Quarter</option>
+                    <option value="year">This Year</option>
+                    <option value="custom">Custom Range</option>
+                </select>
+            </div>
+
+            <div id="customDateRange" style="display:none;">
+                <label class="anl-label">Date Range</label>
+                <div style="display:flex;gap:.5rem;">
+                    <input id="startDate" type="date" class="anl-input" />
+                    <input id="endDate" type="date" class="anl-input" />
+                </div>
+            </div>
+
+            <div>
+                <label class="anl-label">Exam</label>
+                <select id="examFilter" class="anl-select">
+                    <option value="">All Exams</option>
+                    {% for exam in exams %}
+                        <option value="{{ exam.id }}">{{ exam.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div style="align-self:flex-end;">
+                <button class="btn-flat-anl" onclick="updateAnalytics()">
+                    <i class="fas fa-sync-alt"></i>Update
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Summary -->
+    <div class="anl-summary-grid">
+        <div class="anl-summary-card">
+            <div class="anl-summary-num" id="avgScore"><i class="fas fa-spinner fa-spin"></i></div>
+            <div class="anl-summary-lbl">Average Score</div>
+        </div>
+        <div class="anl-summary-card">
+            <div class="anl-summary-num" id="totalAttempts"><i class="fas fa-spinner fa-spin"></i></div>
+            <div class="anl-summary-lbl">Total Attempts</div>
+        </div>
+        <div class="anl-summary-card">
+            <div class="anl-summary-num" id="passRate"><i class="fas fa-spinner fa-spin"></i></div>
+            <div class="anl-summary-lbl">Pass Rate</div>
+        </div>
+        <div class="anl-summary-card">
+            <div class="anl-summary-num" id="activeUsers"><i class="fas fa-spinner fa-spin"></i></div>
+            <div class="anl-summary-lbl">Active Users</div>
+        </div>
+    </div>
+
+    <!-- Charts -->
+    <div class="anl-charts-grid">
+        <div class="anl-chart-card">
+            <div class="anl-chart-hdr">
+                <h6 class="anl-chart-title"><i class="fas fa-chart-pie"></i>Score Distribution</h6>
+            </div>
+            <div class="anl-chart-body">
+                <canvas id="scoreDistributionChart"></canvas>
+            </div>
+        </div>
+
+        <div class="anl-chart-card">
+            <div class="anl-chart-hdr">
+                <h6 class="anl-chart-title"><i class="fas fa-chart-line"></i>Performance Trends</h6>
+            </div>
+            <div class="anl-chart-body">
+                <canvas id="performanceTrendsChart"></canvas>
+            </div>
+        </div>
+
+        <div class="anl-chart-card">
+            <div class="anl-chart-hdr">
+                <h6 class="anl-chart-title"><i class="fas fa-chart-bar"></i>Exam Performance</h6>
+            </div>
+            <div class="anl-chart-body">
+                <canvas id="examPerformanceChart"></canvas>
+            </div>
+        </div>
+
+        <div class="anl-chart-card">
+            <div class="anl-chart-hdr">
+                <h6 class="anl-chart-title"><i class="fas fa-chart-area"></i>User Activity</h6>
+            </div>
+            <div class="anl-chart-body">
+                <canvas id="userActivityChart"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tables -->
+    <div class="anl-tables-grid">
+        <div class="anl-perf-card">
+            <div class="anl-perf-hdr"><i class="fas fa-medal me-1" style="color:var(--accent)"></i>Top Performers</div>
+            <div class="table-responsive">
+                <table class="anl-table">
+                    <thead>
+                        <tr><th>Rank</th><th>User</th><th>Avg Score</th><th>Attempts</th></tr>
+                    </thead>
+                    <tbody id="topPerformersTable">
+                        <tr><td colspan="4" style="text-align:center;padding:1.25rem;color:var(--text-3)">Loading...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="anl-perf-card">
+            <div class="anl-perf-hdr"><i class="fas fa-file-alt me-1" style="color:var(--accent)"></i>Exam Statistics</div>
+            <div class="table-responsive">
+                <table class="anl-table">
+                    <thead>
+                        <tr><th>Exam</th><th>Attempts</th><th>Avg Score</th><th>Pass Rate</th></tr>
+                    </thead>
+                    <tbody id="examStatsTable">
+                        <tr><td colspan="4" style="text-align:center;padding:1.25rem;color:var(--text-3)">Loading...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <div class="anl-perf-card" style="margin:0 0 1rem">
+        <div class="anl-perf-hdr"><i class="fas fa-history me-1" style="color:var(--accent)"></i>Recent Activity</div>
+        <div class="table-responsive">
+            <table class="anl-table">
+                <thead>
+                    <tr><th>Time</th><th>User</th><th>Exam</th><th>Score</th><th>Performance</th></tr>
+                </thead>
+                <tbody id="recentActivityTable">
+                    <tr><td colspan="5" style="text-align:center;padding:1.25rem;color:var(--text-3)">Loading...</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<script>
+// Include Chart.js for charts functionality
+if (!window.Chart) {
+    const script = document.createElement('script');
+    script.src = 'https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js';
+    document.head.appendChild(script);
+}
+
+// Global charts store
+let charts = {};
+
+// Set default dates and wire UI
+document.addEventListener('DOMContentLoaded', () => {
+    const today = new Date().toISOString().split('T')[0];
+    const endInput = document.getElementById('endDate');
+    const startInput = document.getElementById('startDate');
+    if (endInput) endInput.value = today;
+    if (startInput) {
+        const oneMonthAgo = new Date();
+        oneMonthAgo.setMonth(oneMonthAgo.getMonth() - 1);
+        startInput.value = oneMonthAgo.toISOString().split('T')[0];
+    }
+
+    const tp = document.getElementById('timePeriodFilter');
+    if (tp) {
+        tp.addEventListener('change', (e) => {
+            const custom = document.getElementById('customDateRange');
+            if (custom) {
+                custom.style.display = (e.target.value === 'custom') ? 'block' : 'none';
+            }
+        });
+    }
+
+    // Initial load with delay to ensure Chart.js is loaded
+    setTimeout(() => {
+        updateAnalytics();
+    }, 100);
+});
+
+function updateAnalytics() {
+    const filters = {
+        timePeriod: document.getElementById('timePeriodFilter')?.value || 'all',
+        exam: document.getElementById('examFilter')?.value || '',
+        startDate: document.getElementById('startDate')?.value || '',
+        endDate: document.getElementById('endDate')?.value || ''
+    };
+
+    showLoadingState();
+
+    const params = new URLSearchParams(filters);
+    fetch(`/api/v01/admin/analytics/data?${params}`, { credentials: 'same-origin' })
+        .then(resp => {
+            if (!resp.ok) throw new Error('Network response not ok');
+            return resp.json();
+        })
+        .then(data => {
+            updateSummaryStats(data.summary || {});
+            updateCharts(data.charts || {});
+            updateTables(data.tables || {});
+        })
+        .catch(err => {
+            console.error('Analytics load error', err);
+            showErrorState();
+        });
+}
+
+function showLoadingState() {
+    const elements = ['avgScore', 'totalAttempts', 'passRate', 'activeUsers'];
+    elements.forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+    });
+
+    ['topPerformersTable', 'examStatsTable', 'recentActivityTable'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) {
+            const colspan = id === 'recentActivityTable' ? 5 : 4;
+            el.innerHTML = `<tr><td colspan="${colspan}" class="text-center py-3"><i class="fas fa-spinner fa-spin"></i> Loading...</td></tr>`;
+        }
+    });
+}
+
+function showErrorState() {
+    const elements = ['avgScore', 'totalAttempts', 'passRate', 'activeUsers'];
+    elements.forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.textContent = 'Error';
+    });
+
+    ['topPerformersTable', 'examStatsTable', 'recentActivityTable'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) {
+            const colspan = id === 'recentActivityTable' ? 5 : 4;
+            el.innerHTML = `<tr><td colspan="${colspan}" class="text-center py-3">Failed to load.</td></tr>`;
+        }
+    });
+}
+
+function updateSummaryStats(summary = {}) {
+    const avg = (summary.avgScore !== undefined) ? Number(summary.avgScore).toFixed(1) : '0.0';
+    const passRate = (summary.passRate !== undefined) ? `${Number(summary.passRate).toFixed(1)}%` : '0.0%';
+
+    const updates = {
+        avgScore: avg,
+        totalAttempts: summary.totalAttempts || 0,
+        passRate: passRate,
+        activeUsers: summary.activeUsers || 0
+    };
+
+    Object.entries(updates).forEach(([id, value]) => {
+        const el = document.getElementById(id);
+        if (el) el.textContent = value;
+    });
+}
+
+function safeDestroyChart(key) {
+    if (charts[key]) {
+        try {
+            charts[key].destroy();
+        } catch (e) {
+            console.error('Error destroying chart:', e);
+        }
+        charts[key] = null;
+    }
+}
+
+function updateCharts(chartsData = {}) {
+    // Wait for Chart.js to be available
+    if (!window.Chart) {
+        setTimeout(() => updateCharts(chartsData), 100);
+        return;
+    }
+
+    // Score Distribution (doughnut)
+    safeDestroyChart('scoreDistribution');
+    const sdCanvas = document.getElementById('scoreDistributionChart');
+    if (sdCanvas) {
+        const sdCtx = sdCanvas.getContext('2d');
+        const sdData = chartsData.scoreDistribution || [0, 0, 0, 0];
+        charts.scoreDistribution = new Chart(sdCtx, {
+            type: 'doughnut',
+            data: {
+                labels: ['Excellent (90-100%)', 'Good (75-89%)', 'Average (60-74%)', 'Poor (0-59%)'],
+                datasets: [{ data: sdData }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { position: 'bottom' } }
+            }
+        });
+    }
+
+    // Performance Trends (line)
+    safeDestroyChart('performanceTrends');
+    const ptCanvas = document.getElementById('performanceTrendsChart');
+    if (ptCanvas) {
+        const ptCtx = ptCanvas.getContext('2d');
+        const pt = chartsData.performanceTrends || { labels: [], data: [] };
+        charts.performanceTrends = new Chart(ptCtx, {
+            type: 'line',
+            data: {
+                labels: pt.labels || [],
+                datasets: [{
+                    label: 'Average Score',
+                    data: pt.data || [],
+                    borderColor: '#667eea',
+                    backgroundColor: 'rgba(102,126,234,0.12)',
+                    fill: true,
+                    tension: 0.35
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: { y: { beginAtZero: true, max: 100 } }
+            }
+        });
+    }
+
+    // Exam Performance (bar)
+    safeDestroyChart('examPerformance');
+    const epCanvas = document.getElementById('examPerformanceChart');
+    if (epCanvas) {
+        const epCtx = epCanvas.getContext('2d');
+        const ep = chartsData.examPerformance || { labels: [], data: [] };
+        charts.examPerformance = new Chart(epCtx, {
+            type: 'bar',
+            data: {
+                labels: ep.labels || [],
+                datasets: [{
+                    label: 'Average Score',
+                    data: ep.data || [],
+                    borderWidth: 1
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: { y: { beginAtZero: true, max: 100 } }
+            }
+        });
+    }
+
+    // User Activity (area/line)
+    safeDestroyChart('userActivity');
+    const uaCanvas = document.getElementById('userActivityChart');
+    if (uaCanvas) {
+        const uaCtx = uaCanvas.getContext('2d');
+        const ua = chartsData.userActivity || { labels: [], data: [] };
+        charts.userActivity = new Chart(uaCtx, {
+            type: 'line',
+            data: {
+                labels: ua.labels || [],
+                datasets: [{
+                    label: 'Attempts',
+                    data: ua.data || [],
+                    borderColor: '#f093fb',
+                    backgroundColor: 'rgba(240,147,251,0.16)',
+                    fill: true,
+                    tension: 0.35
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: { y: { beginAtZero: true } }
+            }
+        });
+    }
+}
+
+function updateTables(tables = {}) {
+    // Top performers
+    const tp = tables.topPerformers || [];
+    const topTable = document.getElementById('topPerformersTable');
+    if (topTable) {
+        if (tp.length === 0) {
+            topTable.innerHTML = '<tr><td colspan="4" class="text-center py-3">No data</td></tr>';
+        } else {
+            topTable.innerHTML = tp.map((u, i) => {
+                const pct = Number(u.avgScore || 0);
+                return `<tr>
+                    <td><span class="rank-badge ${i < 3 ? 'top3' : ''}">#${i + 1}</span></td>
+                    <td><strong>${escapeHtml(u.username || '')}</strong><br><small class="text-muted">${escapeHtml(u.full_name || '')}</small></td>
+                    <td style="min-width:150px">
+                        <div class="anl-score-bar"><div class="anl-score-fill" style="width:${pct}%"></div></div>
+                        <div class="anl-score-text">${pct.toFixed(1)}%</div>
+                    </td>
+                    <td>${u.attempts || 0}</td>
+                </tr>`;
+            }).join('');
+        }
+    }
+
+    // Exam stats
+    const es = tables.examStats || [];
+    const examTable = document.getElementById('examStatsTable');
+    if (examTable) {
+        if (es.length === 0) {
+            examTable.innerHTML = '<tr><td colspan="4" class="text-center py-3">No data</td></tr>';
+        } else {
+            examTable.innerHTML = es.map(ex => {
+                const avg = Number(ex.avgScore || 0);
+                return `<tr>
+                    <td><strong>${escapeHtml(ex.name || '')}</strong><br><small class="text-muted">${escapeHtml(ex.subject || '')}</small></td>
+                    <td>${ex.attempts || 0}</td>
+                    <td><div class="score-bar"><div class="score-fill" style="width:${avg}%"></div><div class="score-text">${avg.toFixed(1)}%</div></div></td>
+                    <td>${(ex.passRate !== undefined) ? Number(ex.passRate).toFixed(1) + '%' : 'N/A'}</td>
+                </tr>`;
+            }).join('');
+        }
+    }
+
+    // Recent activity
+    const ra = tables.recentActivity || [];
+    const activityTable = document.getElementById('recentActivityTable');
+    if (activityTable) {
+        if (ra.length === 0) {
+            activityTable.innerHTML = '<tr><td colspan="5" class="text-center py-3">No recent activity</td></tr>';
+        } else {
+            activityTable.innerHTML = ra.map(a => {
+                const time = a.created_at ? new Date(a.created_at).toLocaleString() : '';
+                const pct = Number(a.percentage || 0);
+                return `<tr>
+                    <td><small>${escapeHtml(time)}</small></td>
+                    <td><strong>${escapeHtml(a.username || '')}</strong><br><small class="text-muted">${escapeHtml(a.full_name || '')}</small></td>
+                    <td><strong>${escapeHtml(a.exam_name || '')}</strong></td>
+                    <td><strong>${escapeHtml(String(a.score || ''))}/${escapeHtml(String(a.max_score || ''))}</strong></td>
+                    <td style="min-width:160px"><div class="score-bar"><div class="score-fill" style="width:${pct}%"></div><div class="score-text">${pct.toFixed(1)}%</div></div></td>
+                </tr>`;
+            }).join('');
+        }
+    }
+}
+
+// Helper to avoid XSS injection
+function escapeHtml(s) {
+    if (!s && s !== 0) return '';
+    return String(s).replace(/[&<>"'`=\/]/g, function (c) {
+        return {
+            '&': '&amp;',
+            '<': '&lt;',
+            '>': '&gt;',
+            '"': '&quot;',
+            "'": '&#39;',
+            '`': '&#96;',
+            '=': '&#61;',
+            '/': '&#x2F;'
+        }[c];
+    });
+}
+</script>
+

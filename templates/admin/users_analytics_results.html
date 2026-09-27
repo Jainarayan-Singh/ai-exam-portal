@@ -1,0 +1,358 @@
+
+
+<style>
+/* ── Results Partial ── */
+.results-content { font-family:'DM Sans',system-ui,sans-serif; }
+
+.res-filter-card { background:var(--surface-2); border:1px solid var(--border); border-radius:calc(var(--radius)+4px); padding:1rem 1.25rem; margin-bottom:1rem; }
+.res-filter-title { font-size:.88rem; font-weight:700; color:var(--text-1); margin:0 0 .85rem; display:flex; align-items:center; gap:.4rem; }
+.res-filter-title i { color:var(--accent); }
+.res-filter-row { display:flex; flex-wrap:wrap; gap:.75rem; align-items:flex-end; }
+.res-filter-group { display:flex; flex-direction:column; gap:.3rem; min-width:160px; }
+.res-filter-group label { font-size:.72rem; font-weight:600; color:var(--text-3); }
+.res-input {
+  background:var(--bg) !important; border:1px solid var(--border) !important;
+  border-radius:var(--radius) !important; color:var(--text-1) !important;
+  font-family:inherit; font-size:.83rem; padding:.4rem .65rem; min-height:36px;
+  transition:border-color .12s;
+}
+.res-input:focus { border-color:var(--accent) !important; outline:none; box-shadow:0 0 0 3px var(--accent-subtle); }
+.res-input option { background:var(--surface); color:var(--text-1); }
+.res-input::-webkit-calendar-picker-indicator { filter:var(--btn-close-filter,none); opacity:.6; }
+.res-input::placeholder { color:var(--text-3) !important; }
+.res-date-preview { font-size:.68rem; color:var(--text-3); min-height:1em; }
+
+.res-btn { display:inline-flex; align-items:center; gap:.4rem; padding:.42rem .85rem; border-radius:var(--radius); font-size:.8rem; font-weight:600; font-family:inherit; cursor:pointer; border:1px solid transparent; transition:background .12s,color .12s,border-color .12s; white-space:nowrap; }
+.res-btn:disabled { opacity:.5; cursor:not-allowed; }
+.res-btn.primary   { background:var(--accent);    color:var(--accent-on);  border-color:var(--accent); }
+.res-btn.primary:hover   { background:var(--accent-hover); border-color:var(--accent-hover); }
+.res-btn.secondary { background:var(--surface-2); color:var(--text-2);     border-color:var(--border); }
+.res-btn.secondary:hover { border-color:var(--accent); color:var(--accent); }
+
+/* ── Table wrapper + overlay ── */
+.res-table-wrap { position:relative; background:var(--surface); border:1px solid var(--border); border-radius:calc(var(--radius)+4px); overflow:hidden; }
+.res-overlay { display:none; position:absolute; inset:0; z-index:10; background:var(--surface); opacity:.75; align-items:center; justify-content:center; flex-direction:column; gap:.65rem; font-size:.82rem; color:var(--text-3); font-weight:600; }
+.res-overlay.show { display:flex; }
+.res-spinner { width:22px; height:22px; border:3px solid var(--border); border-top-color:var(--accent); border-radius:50%; animation:res-spin .7s linear infinite; }
+@keyframes res-spin { to { transform:rotate(360deg); } }
+
+/* ── Table ── */
+.res-table { width:100%; border-collapse:collapse; }
+.res-table thead th { background:var(--surface-2); padding:.65rem 1rem; text-align:left; font-size:.67rem; font-weight:700; text-transform:uppercase; letter-spacing:.07em; color:var(--text-3); border-bottom:1px solid var(--border); white-space:nowrap; }
+.res-table tbody td { padding:.7rem 1rem; border-bottom:1px solid var(--border); vertical-align:middle; color:var(--text-2); font-size:.83rem; background:var(--surface); }
+.res-table tbody tr:last-child td { border-bottom:none; }
+.res-table tbody tr:hover td { background:var(--surface-2); transition:background .1s; }
+
+/* ── Pct Badge ── */
+.res-badge { display:inline-block; padding:.18rem .55rem; border-radius:999px; font-size:.73rem; font-weight:700; }
+.res-badge.excellent { background:rgba(16,185,129,.13);  color:#10b981; }
+.res-badge.good      { background:var(--accent-subtle);  color:var(--accent); }
+.res-badge.average   { background:rgba(245,158,11,.13);  color:#f59e0b; }
+.res-badge.poor      { background:rgba(239,68,68,.13);   color:#ef4444; }
+
+/* ── Action Buttons ── */
+.res-action-cell { display:flex; gap:.3rem; }
+.res-icon-btn { width:30px; height:30px; border-radius:8px; background:var(--surface-2); border:1px solid var(--border); color:var(--text-2); display:inline-flex; align-items:center; justify-content:center; cursor:pointer; transition:background .12s,color .12s,border-color .12s; font-size:.72rem; text-decoration:none; }
+.res-icon-btn:hover           { background:var(--accent-subtle);  color:var(--accent);        border-color:var(--accent); }
+.res-icon-btn.view:hover      { background:var(--accent-subtle);  color:var(--accent);        border-color:var(--accent); }
+.res-icon-btn.details:hover   { background:rgba(139,92,246,.12);  color:#8b5cf6;              border-color:#8b5cf6; }
+.res-icon-btn.download:hover  { background:var(--success-bg);     color:var(--success-text);  border-color:var(--success-border); }
+
+/* ── Empty State ── */
+.res-empty { text-align:center; padding:3rem 1rem; }
+.res-empty i { font-size:2rem; color:var(--text-3); opacity:.35; display:block; margin-bottom:.75rem; }
+.res-empty p { color:var(--text-3); margin:0; font-size:.88rem; }
+
+/* ── Pagination ── */
+.res-pagi { display:flex; align-items:center; justify-content:space-between; padding:.6rem 1.25rem; border-top:1px solid var(--border); background:var(--surface-2); flex-wrap:wrap; gap:.4rem; }
+.res-pagi-info { font-size:.75rem; color:var(--text-3); }
+.res-pagi-btns { display:flex; gap:.3rem; flex-wrap:wrap; }
+.res-pg-btn { padding:.25rem .6rem; border-radius:6px; border:1px solid var(--border); background:var(--surface); color:var(--text-2); font-size:.78rem; font-weight:600; cursor:pointer; transition:background .1s,color .1s; font-family:inherit; text-decoration:none; display:inline-flex; align-items:center; }
+.res-pg-btn:hover:not(.active):not(.disabled) { border-color:var(--accent); color:var(--accent); }
+.res-pg-btn.active   { background:var(--accent); color:var(--accent-on); border-color:var(--accent); }
+.res-pg-btn.disabled { opacity:.4; cursor:not-allowed; pointer-events:none; }
+</style>
+
+<div class="results-content">
+    <!-- Filters Section -->
+    <div class="res-filter-card">
+        <h5 class="res-filter-title"><i class="fas fa-filter"></i>Filter Results</h5>
+        <div class="res-filter-row">
+            <div class="res-filter-group">
+                <label>User</label>
+                <select class="res-input" id="userFilter">
+                    <option value="">All Users</option>
+                    {% for user in users %}
+                    <option value="{{ user.id }}">{{ user.username }} ({{ user.full_name }})</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="res-filter-group">
+                <label>Exam</label>
+                <select class="res-input" id="examFilter">
+                    <option value="">All Exams</option>
+                    {% for exam in exams %}
+                    <option value="{{ exam.id }}">{{ exam.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="res-filter-group">
+                <label>Date From</label>
+                <input type="date" class="res-input" id="dateFromFilter" onchange="updateDatePreview(this,'dateFromPreview')">
+                <span class="res-date-preview" id="dateFromPreview"></span>
+            </div>
+            <div class="res-filter-group">
+                <label>Date To</label>
+                <input type="date" class="res-input" id="dateToFilter" onchange="updateDatePreview(this,'dateToPreview')">
+                <span class="res-date-preview" id="dateToPreview"></span>
+            </div>
+            <div class="res-filter-group" style="justify-content:flex-end;">
+                <div style="display:flex;gap:.4rem;">
+                    <button class="res-btn primary" id="applyFiltersBtn" onclick="applyFilters()">
+                        <i class="fas fa-search"></i>Apply
+                    </button>
+                    <button class="res-btn secondary" id="clearFiltersBtn" onclick="clearFilters()">
+                        <i class="fas fa-times"></i>Clear
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Results Table -->
+    <div class="res-table-wrap">
+        <div class="res-overlay" id="tableLoadingOverlay">
+            <div class="res-spinner"></div>
+            <div>Applying filters…</div>
+        </div>
+        <div class="table-responsive">
+        <table class="res-table">
+            <thead>
+                <tr>
+                    <th><i class="fas fa-user me-1"></i>User</th>
+                    <th><i class="fas fa-file-alt me-1"></i>Exam</th>
+                    <th><i class="fas fa-calendar me-1"></i>Date</th>
+                    <th><i class="fas fa-trophy me-1"></i>Score</th>
+                    <th><i class="fas fa-percentage me-1"></i>%</th>
+                    <th><i class="fas fa-medal me-1"></i>Grade</th>
+                    <th><i class="fas fa-clock me-1"></i>Duration</th>
+                    <th><i class="fas fa-cogs me-1"></i>Actions</th>
+                </tr>
+            </thead>
+            <tbody id="resultsTableBody">
+                {% if results %}
+                    {% for result in results %}
+                    {% set pct = result.percentage|float %}
+                    <tr>
+                        <td>
+                            <div style="font-size:.83rem;font-weight:600;color:var(--text-1)">{{ result.username }}</div>
+                            <div style="font-size:.73rem;color:var(--text-3)">{{ result.full_name }}</div>
+                        </td>
+                        <td>
+                            <div style="font-size:.83rem;font-weight:600;color:var(--text-1)">{{ result.exam_name }}{% if result.is_scheduled %}<i class="fas fa-calendar-check" style="color:var(--accent);font-size:.68rem;margin-left:.3rem" title="Scheduled Exam"></i>{% endif %}</div>
+                            <div style="font-size:.73rem;color:var(--text-3)">{{ result.subject_name }}</div>
+                        </td>
+                        <td style="font-size:.78rem;color:var(--text-3)">{{ result.created_at | display_dt if result.created_at and result.created_at != 'N/A' else '—' }}</td>
+                        <td style="font-weight:700;color:var(--text-1)">{{ result.score }}/{{ result.max_score }}</td>
+                        <td>
+                            <span class="res-badge {% if pct >= 90 %}excellent{% elif pct >= 75 %}good{% elif pct >= 60 %}average{% else %}poor{% endif %}">
+                                {{ "%.1f"|format(pct) }}%
+                            </span>
+                        </td>
+                        <td style="font-weight:700;color:var(--text-1)">{{ result.grade }}</td>
+                        <td style="font-size:.78rem;color:var(--text-3)">{{ result.duration or '—' }}</td>
+                        <td>
+                            <div class="res-action-cell">
+                                <a class="res-icon-btn view" title="View Result"
+                                   onclick="viewResult({{ result.id }}, {{ result.exam_id }})">
+                                    <i class="fas fa-eye"></i>
+                                </a>
+                                <a class="res-icon-btn details" title="View Responses"
+                                   onclick="viewResponses({{ result.id }}, {{ result.exam_id }})">
+                                    <i class="fas fa-list"></i>
+                                </a>
+                                <a class="res-icon-btn download" title="Download PDF"
+                                   href="/admin/users-analytics/download-result/{{ result.id }}">
+                                    <i class="fas fa-download"></i>
+                                </a>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                {% else %}
+                    <tr>
+                        <td colspan="8">
+                            <div class="res-empty">
+                                <i class="fas fa-inbox"></i>
+                                <p><strong>No Results Found</strong><br>
+                                <span style="font-size:.8rem">Adjust filters to see results.</span></p>
+                            </div>
+                        </td>
+                    </tr>
+                {% endif %}
+            </tbody>
+        </table>
+        </div>
+
+        <!-- Pagination -->
+        {% if pagination %}
+        <div class="res-pagi">
+            <span class="res-pagi-info">Showing {{ pagination.start }}–{{ pagination.end }} of {{ pagination.total }}</span>
+            <div class="res-pagi-btns">
+                {% if pagination.has_prev %}
+                    <button class="res-pg-btn" onclick="changePage({{ pagination.prev_num }})">
+                        <i class="fas fa-chevron-left"></i>
+                    </button>
+                {% endif %}
+                {% for page_num in pagination.iter_pages() %}
+                    {% if page_num %}
+                        <button class="res-pg-btn {% if page_num == pagination.page %}active{% endif %}"
+                                onclick="changePage({{ page_num }})">{{ page_num }}</button>
+                    {% else %}
+                        <span class="res-pg-btn disabled">…</span>
+                    {% endif %}
+                {% endfor %}
+                {% if pagination.has_next %}
+                    <button class="res-pg-btn" onclick="changePage({{ pagination.next_num }})">
+                        <i class="fas fa-chevron-right"></i>
+                    </button>
+                {% endif %}
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<script>
+const DISPLAY_DATE_FORMAT = "{{ DISPLAY_DATE_FORMAT }}";
+const MONTH_NAMES = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+function updateDatePreview(input, previewId) {
+    const el = document.getElementById(previewId);
+    if (!input.value) { el.textContent = ''; return; }
+    const [y, m, d] = input.value.split('-').map(Number);
+    el.textContent = DISPLAY_DATE_FORMAT
+        .replace('%Y', y).replace('%y', String(y).slice(-2))
+        .replace('%B', MONTH_NAMES[m-1]).replace('%b', MONTH_NAMES[m-1].slice(0,3))
+        .replace('%m', String(m).padStart(2,'0')).replace('%d', String(d).padStart(2,'0'));
+}
+
+let currentFilters = {
+    user: '',
+    exam: '',
+    dateFrom: '',
+    dateTo: '',
+    page: 1
+};
+
+let isFilterProcessing = false;
+
+function showFilterLoading() {
+    document.getElementById('tableLoadingOverlay').classList.add('show');
+}
+
+function hideFilterLoading() {
+    document.getElementById('tableLoadingOverlay').classList.remove('show');
+}
+
+function applyFilters() {
+    if (isFilterProcessing) return;
+    
+    isFilterProcessing = true;
+    const applyBtn = document.getElementById('applyFiltersBtn');
+    const originalContent = applyBtn.innerHTML;
+    
+    // Show loading states
+    applyBtn.innerHTML = '<div class="res-spinner" style="width:14px;height:14px;border-width:2px;display:inline-block;vertical-align:middle;margin-right:5px"></div>Applying…';
+    applyBtn.disabled = true;
+    showFilterLoading();
+    
+    // Simulate processing time for better UX
+    setTimeout(() => {
+        currentFilters.user = document.getElementById('userFilter').value;
+        currentFilters.exam = document.getElementById('examFilter').value;
+        currentFilters.dateFrom = document.getElementById('dateFromFilter').value;
+        currentFilters.dateTo = document.getElementById('dateToFilter').value;
+        currentFilters.page = 1;
+        
+        loadFilteredResults(() => {
+            // Restore button state
+            applyBtn.innerHTML = originalContent;
+            applyBtn.disabled = false;
+            hideFilterLoading();
+            isFilterProcessing = false;
+        });
+    }, 600);
+}
+
+function clearFilters() {
+    if (isFilterProcessing) return;
+    
+    isFilterProcessing = true;
+    const clearBtn = document.getElementById('clearFiltersBtn');
+    const originalContent = clearBtn.innerHTML;
+    
+    // Show loading states
+    clearBtn.innerHTML = '<div class="res-spinner" style="width:14px;height:14px;border-width:2px;display:inline-block;vertical-align:middle;margin-right:5px"></div>Clearing…';
+    clearBtn.disabled = true;
+    showFilterLoading();
+    
+    setTimeout(() => {
+        document.getElementById('userFilter').value = '';
+        document.getElementById('examFilter').value = '';
+        document.getElementById('dateFromFilter').value = '';
+        document.getElementById('dateToFilter').value = '';
+        document.getElementById('dateFromPreview').textContent = '';
+        document.getElementById('dateToPreview').textContent = '';
+
+        currentFilters = {
+            user: '',
+            exam: '',
+            dateFrom: '',
+            dateTo: '',
+            page: 1
+        };
+        
+        loadFilteredResults(() => {
+            // Restore button state
+            clearBtn.innerHTML = originalContent;
+            clearBtn.disabled = false;
+            hideFilterLoading();
+            isFilterProcessing = false;
+        });
+    }, 600);
+}
+
+function changePage(page) {
+    currentFilters.page = page;
+    loadFilteredResults();
+}
+
+function loadFilteredResults(callback) {
+    const params = new URLSearchParams(currentFilters);
+    
+    fetch(`/admin/users-analytics/results?${params}`)
+        .then(response => response.text())
+        .then(html => {
+            document.getElementById('resultsContent').innerHTML = html;
+            if (callback) callback();
+        })
+        .catch(error => {
+            console.error('Error loading filtered results:', error);
+            hideFilterLoading();
+            if (callback) callback();
+        });
+}
+
+function viewResult(resultId, examId) {
+    const url = `/admin/users-analytics/view-result/${resultId}/${examId}`;
+    window.openLoadingWindow(url, '_blank', 'width=900,height=700,scrollbars=yes,resizable=yes',
+        {title: 'Loading — SmartAIExam Admin', message: 'Loading result…'});
+}
+
+function viewResponses(resultId, examId) {
+    const url = `/admin/users-analytics/view-responses/${resultId}/${examId}`;
+    window.openLoadingWindow(url, '_blank', 'width=1200,height=800,scrollbars=yes,resizable=yes',
+        {title: 'Loading — SmartAIExam Admin', message: 'Loading response analysis…'});
+}
+</script>
+

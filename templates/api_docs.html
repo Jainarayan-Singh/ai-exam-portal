@@ -1,0 +1,2480 @@
+{% extends "base.html" %}
+{% set hide_navbar = true %}
+{% block title %}SmartAIExam - API Reference{% endblock %}
+{% block content %}
+
+<script>
+const API_CONFIG = {
+  baseUrl: {{ BASE_URL | tojson }},
+  version: "v01",
+  year:    new Date().getFullYear()
+};
+</script>
+<style>
+/* ── MOB SIDEBAR BUTTON (hidden on desktop) ── */
+.apidoc-mob-sb-btn{display:none;align-items:center;justify-content:center;width:32px;height:32px;border-radius:8px;border:1px solid var(--border);background:var(--surface-2);color:var(--text-1);cursor:pointer;flex-shrink:0;order:-1}
+/* ── MOB OVERLAY ── */
+.apidoc-mob-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:299;backdrop-filter:blur(2px)}
+.apidoc-mob-overlay.active{display:block}
+
+@media(max-width:768px){
+  /* ── HEADER: show all items, just shrink them ── */
+  .apidoc-header{display:flex !important;align-items:center;gap:.35rem;padding:0 .75rem;height:52px;overflow:hidden;position:sticky;top:0;z-index:150;flex-shrink:0}
+  .nav-logo{flex-shrink:0}
+  .apidoc-logo{display:none !important}
+  .apidoc-header-gap{flex:1;min-width:.2rem}
+  .apidoc-base-url-pill{font-size:.62rem !important;padding:.18rem .4rem !important;max-width:140px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;flex-shrink:1;min-width:0;display:inline-flex !important;align-items:center;gap:.25rem}
+  .apidoc-base-url-pill span{overflow:hidden;white-space:nowrap;text-overflow:ellipsis;min-width:0}
+  .apidoc-version-chip{font-size:.6rem !important;padding:.15rem .3rem !important;flex-shrink:0;white-space:nowrap}
+  .apidoc-nav-home-btn{font-size:.72rem !important;padding:.28rem .45rem !important;flex-shrink:0;white-space:nowrap}
+  .apidoc-mob-sb-btn{display:flex !important}
+
+  /* ── BODY LAYOUT ── */
+  .apidoc-body{flex-direction:column !important;position:relative}
+
+  /* ── SIDEBAR: width:0 hides it without breaking flow,
+       mob-sb-open class makes it a fixed drawer ── */
+  .apidoc-sidebar:not(.mob-sb-open){
+    width:0 !important;min-width:0 !important;
+    overflow:hidden !important;
+    padding:0 !important;border:none !important;
+    flex-shrink:0
+  }
+  .apidoc-sidebar.mob-sb-open{
+    position:fixed !important;
+    top:0;left:0;
+    width:min(280px,82vw) !important;
+    height:100vh !important;
+    z-index:300;
+    overflow-y:auto !important;
+    padding:52px 0 1rem !important;
+    box-shadow:var(--shadow-lg);
+    background:var(--surface)
+  }
+  /* Force sidebar content visible regardless of sb-collapsed state */
+  .apidoc-sidebar .sidebar-search-wrap,
+  .apidoc-sidebar .sg{display:block !important}
+  .apidoc-sidebar .sg-items{display:flex !important;flex-direction:column}
+  .sb-collapse-btn{display:none !important}
+
+  /* ── MAIN: full width ── */
+  .apidoc-main{width:100% !important;min-width:0}
+  .apidoc-main-inner{padding:1rem .75rem}
+
+  /* ── HERO ── */
+  .hero h1{font-size:1.4rem !important;line-height:1.25}
+  .info-grid{grid-template-columns:1fr !important;gap:.6rem}
+  .jwt-flow{grid-template-columns:1fr !important;gap:.75rem}
+
+  /* ── ENDPOINTS ── */
+  .ep-header{flex-wrap:wrap;gap:.3rem .5rem;align-items:center;padding:.6rem .75rem}
+  .ep-path{font-size:.7rem !important;word-break:break-all;order:10;flex-basis:100%}
+  .ep-summary{display:none}
+  .ep-body{padding:.75rem}
+
+  /* ── CODE ── */
+  .cb{overflow-x:auto}
+  .cb pre{font-size:.68rem !important}
+
+  /* ── TABLES ── */
+  .rt{display:block;overflow-x:auto;font-size:.7rem}
+
+  /* ── TABS ── */
+  .tabs{flex-wrap:wrap;gap:.25rem}
+  .tab{font-size:.73rem;padding:.28rem .55rem}
+
+  /* ── ADMIN ── */
+  .ag-row{flex-direction:column !important;gap:.3rem}
+  .ag-method{align-self:flex-start}
+
+  /* ── MISC ── */
+  .section-title{font-size:1.2rem !important}
+  .rpills{flex-direction:column;gap:.35rem;align-items:flex-start}
+  .auth-box{flex-direction:column;gap:.5rem}
+
+  /* ── FOOTER ── */
+  .apidoc-footer{flex-direction:column;align-items:center;text-align:center;gap:.5rem;padding:.875rem 1rem;font-size:.75rem}
+}
+</style>
+
+<div class="apidoc-wrap">
+
+<!-- HEADER -->
+<header class="apidoc-header">
+  <a class="nav-logo">
+    <video src="{{ url_for('static', filename='logo.mp4') }}" autoplay loop muted playsinline style="height:34px;width:auto;"></video>
+  </a>
+  <a class="apidoc-logo" href="#">
+    <span class="apidoc-logo-text">SmartAIExam</span>
+    <span class="apidoc-logo-badge" id="hdr-version">v01</span>
+  </a>
+  <div class="apidoc-header-gap"></div>
+  <div class="apidoc-base-url-pill" id="hdr-base-url" onclick="copyBaseUrl()" title="Click to copy">
+    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+    <span id="hdr-url-text"></span>
+  </div>
+  <span class="apidoc-version-chip" id="hdr-version-chip">v01</span>
+  <a class="apidoc-nav-home-btn" href="/">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+    Home
+  </a>
+  <button class="apidoc-mob-sb-btn" id="mobSbBtn" onclick="toggleMobileSidebar()" aria-label="Toggle navigation">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+  </button>
+</header>
+
+<div class="apidoc-mob-overlay" id="mobOverlay" onclick="toggleMobileSidebar()"></div>
+<div class="apidoc-body" id="apidoc-body">
+<!-- SIDEBAR -->
+<nav class="apidoc-sidebar" id="sidebar">
+  <div class="sb-collapse-btn" id="sbCollapseBtn" onclick="toggleSidebarCollapse()" title="Collapse sidebar">
+    <svg id="sb-collapse-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg>
+  </div>
+  <div class="sidebar-search-wrap" id="sbSearchWrap">
+    <div class="sidebar-search-inner">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+      <input type="text" id="sbSearch" placeholder="Search endpoints..." oninput="filterSidebar(this.value)">
+    </div>
+  </div>
+
+  <div class="sg open" id="sg-overview">
+    <div class="sg-header" onclick="toggleGroup('sg-overview')"><span class="sg-label">Overview</span><span class="sg-arrow">▾</span></div>
+    <div class="sg-items">
+      <a class="sl" href="#introduction"><span class="mdot mdot-info"></span>Introduction</a>
+      <a class="sl" href="#authentication"><span class="mdot mdot-info"></span>Authentication</a>
+      <a class="sl" href="#rate-limits"><span class="mdot mdot-info"></span>Rate Limits</a>
+      <a class="sl" href="#errors"><span class="mdot mdot-info"></span>Error Handling</a>
+    </div>
+  </div>
+
+  <div class="sg open" id="sg-jwt">
+    <div class="sg-header" onclick="toggleGroup('sg-jwt')"><span class="sg-label">JWT Auth</span><span class="sg-arrow">▾</span></div>
+    <div class="sg-items">
+      <a class="sl" href="#jwt-login"><span class="mdot mdot-post"></span>POST /api/v01/auth/login</a>
+      <a class="sl" href="#jwt-google"><span class="mdot mdot-post"></span>POST /api/v01/auth/google</a>
+      <a class="sl" href="#jwt-refresh"><span class="mdot mdot-post"></span>POST /api/v01/auth/refresh</a>
+      <a class="sl" href="#jwt-logout"><span class="mdot mdot-post"></span>POST /api/v01/auth/logout</a>
+      <a class="sl" href="#jwt-me"><span class="mdot mdot-get"></span>GET /api/v01/auth/me</a>
+    </div>
+  </div>
+
+  <div class="sg open" id="sg-web-auth">
+    <div class="sg-header" onclick="toggleGroup('sg-web-auth')"><span class="sg-label">Web Auth</span><span class="sg-arrow">▾</span></div>
+    <div class="sg-items">
+      <a class="sl" href="#ep-reset"><span class="mdot mdot-post"></span>POST /api/v01/auth/password-reset</a>
+      <a class="sl" href="#ep-validate"><span class="mdot mdot-post"></span>POST /api/v01/access-requests/validate-user</a>
+      <a class="sl" href="#ep-access-req"><span class="mdot mdot-post"></span>POST /api/v01/access-requests</a>
+      <a class="sl" href="#ep-delete-acc"><span class="mdot mdot-delete"></span>DELETE /api/v01/auth/me</a>
+    </div>
+  </div>
+
+  <div class="sg open" id="sg-exam">
+    <div class="sg-header" onclick="toggleGroup('sg-exam')"><span class="sg-label">Exams</span><span class="sg-arrow">▾</span></div>
+    <div class="sg-items">
+      <a class="sl" href="#ep-preload"><span class="mdot mdot-get"></span>GET /api/v01/exams/:id/preload</a>
+      <a class="sl" href="#ep-start"><span class="mdot mdot-post"></span>POST /api/v01/exams/:id/start</a>
+      <a class="sl" href="#ep-sync"><span class="mdot mdot-post"></span>POST /api/v01/exams/:id/answers</a>
+      <a class="sl" href="#ep-submit"><span class="mdot mdot-post"></span>POST /submit-exam/:id</a>
+      <a class="sl" href="#ep-status"><span class="mdot mdot-get"></span>GET /api/v01/exams/:id/attempt-status</a>
+      <a class="sl" href="#ep-ping"><span class="mdot mdot-post"></span>POST /api/v01/ping</a>
+    </div>
+  </div>
+
+  <div class="sg open" id="sg-ai">
+    <div class="sg-header" onclick="toggleGroup('sg-ai')"><span class="sg-label">AI Assistant</span><span class="sg-arrow">▾</span></div>
+    <div class="sg-items">
+      <a class="sl" href="#ep-ai-init"><span class="mdot mdot-get"></span>GET /api/v01/assistant/init</a>
+      <a class="sl" href="#ep-ai-list"><span class="mdot mdot-get"></span>GET /api/v01/assistant/conversations</a>
+      <a class="sl" href="#ep-ai-messages-list"><span class="mdot mdot-get"></span>GET .../conversations/{id}/messages</a>
+      <a class="sl" href="#ep-ai-chat"><span class="mdot mdot-post"></span>POST /api/v01/assistant/messages</a>
+      <a class="sl" href="#ep-ai-rename"><span class="mdot mdot-post"></span>PATCH .../conversations/{id}</a>
+      <a class="sl" href="#ep-ai-delete"><span class="mdot mdot-delete"></span>DELETE .../conversations/{id}</a>
+    </div>
+  </div>
+
+  <div class="sg open" id="sg-chat">
+    <div class="sg-header" onclick="toggleGroup('sg-chat')"><span class="sg-label">Chat</span><span class="sg-arrow">▾</span></div>
+    <div class="sg-items">
+      <a class="sl" href="#ep-chat-search"><span class="mdot mdot-get"></span>GET /api/v01/chat/users/search</a>
+      <a class="sl" href="#ep-chat-convs"><span class="mdot mdot-get"></span>GET /api/v01/chat/conversations</a>
+      <a class="sl" href="#ep-chat-msgs"><span class="mdot mdot-get"></span>GET /api/v01/chat/conversations/:id/messages</a>
+      <a class="sl" href="#ep-chat-send"><span class="mdot mdot-post"></span>POST /api/v01/chat/conversations/:id/messages</a>
+      <a class="sl" href="#ep-chat-edit"><span class="mdot mdot-put"></span>PUT /api/v01/chat/messages/:id</a>
+      <a class="sl" href="#ep-chat-del"><span class="mdot mdot-delete"></span>DELETE /api/v01/chat/messages/:id</a>
+      <a class="sl" href="#ep-chat-read"><span class="mdot mdot-post"></span>POST /api/v01/chat/conversations/:id/read</a>
+      <a class="sl" href="#ep-chat-request"><span class="mdot mdot-post"></span>POST /api/v01/chat/friend-requests</a>
+      <a class="sl" href="#ep-chat-inbox"><span class="mdot mdot-get"></span>GET /api/v01/chat/friend-requests/inbox</a>
+      <a class="sl" href="#ep-chat-respond"><span class="mdot mdot-put"></span>PUT /api/v01/chat/friend-requests/:id</a>
+      <a class="sl" href="#ep-chat-unread"><span class="mdot mdot-get"></span>GET /api/v01/chat/unread-count</a>
+      <a class="sl" href="#ep-chat-online"><span class="mdot mdot-get"></span>GET /api/v01/chat/online-status</a>
+      <a class="sl" href="#ep-chat-group"><span class="mdot mdot-post"></span>POST /api/v01/chat/groups</a>
+      <a class="sl" href="#ep-friend-del"><span class="mdot mdot-delete"></span>DELETE /api/v01/chat/friends/:id</a>
+    </div>
+  </div>
+
+  <div class="sg open" id="sg-disc">
+    <div class="sg-header" onclick="toggleGroup('sg-disc')"><span class="sg-label">Discussion</span><span class="sg-arrow">▾</span></div>
+    <div class="sg-items">
+      <a class="sl" href="#ep-disc-get"><span class="mdot mdot-get"></span>GET /api/v01/discussions/:question_id</a>
+      <a class="sl" href="#ep-disc-post"><span class="mdot mdot-post"></span>POST /api/v01/discussions/:question_id</a>
+      <a class="sl" href="#ep-disc-edit"><span class="mdot mdot-put"></span>PUT /api/v01/discussions/comments/:id</a>
+      <a class="sl" href="#ep-disc-del"><span class="mdot mdot-delete"></span>DELETE /api/v01/discussions/comments/:id</a>
+      <a class="sl" href="#ep-disc-counts"><span class="mdot mdot-post"></span>POST /api/v01/discussions/counts</a>
+    </div>
+  </div>
+
+  <div class="sg open" id="sg-admin">
+    <div class="sg-header" onclick="toggleGroup('sg-admin')"><span class="sg-label">Admin APIs</span><span class="sg-arrow">▾</span></div>
+    <div class="sg-items">
+      <a class="sl" href="#admin-exams"><span class="mdot mdot-delete"></span>DELETE /admin/exams/:id</a>
+      <a class="sl" href="#admin-release-results"><span class="mdot mdot-post"></span>POST /admin/exams/:id/release-results</a>
+      <a class="sl" href="#admin-question-add"><span class="mdot mdot-post"></span>POST /admin/questions</a>
+      <a class="sl" href="#admin-question-get"><span class="mdot mdot-get"></span>GET /admin/questions/:id</a>
+      <a class="sl" href="#admin-question-edit"><span class="mdot mdot-patch"></span>PATCH /admin/questions/:id</a>
+      <a class="sl" href="#admin-questions-delete-multiple"><span class="mdot mdot-post"></span>POST /admin/questions/delete-multiple</a>
+      <a class="sl" href="#admin-questions-batch-add"><span class="mdot mdot-post"></span>POST /admin/questions/batch-add</a>
+      <a class="sl" href="#admin-questions-bulk-update"><span class="mdot mdot-post"></span>POST /admin/questions/bulk-update</a>
+      <a class="sl" href="#admin-questions-import-csv"><span class="mdot mdot-post"></span>POST /admin/questions/import-csv</a>
+      <a class="sl" href="#admin-users-search"><span class="mdot mdot-get"></span>GET /admin/users/search</a>
+      <a class="sl" href="#admin-users-stats"><span class="mdot mdot-get"></span>GET /admin/users/stats</a>
+      <a class="sl" href="#admin-users-update-role"><span class="mdot mdot-post"></span>POST /admin/users/update-role</a>
+      <a class="sl" href="#admin-users-bulk-update-roles"><span class="mdot mdot-post"></span>POST /admin/users/bulk-update-roles</a>
+      <a class="sl" href="#admin-analytics-stats"><span class="mdot mdot-get"></span>GET /admin/analytics/stats</a>
+      <a class="sl" href="#admin-analytics-data"><span class="mdot mdot-get"></span>GET /admin/analytics/data</a>
+      <a class="sl" href="#admin-ai-gen"><span class="mdot mdot-post"></span>POST /admin/ai/generate</a>
+      <a class="sl" href="#admin-ai-status"><span class="mdot mdot-get"></span>GET /admin/ai/status/:id</a>
+      <a class="sl" href="#admin-categories-list"><span class="mdot mdot-get"></span>GET /admin/categories</a>
+      <a class="sl" href="#admin-categories-create"><span class="mdot mdot-post"></span>POST /admin/categories</a>
+      <a class="sl" href="#admin-categories-update"><span class="mdot mdot-patch"></span>PATCH /admin/categories/:id</a>
+      <a class="sl" href="#admin-categories-delete"><span class="mdot mdot-delete"></span>DELETE /admin/categories/:id</a>
+      <a class="sl" href="#admin-attempts-search"><span class="mdot mdot-get"></span>GET /admin/attempts/search</a>
+      <a class="sl" href="#admin-attempts-modify"><span class="mdot mdot-post"></span>POST /admin/attempts/modify</a>
+      <a class="sl" href="#admin-attempts-bulk-modify"><span class="mdot mdot-post"></span>POST /admin/attempts/bulk-modify</a>
+      <a class="sl" href="#admin-requests-list"><span class="mdot mdot-get"></span>GET /admin/access-requests</a>
+      <a class="sl" href="#admin-requests-stats"><span class="mdot mdot-get"></span>GET /admin/access-requests/stats</a>
+      <a class="sl" href="#admin-requests-approve"><span class="mdot mdot-post"></span>POST /admin/access-requests/:id/approve</a>
+      <a class="sl" href="#admin-requests-deny"><span class="mdot mdot-post"></span>POST /admin/access-requests/:id/deny</a>
+      <a class="sl" href="#admin-images"><span class="mdot mdot-post"></span>POST /admin/images</a>
+      <a class="sl" href="#admin-discussion-pin"><span class="mdot mdot-put"></span>PUT /admin/discussions/comments/:id/pin</a>
+      <a class="sl" href="#admin-discussion-best"><span class="mdot mdot-put"></span>PUT /admin/discussions/comments/:id/best</a>
+    </div>
+  </div>
+
+  <div class="sg open" id="sg-notes">
+    <div class="sg-header" onclick="toggleGroup('sg-notes')"><span class="sg-label">Notes</span><span class="sg-arrow">▾</span></div>
+    <div class="sg-items">
+      <a class="sl" href="#notes-section"><span class="mdot mdot-info"></span>Notebooks / Pages / Assets / Library</a>
+    </div>
+  </div>
+
+  <div class="sg open" id="sg-web">
+    <div class="sg-header" onclick="toggleGroup('sg-web')"><span class="sg-label">Web Routes</span><span class="sg-arrow">▾</span></div>
+    <div class="sg-items">
+      <a class="sl" href="#web-routes-section"><span class="mdot mdot-info"></span>HTML Pages (all domains)</a>
+    </div>
+  </div>
+</nav>
+
+<!-- MAIN -->
+<div class="apidoc-main">
+<div class="apidoc-main-inner">
+
+<!-- HERO -->
+<section class="section" id="introduction">
+  <div class="hero">
+    <span class="hero-tag">REST API Reference</span>
+    <h1>SmartAIExam<br>API Docs</h1>
+    <p>Complete reference for all JSON-returning endpoints. HTML routes are excluded. Supports both session cookie auth (web) and JWT Bearer auth (mobile/external).</p>
+    <div class="info-grid">
+      <div class="info-card">
+        <div class="ic-label">Base URL</div>
+        <div class="ic-value copy-url" id="ic-base-url" onclick="copyBaseUrl()" title="Click to copy"></div>
+      </div>
+      <div class="info-card">
+        <div class="ic-label">Version</div>
+        <div class="ic-value" id="ic-version">v01</div>
+      </div>
+      <div class="info-card">
+        <div class="ic-label">Auth</div>
+        <div class="ic-value">JWT Bearer / Cookie</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- AUTH -->
+<section class="section" id="authentication">
+  <div class="section-header">
+    <span class="section-tag">Auth Model</span>
+    <h2 class="section-title">Authentication</h2>
+    <p class="section-desc">Two auth methods. Web browser uses <code>session cookies</code>. External clients (mobile, Postman, third-party) use <code>JWT Bearer tokens</code>.</p>
+  </div>
+
+  <div class="auth-box">
+    <div class="auth-box-icon">🌐</div>
+    <div>
+      <div class="auth-box-title">Web Session (Cookie) — Existing, Unchanged</div>
+      <div class="auth-box-desc">After <code>POST /login</code> via browser, server sets an <code>HttpOnly</code> session cookie. All web UI routes use this automatically. Session lifetime: <strong>3 hours</strong>.</div>
+    </div>
+  </div>
+
+  <div class="auth-box" style="background:rgba(104,211,145,.05);border-color:rgba(104,211,145,.18);">
+    <div class="auth-box-icon">🔑</div>
+    <div>
+      <div class="auth-box-title" style="color:var(--success-text);">JWT Bearer Token — For External Clients</div>
+      <div class="auth-box-desc">
+        Call <code>POST /api/v01/auth/login</code> to get a JWT. Send it as <code>Authorization: Bearer &lt;token&gt;</code> on every request. Access token expires in <strong>1 hour</strong>. Use refresh token to renew without re-login.<br><br>
+        <strong>Dual-role users</strong> (role = <code>user,admin</code>) get both portals in one token. The <code>available_portals</code> array in the login response tells the client which portals this user can access. No portal selection needed — both user and admin APIs are accessible with the same token.
+      </div>
+    </div>
+  </div>
+
+  <div class="jwt-flow">
+    <div class="jwt-step">
+      <div class="jwt-step-num">STEP 01</div>
+      <div class="jwt-step-title">Login → Get Tokens</div>
+      <div class="jwt-step-desc"><code>POST /api/v01/auth/login</code> returns <code>access_token</code> (1h) + <code>refresh_token</code> (30d)</div>
+    </div>
+    <div class="jwt-step">
+      <div class="jwt-step-num">STEP 02</div>
+      <div class="jwt-step-title">Use Access Token</div>
+      <div class="jwt-step-desc">Send <code>Authorization: Bearer &lt;access_token&gt;</code> header with every API call</div>
+    </div>
+    <div class="jwt-step">
+      <div class="jwt-step-num">STEP 03</div>
+      <div class="jwt-step-title">Token Expires</div>
+      <div class="jwt-step-desc">API returns <code>401 token_expired_or_invalid</code> when access token expires</div>
+    </div>
+    <div class="jwt-step">
+      <div class="jwt-step-num">STEP 04</div>
+      <div class="jwt-step-title">Refresh Silently</div>
+      <div class="jwt-step-desc"><code>POST /api/v01/auth/refresh</code> with refresh token → new access token, no re-login needed</div>
+    </div>
+  </div>
+
+  <div class="sh">Quick Example</div>
+  <div class="cb">
+    <div class="cb-header"><span class="cb-lang">python</span><button class="copy-btn" onclick="copyCode(this)"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg> Copy</button></div>
+    <pre><span class="k">import</span> requests
+
+<span class="c"># Step 1: Login</span>
+res = requests.post(
+    <span class="s">"https://smartaiexam.in/api/v01/auth/login"</span>,
+    json={<span class="s">"username"</span>: <span class="s">"john.doe"</span>, <span class="s">"password"</span>: <span class="s">"MyPass@2025"</span>},
+)
+data = res.json()[<span class="s">"data"</span>]
+
+access_token      = data[<span class="s">"access_token"</span>]
+refresh_token     = data[<span class="s">"refresh_token"</span>]
+available_portals = data[<span class="s">"available_portals"</span>]  <span class="c"># e.g. ["user"] or ["user", "admin"]</span>
+
+<span class="c"># Step 2: Use token on any API</span>
+headers = {<span class="s">"Authorization"</span>: <span class="s">f"Bearer {access_token}"</span>}
+
+convs = requests.get(
+    <span class="s">"https://smartaiexam.in/api/v01/chat/conversations"</span>,
+    headers=headers,
+)
+print(convs.json())</pre>
+  </div>
+</section>
+
+<!-- RATE LIMITS -->
+<section class="section" id="rate-limits">
+  <div class="section-header">
+    <span class="section-tag">Limits</span>
+    <h2 class="section-title">Rate Limits</h2>
+  </div>
+  <table class="rt">
+    <thead><tr><th>Endpoint</th><th>Limit</th><th>Window</th><th>Response</th></tr></thead>
+    <tbody>
+      <tr><td><code>/login</code>, <code>/admin/login</code></td><td style="color:var(--red)">3 attempts</td><td>Per IP + identifier</td><td style="color:var(--text2)">15-min lockout</td></tr>
+      <tr><td><code>POST /api/v01/chat/conversations/:id/messages</code></td><td style="color:var(--amber)">1 msg / 2s</td><td>Per user</td><td style="color:var(--text2)">429</td></tr>
+      <tr><td><code>POST /api/v01/discussions/:id</code></td><td style="color:var(--amber)">1 msg / 10s</td><td>Per user</td><td style="color:var(--text2)">429</td></tr>
+      <tr><td><code>POST /api/v01/assistant/messages</code></td><td style="color:var(--green)">50 / day</td><td>Per user, resets midnight (independent of conversation count)</td><td style="color:var(--text2)">429 with limit_reached:true</td></tr>
+      <tr><td><code>POST /api/v01/assistant/messages</code></td><td style="color:var(--green)">100 / conversation</td><td>Per conversation (~50 exchanges), start a new chat to continue</td><td style="color:var(--text2)">400 with limit_reached:"conversation"</td></tr>
+      <tr><td>All other endpoints</td><td style="color:var(--green)">Unlimited</td><td>—</td><td style="color:var(--text2)">—</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<!-- ERRORS -->
+<section class="section" id="errors">
+  <div class="section-header">
+    <span class="section-tag">Errors</span>
+    <h2 class="section-title">Error Handling</h2>
+    <p class="section-desc">All JSON errors return a consistent shape with <code>status: "error"</code>.</p>
+  </div>
+  <div class="cb">
+    <div class="cb-header"><span class="cb-lang">json — error shape</span><button class="copy-btn" onclick="copyCode(this)"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg> Copy</button></div>
+    <pre>{ <span class="n">"status"</span>: <span class="s">"error"</span>, <span class="n">"message"</span>: <span class="s">"Human-readable error description"</span> }</pre>
+  </div>
+  <div class="rpills">
+    <span class="rp rp-4">400 Bad Request</span>
+    <span class="rp rp-4">401 Unauthorized</span>
+    <span class="rp rp-4">403 Forbidden</span>
+    <span class="rp rp-4">404 Not Found</span>
+    <span class="rp rp-4">409 Conflict</span>
+    <span class="rp rp-4">429 Rate Limited</span>
+    <span class="rp rp-5">500 Server Error</span>
+  </div>
+  <div class="note note-warn"><span class="note-icon">⚠️</span><span>A <strong>401</strong> with message <code>token_expired_or_invalid</code> means JWT expired. Call <code>/api/v01/auth/refresh</code> to get a new access token.</span></div>
+</section>
+
+<!-- JWT AUTH ENDPOINTS -->
+<section class="section" id="jwt-section">
+  <div class="section-header">
+    <span class="section-tag">JWT Authentication</span>
+    <h2 class="section-title">JWT Auth Endpoints</h2>
+    <p class="section-desc">Token-based auth for external clients. These endpoints do <strong>not</strong> require an existing session — they create tokens from credentials.</p>
+  </div>
+
+  <!-- LOGIN -->
+  <div class="ep open" id="jwt-login">
+    <div class="ep-header" onclick="toggleEp(this)">
+      <span class="mb mb-POST">POST</span>
+      <span class="ep-path">/api/v01/auth/login</span>
+      <span class="ep-summary">Username or email + password → JWT tokens</span>
+      <span class="badge-pub">Public</span>
+      <span class="ep-expand">▾</span>
+    </div>
+    <div class="ep-body">
+      <div class="tabs">
+        <button class="tab active" onclick="switchTab(this,'t-jlogin-req')">Request</button>
+        <button class="tab" onclick="switchTab(this,'t-jlogin-res')">Response</button>
+        <button class="tab" onclick="switchTab(this,'t-jlogin-err')">Errors</button>
+      </div>
+      <div class="tab-content active" id="t-jlogin-req">
+        <div class="sh">Body</div>
+        <div class="cb"><div class="cb-header"><span class="cb-lang">json</span><button class="copy-btn" onclick="copyCode(this)"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg> Copy</button></div>
+        <pre>{
+  <span class="n">"username"</span>: <span class="s">"john.doe"</span>,   <span class="c">// username OR email accepted</span>
+  <span class="n">"password"</span>: <span class="s">"MyPass@2025"</span>
+}</pre></div>
+      </div>
+      <div class="tab-content" id="t-jlogin-res">
+        <div class="sh">200 OK</div>
+        <div class="cb"><div class="cb-header"><span class="cb-lang">json</span><button class="copy-btn" onclick="copyCode(this)"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg> Copy</button></div>
+        <pre>{
+  <span class="n">"status"</span>: <span class="s">"success"</span>,
+  <span class="n">"data"</span>: {
+    <span class="n">"access_token"</span>:      <span class="s">"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."</span>,
+    <span class="n">"refresh_token"</span>:     <span class="s">"dGhpcyBpcyBhIHJlZnJlc2ggdG9rZW4..."</span>,
+    <span class="n">"token_type"</span>:        <span class="s">"Bearer"</span>,
+    <span class="n">"expires_in"</span>:        <span class="v">3600</span>,
+    <span class="n">"available_portals"</span>: [<span class="s">"user"</span>],
+    <span class="n">"user"</span>: {
+      <span class="n">"id"</span>:        <span class="v">42</span>,
+      <span class="n">"username"</span>:  <span class="s">"john.doe"</span>,
+      <span class="n">"full_name"</span>: <span class="s">"John Doe"</span>,
+      <span class="n">"role"</span>:      <span class="s">"user"</span>
+    }
+  }
+}</pre></div>
+        <div class="note note-info"><span class="note-icon">ℹ️</span><span><code>available_portals</code> will be <code>["user","admin"]</code> for dual-role accounts. Client uses this to show portal selection UI.</span></div>
+      </div>
+      <div class="tab-content" id="t-jlogin-err">
+        <div class="rpills">
+          <span class="rp rp-4">400 — username/email and password required</span>
+          <span class="rp rp-4">401 — Invalid credentials</span>
+          <span class="rp rp-4">401 — Password not set, use web portal</span>
+          <span class="rp rp-4">429 — Account locked (3 failed attempts)</span>
+        </div>
+        <div class="cb"><div class="cb-header"><span class="cb-lang">json — 401</span><button class="copy-btn" onclick="copyCode(this)"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg> Copy</button></div>
+        <pre>{ <span class="n">"status"</span>: <span class="s">"error"</span>, <span class="n">"message"</span>: <span class="s">"Invalid credentials. 2 attempts remaining."</span> }</pre></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- GOOGLE -->
+  <div class="ep" id="jwt-google">
+    <div class="ep-header" onclick="toggleEp(this)">
+      <span class="mb mb-POST">POST</span>
+      <span class="ep-path">/api/v01/auth/google</span>
+      <span class="ep-summary">Google ID token from client SDK → JWT tokens</span>
+      <span class="badge-pub">Public</span>
+      <span class="ep-expand">▾</span>
+    </div>
+    <div class="ep-body">
+      <div class="note note-info"><span class="note-icon">ℹ️</span><span>Get <code>id_token</code> from Google Sign-In SDK on client side (Android/iOS/Web), send it here. Server verifies with Google, creates account if new, returns JWT.</span></div>
+      <div class="tabs">
+        <button class="tab active" onclick="switchTab(this,'t-google-req')">Request</button>
+        <button class="tab" onclick="switchTab(this,'t-google-res')">Response</button>
+      </div>
+      <div class="tab-content active" id="t-google-req">
+        <div class="cb"><div class="cb-header"><span class="cb-lang">json</span><button class="copy-btn" onclick="copyCode(this)"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg> Copy</button></div>
+        <pre>{ <span class="n">"id_token"</span>: <span class="s">"&lt;Google ID token from client SDK&gt;"</span> }</pre></div>
+      </div>
+      <div class="tab-content" id="t-google-res">
+        <div class="cb"><div class="cb-header"><span class="cb-lang">json — 200</span><button class="copy-btn" onclick="copyCode(this)"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg> Copy</button></div>
+        <pre>{
+  <span class="n">"status"</span>: <span class="s">"success"</span>,
+  <span class="n">"data"</span>: {
+    <span class="n">"access_token"</span>:      <span class="s">"eyJ..."</span>,
+    <span class="n">"refresh_token"</span>:     <span class="s">"dGhp..."</span>,
+    <span class="n">"token_type"</span>:        <span class="s">"Bearer"</span>,
+    <span class="n">"expires_in"</span>:        <span class="v">3600</span>,
+    <span class="n">"is_new_user"</span>:       <span class="v">false</span>,
+    <span class="n">"available_portals"</span>: [<span class="s">"user"</span>],
+    <span class="n">"user"</span>: { <span class="n">"id"</span>: <span class="v">42</span>, <span class="n">"username"</span>: <span class="s">"john.doe"</span>, <span class="n">"role"</span>: <span class="s">"user"</span> }
+  }
+}</pre></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- REFRESH -->
+  <div class="ep" id="jwt-refresh">
+    <div class="ep-header" onclick="toggleEp(this)">
+      <span class="mb mb-POST">POST</span>
+      <span class="ep-path">/api/v01/auth/refresh</span>
+      <span class="ep-summary">Exchange refresh token for new access token</span>
+      <span class="badge-pub">Public</span>
+      <span class="ep-expand">▾</span>
+    </div>
+    <div class="ep-body">
+      <div class="tabs">
+        <button class="tab active" onclick="switchTab(this,'t-ref-req')">Request</button>
+        <button class="tab" onclick="switchTab(this,'t-ref-res')">Response</button>
+      </div>
+      <div class="tab-content active" id="t-ref-req">
+        <div class="cb"><div class="cb-header"><span class="cb-lang">json</span><button class="copy-btn" onclick="copyCode(this)"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg> Copy</button></div>
+        <pre>{ <span class="n">"refresh_token"</span>: <span class="s">"dGhpcyBpcyBhIHJlZnJlc2ggdG9rZW4..."</span> }</pre></div>
+      </div>
+      <div class="tab-content" id="t-ref-res">
+        <div class="cb"><div class="cb-header"><span class="cb-lang">json — 200</span><button class="copy-btn" onclick="copyCode(this)"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg> Copy</button></div>
+        <pre>{
+  <span class="n">"status"</span>:  <span class="s">"success"</span>,
+  <span class="n">"data"</span>: {
+    <span class="n">"access_token"</span>: <span class="s">"eyJ..."</span>,
+    <span class="n">"token_type"</span>:   <span class="s">"Bearer"</span>,
+    <span class="n">"expires_in"</span>:   <span class="v">3600</span>
+  }
+}</pre></div>
+        <div class="rpills">
+          <span class="rp rp-4">401 refresh_token_expired — re-login required</span>
+          <span class="rp rp-4">401 refresh_token_invalid</span>
+          <span class="rp rp-4">401 refresh_token_revoked</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- LOGOUT -->
+  <div class="ep" id="jwt-logout">
+    <div class="ep-header" onclick="toggleEp(this)">
+      <span class="mb mb-POST">POST</span>
+      <span class="ep-path">/api/v01/auth/logout</span>
+      <span class="ep-summary">Revoke refresh token — invalidate session</span>
+      <span class="badge-pub">Public</span>
+      <span class="ep-expand">▾</span>
+    </div>
+    <div class="ep-body">
+      <div class="cb"><div class="cb-header"><span class="cb-lang">json — request</span><button class="copy-btn" onclick="copyCode(this)"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg> Copy</button></div>
+      <pre>{ <span class="n">"refresh_token"</span>: <span class="s">"dGhp..."</span> }</pre></div>
+      <div class="cb"><div class="cb-header"><span class="cb-lang">json — 200</span></div>
+      <pre>{ <span class="n">"status"</span>: <span class="s">"success"</span>, <span class="n">"message"</span>: <span class="s">"Logged out"</span> }</pre></div>
+      <div class="note note-info"><span class="note-icon">ℹ️</span><span>Access token expires on its own after 1 hour. Just discard it on the client side. This endpoint only revokes the refresh token to prevent renewal.</span></div>
+    </div>
+  </div>
+
+  <!-- ME -->
+  <div class="ep" id="jwt-me">
+    <div class="ep-header" onclick="toggleEp(this)">
+      <span class="mb mb-GET">GET</span>
+      <span class="ep-path">/api/v01/auth/me</span>
+      <span class="ep-summary">Get current authenticated user profile</span>
+      <span class="badge-auth">JWT</span>
+      <span class="ep-expand">▾</span>
+    </div>
+    <div class="ep-body">
+      <div class="sh">Headers</div>
+      <div class="cb"><div class="cb-header"><span class="cb-lang">http</span><button class="copy-btn" onclick="copyCode(this)"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg> Copy</button></div>
+      <pre>Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...</pre></div>
+      <div class="cb"><div class="cb-header"><span class="cb-lang">json — 200</span><button class="copy-btn" onclick="copyCode(this)"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg> Copy</button></div>
+      <pre>{
+  <span class="n">"status"</span>: <span class="s">"success"</span>,
+  <span class="n">"data"</span>: {
+    <span class="n">"id"</span>:                <span class="v">42</span>,
+    <span class="n">"username"</span>:          <span class="s">"john.doe"</span>,
+    <span class="n">"email"</span>:             <span class="s">"john@example.com"</span>,
+    <span class="n">"full_name"</span>:         <span class="s">"John Doe"</span>,
+    <span class="n">"role"</span>:              <span class="s">"user"</span>,
+    <span class="n">"available_portals"</span>: [<span class="s">"user"</span>],
+    <span class="n">"created_at"</span>:        <span class="s">"2025-01-01T10:00:00"</span>
+  }
+}</pre></div>
+    </div>
+  </div>
+</section>
+
+<!-- WEB AUTH -->
+<section class="section" id="web-auth-section">
+  <div class="section-header">
+    <span class="section-tag">Web Auth</span>
+    <h2 class="section-title">Auth JSON Endpoints</h2>
+    <p class="section-desc">Password reset, access requests, and account deletion. HTML form routes <code>/login</code>, <code>/logout</code>, <code>/create_account</code> are excluded.</p>
+  </div>
+
+  <div class="ep open" id="ep-reset">
+    <div class="ep-header" onclick="toggleEp(this)">
+      <span class="mb mb-POST">POST</span>
+      <span class="ep-path">/api/v01/auth/password-reset</span>
+      <span class="ep-summary">Send password reset link to email</span>
+      <span class="badge-pub">Public</span>
+      <span class="ep-expand">▾</span>
+    </div>
+    <div class="ep-body">
+      <div class="cb"><div class="cb-header"><span class="cb-lang">json — request</span><button class="copy-btn" onclick="copyCode(this)"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg> Copy</button></div>
+      <pre>{ <span class="n">"email"</span>: <span class="s">"john@example.com"</span> }</pre></div>
+      <div class="cb"><div class="cb-header"><span class="cb-lang">json — 200 (always, prevents email enumeration)</span></div>
+      <pre>{ <span class="n">"success"</span>: <span class="v">true</span>, <span class="n">"message"</span>: <span class="s">"If an account exists with this email, a reset link has been sent."</span> }</pre></div>
+      <div class="note note-warn"><span class="note-icon">⚠️</span><span>Always returns 200 regardless of email existence. Token expires in <strong>1 hour</strong>.</span></div>
+    </div>
+  </div>
+
+  <div class="ep" id="ep-validate">
+    <div class="ep-header" onclick="toggleEp(this)">
+      <span class="mb mb-POST">POST</span>
+      <span class="ep-path">/api/v01/access-requests/validate-user</span>
+      <span class="ep-summary">Validate user before submitting access request</span>
+      <span class="badge-pub">Public</span>
+      <span class="ep-expand">▾</span>
+    </div>
+    <div class="ep-body">
+      <div class="tabs">
+        <button class="tab active" onclick="switchTab(this,'t-val-req')">Request</button>
+        <button class="tab" onclick="switchTab(this,'t-val-res')">Response</button>
+      </div>
+      <div class="tab-content active" id="t-val-req">
+        <div class="cb"><div class="cb-header"><span class="cb-lang">json</span><button class="copy-btn" onclick="copyCode(this)"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg> Copy</button></div>
+        <pre>{ <span class="n">"username"</span>: <span class="s">"john.doe"</span>, <span class="n">"email"</span>: <span class="s">"john@example.com"</span> }</pre></div>
+      </div>
+      <div class="tab-content" id="t-val-res">
+        <div class="cb"><div class="cb-header"><span class="cb-lang">json — 200</span><button class="copy-btn" onclick="copyCode(this)"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg> Copy</button></div>
+        <pre>{
+  <span class="n">"success"</span>: <span class="v">true</span>,
+  <span class="n">"user"</span>: { <span class="n">"username"</span>: <span class="s">"john.doe"</span>, <span class="n">"current_access"</span>: <span class="s">"user"</span> },
+  <span class="n">"available_requests"</span>: [<span class="s">"admin"</span>, <span class="s">"user,admin"</span>],
+  <span class="n">"has_pending_request"</span>: <span class="v">false</span>,
+  <span class="n">"can_request"</span>: <span class="v">true</span>
+}</pre></div>
+        <div class="rpills"><span class="rp rp-4">404 — User not found</span></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="ep" id="ep-access-req">
+    <div class="ep-header" onclick="toggleEp(this)">
+      <span class="mb mb-POST">POST</span>
+      <span class="ep-path">/api/v01/access-requests</span>
+      <span class="ep-summary">Submit admin/role access request</span>
+      <span class="badge-pub">Public</span>
+      <span class="ep-expand">▾</span>
+    </div>
+    <div class="ep-body">
+      <div class="tabs">
+        <button class="tab active" onclick="switchTab(this,'t-acc-req')">Request</button>
+        <button class="tab" onclick="switchTab(this,'t-acc-res')">Response</button>
+      </div>
+      <div class="tab-content active" id="t-acc-req">
+        <div class="cb"><div class="cb-header"><span class="cb-lang">json</span><button class="copy-btn" onclick="copyCode(this)"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg> Copy</button></div>
+        <pre>{
+  <span class="n">"username"</span>:         <span class="s">"john.doe"</span>,
+  <span class="n">"email"</span>:            <span class="s">"john@example.com"</span>,
+  <span class="n">"current_access"</span>:   <span class="s">"user"</span>,
+  <span class="n">"requested_access"</span>: <span class="s">"admin"</span>,
+  <span class="n">"user_reason"</span>:      <span class="s">"I need to manage exams for my batch"</span>
+}</pre></div>
+      </div>
+      <div class="tab-content" id="t-acc-res">
+        <div class="cb"><div class="cb-header"><span class="cb-lang">json — 200</span><button class="copy-btn" onclick="copyCode(this)"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg> Copy</button></div>
+        <pre>{ <span class="n">"success"</span>: <span class="v">true</span>, <span class="n">"message"</span>: <span class="s">"Request submitted."</span>, <span class="n">"request_id"</span>: <span class="v">7</span> }</pre></div>
+        <div class="rpills"><span class="rp rp-4">400 — Already has pending request</span></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="ep" id="ep-delete-acc">
+    <div class="ep-header" onclick="toggleEp(this)">
+      <span class="mb mb-DELETE" style="background:var(--danger-bg);color:var(--danger-text);border:1px solid var(--danger-border);">DELETE</span>
+      <span class="ep-path">/api/v01/auth/me</span>
+      <span class="ep-summary">Permanently delete authenticated user's account</span>
+      <span class="badge-auth">Auth</span>
+      <span class="ep-expand">▾</span>
+    </div>
+    <div class="ep-body">
+      <div class="cb"><div class="cb-header"><span class="cb-lang">json — request</span><button class="copy-btn" onclick="copyCode(this)"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg> Copy</button></div>
+      <pre>{ <span class="n">"confirm"</span>: <span class="s">"DELETE"</span> }  <span class="c">// must be exactly "DELETE"</span></pre></div>
+      <div class="rpills">
+        <span class="rp rp-2">200 — { success: true }</span>
+        <span class="rp rp-4">400 — Invalid confirmation string</span>
+        <span class="rp rp-4">401 — Not authenticated</span>
+      </div>
+      <div class="note note-danger"><span class="note-icon">🚨</span><span><strong>Irreversible.</strong> Deletes all user data in FK-safe order. Group chats preserved with deleted-account placeholder.</span></div>
+    </div>
+  </div>
+</section>
+
+<!-- EXAMS -->
+<section class="section" id="exam-section">
+  <div class="section-header">
+    <span class="section-tag">Exams</span>
+    <h2 class="section-title">Exam Endpoints</h2>
+    <p class="section-desc">Start, sync answers, submit, and check attempt status. All require auth.</p>
+  </div>
+
+  <div class="ep open" id="ep-preload">
+    <div class="ep-header" onclick="toggleEp(this)">
+      <span class="mb mb-GET">GET</span>
+      <span class="ep-path">/api/v01/exams/<span class="param">{exam_id}</span>/preload</span>
+      <span class="ep-summary">Pre-cache exam questions in session</span>
+      <span class="badge-auth">Auth</span>
+      <span class="ep-expand">▾</span>
+    </div>
+    <div class="ep-body">
+      <div class="cb"><div class="cb-header"><span class="cb-lang">json — 200</span><button class="copy-btn" onclick="copyCode(this)"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg> Copy</button></div>
+      <pre>{ <span class="n">"success"</span>: <span class="v">true</span>, <span class="n">"cached"</span>: <span class="v">true</span>, <span class="n">"question_count"</span>: <span class="v">30</span> }</pre></div>
+      <div class="note note-info"><span class="note-icon">ℹ️</span><span>Call before starting exam. Resolves question image URLs and stores questions in session. Returns instantly if already cached.</span></div>
+    </div>
+  </div>
+
+  <div class="ep" id="ep-start">
+    <div class="ep-header" onclick="toggleEp(this)">
+      <span class="mb mb-POST">POST</span>
+      <span class="ep-path">/api/v01/exams/<span class="param">{exam_id}</span>/start</span>
+      <span class="ep-summary">Create new attempt or resume existing in-progress attempt</span>
+      <span class="badge-auth">Auth</span>
+      <span class="ep-expand">▾</span>
+    </div>
+    <div class="ep-body">
+      <div class="tabs">
+        <button class="tab active" onclick="switchTab(this,'t-start-fresh')">Fresh Start</button>
+        <button class="tab" onclick="switchTab(this,'t-start-resume')">Resume</button>
+        <button class="tab" onclick="switchTab(this,'t-start-err')">Errors</button>
+      </div>
+      <div class="tab-content active" id="t-start-fresh">
+        <div class="cb"><div class="cb-header"><span class="cb-lang">json — 200 fresh start</span><button class="copy-btn" onclick="copyCode(this)"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg> Copy</button></div>
+        <pre>{
+  <span class="n">"success"</span>:        <span class="v">true</span>,
+  <span class="n">"redirect_url"</span>:   <span class="s">"/exam/42"</span>,
+  <span class="n">"resumed"</span>:        <span class="v">false</span>,
+  <span class="n">"attempt_id"</span>:     <span class="v">17</span>,
+  <span class="n">"attempt_number"</span>: <span class="v">1</span>,
+  <span class="n">"fresh_start"</span>:    <span class="v">true</span>
+}</pre></div>
+      </div>
+      <div class="tab-content" id="t-start-resume">
+        <div class="cb"><div class="cb-header"><span class="cb-lang">json — 200 resumed</span><button class="copy-btn" onclick="copyCode(this)"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg> Copy</button></div>
+        <pre>{ <span class="n">"success"</span>: <span class="v">true</span>, <span class="n">"resumed"</span>: <span class="v">true</span>, <span class="n">"attempt_id"</span>: <span class="v">17</span>, <span class="n">"redirect_url"</span>: <span class="s">"/exam/42"</span> }</pre></div>
+      </div>
+      <div class="tab-content" id="t-start-err">
+        <div class="rpills">
+          <span class="rp rp-4">400 — Max attempts (N) reached</span>
+          <span class="rp rp-4">401 — Not authenticated</span>
+          <span class="rp rp-5">500 — DB failure</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="ep" id="ep-sync">
+    <div class="ep-header" onclick="toggleEp(this)">
+      <span class="mb mb-POST">POST</span>
+      <span class="ep-path">/api/v01/exams/<span class="param">{exam_id}</span>/answers</span>
+      <span class="ep-summary">Sync in-progress answers to server session</span>
+      <span class="badge-auth">Auth</span>
+      <span class="ep-expand">▾</span>
+    </div>
+    <div class="ep-body">
+      <div class="cb"><div class="cb-header"><span class="cb-lang">json — request</span><button class="copy-btn" onclick="copyCode(this)"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg> Copy</button></div>
+      <pre>{
+  <span class="n">"answers"</span>: {
+    <span class="n">"101"</span>: <span class="s">"A"</span>,          <span class="c">// MCQ — single letter</span>
+    <span class="n">"102"</span>: [<span class="s">"A"</span>, <span class="s">"C"</span>],   <span class="c">// MSQ — array</span>
+    <span class="n">"103"</span>: <span class="s">"42.5"</span>        <span class="c">// NUMERIC — string</span>
+  },
+  <span class="n">"markedForReview"</span>: [<span class="v">101</span>, <span class="v">104</span>]
+}</pre></div>
+      <div class="note note-info"><span class="note-icon">ℹ️</span><span>Call every ~30s and on every answer change. Submission reads from session state set here.</span></div>
+    </div>
+  </div>
+
+  <div class="ep" id="ep-submit">
+    <div class="ep-header" onclick="toggleEp(this)">
+      <span class="mb mb-POST">POST</span>
+      <span class="ep-path">/submit-exam/<span class="param">{exam_id}</span></span>
+      <span class="ep-summary">Submit exam, calculate score, create result record</span>
+      <span class="badge-auth">Auth</span>
+      <span class="ep-expand">▾</span>
+    </div>
+    <div class="ep-body">
+      <div class="note note-info"><span class="note-icon">ℹ️</span><span>No request body needed — reads answers from server session. Redirects to result or result-pending page depending on exam's <code>result_mode</code>.</span></div>
+      <div class="rpills">
+        <span class="rp rp-2">302 → /result/:exam_id (instant mode)</span>
+        <span class="rp rp-2">302 → /result-pending/:exam_id (delayed/manual)</span>
+        <span class="rp rp-4">401 — Not authenticated</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="ep" id="ep-status">
+    <div class="ep-header" onclick="toggleEp(this)">
+      <span class="mb mb-GET">GET</span>
+      <span class="ep-path">/api/v01/exams/<span class="param">{exam_id}</span>/attempt-status</span>
+      <span class="ep-summary">Get attempt count and active attempt info</span>
+      <span class="badge-auth">Auth</span>
+      <span class="ep-expand">▾</span>
+    </div>
+    <div class="ep-body">
+      <div class="cb"><div class="cb-header"><span class="cb-lang">json — 200 (active attempt)</span><button class="copy-btn" onclick="copyCode(this)"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg> Copy</button></div>
+      <pre>{
+  <span class="n">"has_active_attempt"</span>: <span class="v">true</span>,
+  <span class="n">"attempt_id"</span>:         <span class="v">17</span>,
+  <span class="n">"attempt_number"</span>:     <span class="v">2</span>,
+  <span class="n">"start_time"</span>:         <span class="s">"2025-01-15 10:30:00"</span>,
+  <span class="n">"completed_count"</span>:    <span class="v">1</span>,
+  <span class="n">"max_attempts"</span>:       <span class="v">3</span>,
+  <span class="n">"attempts_remaining"</span>: <span class="v">1</span>
+}</pre></div>
+    </div>
+  </div>
+
+  <div class="ep" id="ep-ping">
+    <div class="ep-header" onclick="toggleEp(this)">
+      <span class="mb mb-POST">POST</span>
+      <span class="ep-path">/api/v01/ping</span>
+      <span class="ep-summary">Session heartbeat — check if session is alive</span>
+      <span class="badge-auth">Auth</span>
+      <span class="ep-expand">▾</span>
+    </div>
+    <div class="ep-body">
+      <div class="rpills">
+        <span class="rp rp-2">204 — Session alive (no body)</span>
+        <span class="rp rp-4">401 — { "reason": "no_session" }</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- AI ASSISTANT -->
+<section class="section" id="ai-section">
+  <div class="section-header">
+    <span class="section-tag">AI Assistant</span>
+    <h2 class="section-title">AI Study Assistant</h2>
+    <p class="section-desc">Multi-conversation AI study chat. Each user can have many independent conversations. Responses include LaTeX for math/science. Daily limit: <code>50 messages/user/day</code> (shared across all conversations); per-conversation limit: <code>100 messages/conversation</code>.</p>
+  </div>
+
+  <div class="ep open" id="ep-ai-init">
+    <div class="ep-header" onclick="toggleEp(this)">
+      <span class="mb mb-GET">GET</span>
+      <span class="ep-path">/api/v01/assistant/init</span>
+      <span class="ep-summary">Get daily limits + first page of conversations (sidebar's first paint)</span>
+      <span class="badge-auth">Auth</span>
+      <span class="ep-expand">▾</span>
+    </div>
+    <div class="ep-body">
+      <div class="cb"><div class="cb-header"><span class="cb-lang">json — 200</span><button class="copy-btn" onclick="copyCode(this)"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg> Copy</button></div>
+      <pre>{
+  <span class="n">"success"</span>:       <span class="v">true</span>,
+  <span class="n">"dailyLimit"</span>:    <span class="v">50</span>,
+  <span class="n">"questionsUsed"</span>: <span class="v">12</span>,
+  <span class="n">"conversations"</span>: [
+    { <span class="n">"id"</span>: <span class="v">4</span>, <span class="n">"title"</span>: <span class="s">"Bernoulli's Theorem"</span>, <span class="n">"messageCount"</span>: <span class="v">6</span>, <span class="n">"createdAt"</span>: <span class="s">"..."</span>, <span class="n">"updatedAt"</span>: <span class="s">"..."</span> }
+  ],
+  <span class="n">"hasMoreConversations"</span>: <span class="v">false</span>
+}</pre></div>
+    </div>
+  </div>
+
+  <div class="ep" id="ep-ai-list">
+    <div class="ep-header" onclick="toggleEp(this)">
+      <span class="mb mb-GET">GET</span>
+      <span class="ep-path">/api/v01/assistant/conversations?limit=<span class="param">{20}</span>&amp;offset=<span class="param">{0}</span>&amp;search=<span class="param">{query}</span></span>
+      <span class="ep-summary">Paginated, optionally-searched conversation list (server-side)</span>
+      <span class="badge-auth">Auth</span>
+      <span class="ep-expand">▾</span>
+    </div>
+    <div class="ep-body">
+      <div class="note note-info"><span class="note-icon">ℹ️</span><span><code>search</code> matches conversation title or message text (case-insensitive). Max <code>limit</code> is 50.</span></div>
+      <div class="cb"><div class="cb-header"><span class="cb-lang">json — 200</span></div>
+      <pre>{ <span class="n">"success"</span>: <span class="v">true</span>, <span class="n">"conversations"</span>: [ <span class="s">"..."</span> ], <span class="n">"hasMore"</span>: <span class="v">true</span> }</pre></div>
+    </div>
+  </div>
+
+  <div class="ep" id="ep-ai-messages-list">
+    <div class="ep-header" onclick="toggleEp(this)">
+      <span class="mb mb-GET">GET</span>
+      <span class="ep-path">/api/v01/assistant/conversations/<span class="param">{id}</span>/messages?limit=<span class="param">{30}</span>&amp;offset=<span class="param">{0}</span></span>
+      <span class="ep-summary">Paginated messages for one conversation (newest 30 first, then older on demand)</span>
+      <span class="badge-auth">Auth</span>
+      <span class="ep-expand">▾</span>
+    </div>
+    <div class="ep-body">
+      <div class="note note-info"><span class="note-icon">ℹ️</span><span>Ownership-checked — returns 404 if the conversation doesn't belong to the caller (never a 403, to avoid leaking existence).</span></div>
+      <div class="cb"><div class="cb-header"><span class="cb-lang">json — 200</span></div>
+      <pre>{ <span class="n">"success"</span>: <span class="v">true</span>, <span class="n">"messages"</span>: [ { <span class="n">"text"</span>: <span class="s">"..."</span>, <span class="n">"isUser"</span>: <span class="v">true</span>, <span class="n">"timestamp"</span>: <span class="s">"..."</span> } ], <span class="n">"hasMore"</span>: <span class="v">true</span>, <span class="n">"conversation"</span>: { <span class="s">"..."</span> } }</pre></div>
+    </div>
+  </div>
+
+  <div class="ep" id="ep-ai-chat">
+    <div class="ep-header" onclick="toggleEp(this)">
+      <span class="mb mb-POST">POST</span>
+      <span class="ep-path">/api/v01/assistant/messages</span>
+      <span class="ep-summary">Send a message — creates the conversation on first send if conversation_id is omitted</span>
+      <span class="badge-auth">Auth</span>
+      <span class="ep-expand">▾</span>
+    </div>
+    <div class="ep-body">
+      <div class="tabs">
+        <button class="tab active" onclick="switchTab(this,'t-ai-req')">Request</button>
+        <button class="tab" onclick="switchTab(this,'t-ai-res')">Response</button>
+        <button class="tab" onclick="switchTab(this,'t-ai-err')">Errors</button>
+      </div>
+      <div class="tab-content active" id="t-ai-req">
+        <div class="cb"><div class="cb-header"><span class="cb-lang">json</span><button class="copy-btn" onclick="copyCode(this)"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg> Copy</button></div>
+        <pre>{ <span class="n">"message"</span>: <span class="s">"Explain conservation of momentum with an example"</span>, <span class="n">"conversation_id"</span>: <span class="v">null</span> }</pre></div>
+        <div class="note note-info"><span class="note-icon">ℹ️</span><span>Omit or pass <code>null</code> for <code>conversation_id</code> to start a new conversation — no empty conversation is created unless a message is actually sent.</span></div>
+      </div>
+      <div class="tab-content" id="t-ai-res">
+        <div class="cb"><div class="cb-header"><span class="cb-lang">json — 200</span><button class="copy-btn" onclick="copyCode(this)"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg> Copy</button></div>
+        <pre>{
+  <span class="n">"success"</span>:              <span class="v">true</span>,
+  <span class="n">"response"</span>:             <span class="s">"[FINAL ANSWER]\nConservation of momentum states that..."</span>,
+  <span class="n">"conversation_id"</span>:      <span class="v">4</span>,
+  <span class="n">"title"</span>:                <span class="s">"Conservation Of Momentum"</span>,
+  <span class="n">"questions_remaining"</span>:  <span class="v">37</span>
+}</pre></div>
+      </div>
+      <div class="tab-content" id="t-ai-err">
+        <div class="rpills">
+          <span class="rp rp-4">400 — Message too short or too long</span>
+          <span class="rp rp-4">400 — Conversation message limit reached (limit_reached:"conversation")</span>
+          <span class="rp rp-4">404 — Conversation not found / not owned by caller</span>
+          <span class="rp rp-4">429 — Daily limit reached, or a previous send is still in flight</span>
+        </div>
+        <div class="cb"><div class="cb-header"><span class="cb-lang">json — 429</span></div>
+        <pre>{ <span class="n">"success"</span>: <span class="v">false</span>, <span class="n">"message"</span>: <span class="s">"Daily limit reached. Resets at midnight."</span>, <span class="n">"limit_reached"</span>: <span class="v">true</span> }</pre></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="ep" id="ep-ai-rename">
+    <div class="ep-header" onclick="toggleEp(this)">
+      <span class="mb mb-POST" style="background:var(--info-bg,rgba(56,189,248,.12));color:var(--info-text,#38bdf8);border:1px solid var(--info-border,rgba(56,189,248,.3));">PATCH</span>
+      <span class="ep-path">/api/v01/assistant/conversations/<span class="param">{id}</span></span>
+      <span class="ep-summary">Rename a conversation (max 70 characters)</span>
+      <span class="badge-auth">Auth</span>
+      <span class="ep-expand">▾</span>
+    </div>
+    <div class="ep-body">
+      <div class="cb"><div class="cb-header"><span class="cb-lang">json</span></div>
+      <pre>{ <span class="n">"title"</span>: <span class="s">"Bernoulli's Theorem"</span> }</pre></div>
+      <div class="cb"><div class="cb-header"><span class="cb-lang">json — 200</span></div>
+      <pre>{ <span class="n">"success"</span>: <span class="v">true</span>, <span class="n">"conversation"</span>: { <span class="s">"..."</span> } }</pre></div>
+    </div>
+  </div>
+
+  <div class="ep" id="ep-ai-delete">
+    <div class="ep-header" onclick="toggleEp(this)">
+      <span class="mb mb-DELETE" style="background:var(--danger-bg);color:var(--danger-text);border:1px solid var(--danger-border);">DELETE</span>
+      <span class="ep-path">/api/v01/assistant/conversations/<span class="param">{id}</span></span>
+      <span class="ep-summary">Permanently delete one conversation and its messages</span>
+      <span class="badge-auth">Auth</span>
+      <span class="ep-expand">▾</span>
+    </div>
+    <div class="ep-body">
+      <div class="note note-info"><span class="note-icon">ℹ️</span><span>Ownership-checked — 404 if not owned. Cascades to the conversation's <code>ai_chat_history</code> rows. Does not affect the daily usage counter.</span></div>
+      <div class="cb"><div class="cb-header"><span class="cb-lang">json — 200</span></div>
+      <pre>{ <span class="n">"success"</span>: <span class="v">true</span>, <span class="n">"message"</span>: <span class="s">"Conversation deleted."</span> }</pre></div>
+    </div>
+  </div>
+</section>
+
+<!-- CHAT -->
+<section class="section" id="chat-section">
+  <div class="section-header">
+    <span class="section-tag">Chat</span>
+    <h2 class="section-title">Chat Endpoints</h2>
+    <p class="section-desc">Real-time peer chat with connection requests, groups, and unread tracking. All require auth.</p>
+  </div>
+
+  <div class="ep open" id="ep-chat-search">
+    <div class="ep-header" onclick="toggleEp(this)">
+      <span class="mb mb-GET">GET</span>
+      <span class="ep-path">/api/v01/chat/users/search?q=<span class="param">{query}</span></span>
+      <span class="ep-summary">Search users by username (min 2 chars)</span>
+      <span class="badge-auth">Auth</span>
+      <span class="ep-expand">▾</span>
+    </div>
+    <div class="ep-body">
+      <div class="cb"><div class="cb-header"><span class="cb-lang">json — 200</span><button class="copy-btn" onclick="copyCode(this)"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg> Copy</button></div>
+      <pre>{
+  <span class="n">"success"</span>: <span class="v">true</span>,
+  <span class="n">"users"</span>: [
+    {
+      <span class="n">"id"</span>:                <span class="v">5</span>,
+      <span class="n">"username"</span>:          <span class="s">"jane.smith"</span>,
+      <span class="n">"full_name"</span>:         <span class="s">"Jane Smith"</span>,
+      <span class="n">"online"</span>:            <span class="v">true</span>,
+      <span class="n">"connection_status"</span>: <span class="s">"accepted"</span>  <span class="c">// null | "pending" | "accepted" | "rejected"</span>
+    }
+  ]
+}</pre></div>
+    </div>
+  </div>
+
+  <div class="ep" id="ep-chat-convs">
+    <div class="ep-header" onclick="toggleEp(this)">
+      <span class="mb mb-GET">GET</span>
+      <span class="ep-path">/api/v01/chat/conversations</span>
+      <span class="ep-summary">List all DM and group conversations with unread counts</span>
+      <span class="badge-auth">Auth</span>
+      <span class="ep-expand">▾</span>
+    </div>
+    <div class="ep-body">
+      <div class="cb"><div class="cb-header"><span class="cb-lang">json — 200</span><button class="copy-btn" onclick="copyCode(this)"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg> Copy</button></div>
+      <pre>{
+  <span class="n">"success"</span>: <span class="v">true</span>,
+  <span class="n">"conversations"</span>: [
+    {
+      <span class="n">"id"</span>:           <span class="v">12</span>,
+      <span class="n">"name"</span>:         <span class="s">"Jane Smith"</span>,
+      <span class="n">"is_group"</span>:     <span class="v">false</span>,
+      <span class="n">"unread"</span>:       <span class="v">3</span>,
+      <span class="n">"online"</span>:       <span class="v">true</span>,
+      <span class="n">"last_message"</span>: { <span class="n">"message"</span>: <span class="s">"Hey!"</span>, <span class="n">"created_at"</span>: <span class="s">"2025-01-15T10:30:00"</span> }
+    }
+  ]
+}</pre></div>
+    </div>
+  </div>
+
+  <div class="ep" id="ep-chat-msgs">
+    <div class="ep-header" onclick="toggleEp(this)">
+      <span class="mb mb-GET">GET</span>
+      <span class="ep-path">/api/v01/chat/conversations/<span class="param">{conv_id}</span>/messages?before=<span class="param">{iso_ts}</span></span>
+      <span class="ep-summary">Get messages — 40 at a time, paginated backwards</span>
+      <span class="badge-auth">Auth</span>
+      <span class="ep-expand">▾</span>
+    </div>
+    <div class="ep-body">
+      <div class="cb"><div class="cb-header"><span class="cb-lang">json — 200</span><button class="copy-btn" onclick="copyCode(this)"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg> Copy</button></div>
+      <pre>{
+  <span class="n">"success"</span>: <span class="v">true</span>,
+  <span class="n">"messages"</span>: [
+    {
+      <span class="n">"id"</span>:          <span class="v">88</span>,
+      <span class="n">"sender_name"</span>: <span class="s">"Jane Smith"</span>,
+      <span class="n">"message"</span>:     <span class="s">"Hi there!"</span>,
+      <span class="n">"created_at"</span>:  <span class="s">"2025-01-15T10:30:00"</span>,
+      <span class="n">"is_own"</span>:      <span class="v">false</span>,
+      <span class="n">"is_edited"</span>:   <span class="v">false</span>,
+      <span class="n">"reply_to_id"</span>: <span class="v">null</span>
+    }
+  ]
+}</pre></div>
+      <div class="note note-info"><span class="note-icon">ℹ️</span><span>Also marks conversation as read. Pass <code>before</code> ISO timestamp to load older messages (pagination).</span></div>
+    </div>
+  </div>
+
+  <div class="ep" id="ep-chat-send">
+    <div class="ep-header" onclick="toggleEp(this)">
+      <span class="mb mb-POST">POST</span>
+      <span class="ep-path">/api/v01/chat/conversations/<span class="param">{conv_id}</span>/messages</span>
+      <span class="ep-summary">Send a message — max 1000 chars, 1 per 2s</span>
+      <span class="badge-auth">Auth</span>
+      <span class="ep-expand">▾</span>
+    </div>
+    <div class="ep-body">
+      <div class="tabs">
+        <button class="tab active" onclick="switchTab(this,'t-send-req')">Request</button>
+        <button class="tab" onclick="switchTab(this,'t-send-res')">Response</button>
+      </div>
+      <div class="tab-content active" id="t-send-req">
+        <div class="cb"><div class="cb-header"><span class="cb-lang">json</span><button class="copy-btn" onclick="copyCode(this)"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg> Copy</button></div>
+        <pre>{
+  <span class="n">"message"</span>:      <span class="s">"Hey, how are you?"</span>,
+  <span class="n">"reply_to_id"</span>:  <span class="v">85</span>,           <span class="c">// optional</span>
+  <span class="n">"reply_to_text"</span>:<span class="s">"Hi there!"</span>,   <span class="c">// optional, truncated to 100 chars</span>
+  <span class="n">"reply_to_name"</span>:<span class="s">"Jane Smith"</span>   <span class="c">// optional</span>
+}</pre></div>
+      </div>
+      <div class="tab-content" id="t-send-res">
+        <div class="cb"><div class="cb-header"><span class="cb-lang">json — 200</span><button class="copy-btn" onclick="copyCode(this)"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg> Copy</button></div>
+        <pre>{ <span class="n">"success"</span>: <span class="v">true</span>, <span class="n">"message"</span>: { <span class="n">"id"</span>: <span class="v">89</span>, <span class="n">"message"</span>: <span class="s">"Hey, how are you?"</span>, <span class="n">"is_own"</span>: <span class="v">true</span>, <span class="n">"created_at"</span>: <span class="s">"..."</span> } }</pre></div>
+        <div class="rpills">
+          <span class="rp rp-4">429 — Rate limited (2s cooldown)</span>
+          <span class="rp rp-4">403 — Not a member</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="ep" id="ep-chat-edit">
+    <div class="ep-header" onclick="toggleEp(this)">
+      <span class="mb mb-PUT">PUT</span>
+      <span class="ep-path">/api/v01/chat/messages/<span class="param">{msg_id}</span></span>
+      <span class="ep-summary">Edit own message</span>
+      <span class="badge-auth">Auth</span>
+      <span class="ep-expand">▾</span>
+    </div>
+    <div class="ep-body">
+      <div class="cb"><div class="cb-header"><span class="cb-lang">json — request</span><button class="copy-btn" onclick="copyCode(this)"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg> Copy</button></div>
+      <pre>{ <span class="n">"message"</span>: <span class="s">"Edited message text"</span> }</pre></div>
+      <div class="rpills">
+        <span class="rp rp-2">200 — { success: true, message: "Edited text" }</span>
+        <span class="rp rp-4">403 — Not own message</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="ep" id="ep-chat-del">
+    <div class="ep-header" onclick="toggleEp(this)">
+      <span class="mb mb-DELETE">DELETE</span>
+      <span class="ep-path">/api/v01/chat/messages/<span class="param">{msg_id}</span></span>
+      <span class="ep-summary">Soft-delete own message</span>
+      <span class="badge-auth">Auth</span>
+      <span class="ep-expand">▾</span>
+    </div>
+    <div class="ep-body">
+      <div class="rpills">
+        <span class="rp rp-2">200 — { success: true }</span>
+        <span class="rp rp-4">403 — Not own message</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="ep" id="ep-chat-read">
+    <div class="ep-header" onclick="toggleEp(this)">
+      <span class="mb mb-POST">POST</span>
+      <span class="ep-path">/api/v01/chat/conversations/<span class="param">{conv_id}</span>/read</span>
+      <span class="ep-summary">Mark conversation as read — reset unread count to 0</span>
+      <span class="badge-auth">Auth</span>
+      <span class="ep-expand">▾</span>
+    </div>
+    <div class="ep-body">
+      <div class="rpills"><span class="rp rp-2">200 — { success: true }</span></div>
+    </div>
+  </div>
+
+  <div class="ep" id="ep-chat-request">
+    <div class="ep-header" onclick="toggleEp(this)">
+      <span class="mb mb-POST">POST</span>
+      <span class="ep-path">/api/v01/chat/friend-requests</span>
+      <span class="ep-summary">Send connection request to a user</span>
+      <span class="badge-auth">Auth</span>
+      <span class="ep-expand">▾</span>
+    </div>
+    <div class="ep-body">
+      <div class="cb"><div class="cb-header"><span class="cb-lang">json — request</span><button class="copy-btn" onclick="copyCode(this)"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg> Copy</button></div>
+      <pre>{ <span class="n">"recipient_id"</span>: <span class="v">5</span> }</pre></div>
+      <div class="rpills">
+        <span class="rp rp-2">200 — { success: true }</span>
+        <span class="rp rp-4">409 — Already sent or connected</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="ep" id="ep-chat-inbox">
+    <div class="ep-header" onclick="toggleEp(this)">
+      <span class="mb mb-GET">GET</span>
+      <span class="ep-path">/api/v01/chat/friend-requests/inbox</span>
+      <span class="ep-summary">Get pending incoming connection requests</span>
+      <span class="badge-auth">Auth</span>
+      <span class="ep-expand">▾</span>
+    </div>
+    <div class="ep-body">
+      <div class="cb"><div class="cb-header"><span class="cb-lang">json — 200</span><button class="copy-btn" onclick="copyCode(this)"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg> Copy</button></div>
+      <pre>{
+  <span class="n">"success"</span>: <span class="v">true</span>,
+  <span class="n">"requests"</span>: [
+    { <span class="n">"conn_id"</span>: <span class="v">3</span>, <span class="n">"from_id"</span>: <span class="v">5</span>, <span class="n">"from_name"</span>: <span class="s">"Jane Smith"</span>, <span class="n">"created_at"</span>: <span class="s">"2025-01-15T09:00:00"</span> }
+  ]
+}</pre></div>
+    </div>
+  </div>
+
+  <div class="ep" id="ep-chat-respond">
+    <div class="ep-header" onclick="toggleEp(this)">
+      <span class="mb mb-PUT">PUT</span>
+      <span class="ep-path">/api/v01/chat/friend-requests/<span class="param">{conn_id}</span></span>
+      <span class="ep-summary">Accept or reject a connection request</span>
+      <span class="badge-auth">Auth</span>
+      <span class="ep-expand">▾</span>
+    </div>
+    <div class="ep-body">
+      <div class="cb"><div class="cb-header"><span class="cb-lang">json — request</span><button class="copy-btn" onclick="copyCode(this)"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg> Copy</button></div>
+      <pre>{ <span class="n">"action"</span>: <span class="s">"accept"</span> }  <span class="c">// or "reject"</span></pre></div>
+      <div class="cb"><div class="cb-header"><span class="cb-lang">json — 200 (accepted)</span></div>
+      <pre>{ <span class="n">"success"</span>: <span class="v">true</span>, <span class="n">"conv_id"</span>: <span class="v">12</span> }</pre></div>
+    </div>
+  </div>
+
+  <div class="ep" id="ep-chat-unread">
+    <div class="ep-header" onclick="toggleEp(this)">
+      <span class="mb mb-GET">GET</span>
+      <span class="ep-path">/api/v01/chat/unread-count</span>
+      <span class="ep-summary">Total unread messages + pending connection requests</span>
+      <span class="badge-auth">Auth</span>
+      <span class="ep-expand">▾</span>
+    </div>
+    <div class="ep-body">
+      <div class="cb"><div class="cb-header"><span class="cb-lang">json — 200</span><button class="copy-btn" onclick="copyCode(this)"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg> Copy</button></div>
+      <pre>{ <span class="n">"success"</span>: <span class="v">true</span>, <span class="n">"unread"</span>: <span class="v">5</span>, <span class="n">"requests"</span>: <span class="v">2</span> }</pre></div>
+    </div>
+  </div>
+
+  <div class="ep" id="ep-chat-online">
+    <div class="ep-header" onclick="toggleEp(this)">
+      <span class="mb mb-GET">GET</span>
+      <span class="ep-path">/api/v01/chat/online-status?ids=<span class="param">1,2,5</span></span>
+      <span class="ep-summary">Check online status of multiple users at once</span>
+      <span class="badge-auth">Auth</span>
+      <span class="ep-expand">▾</span>
+    </div>
+    <div class="ep-body">
+      <div class="cb"><div class="cb-header"><span class="cb-lang">json — 200</span><button class="copy-btn" onclick="copyCode(this)"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg> Copy</button></div>
+      <pre>{ <span class="n">"success"</span>: <span class="v">true</span>, <span class="n">"status"</span>: { <span class="n">"1"</span>: <span class="v">true</span>, <span class="n">"2"</span>: <span class="v">false</span>, <span class="n">"5"</span>: <span class="v">true</span> } }</pre></div>
+    </div>
+  </div>
+
+  <div class="ep" id="ep-chat-group">
+    <div class="ep-header" onclick="toggleEp(this)">
+      <span class="mb mb-POST">POST</span>
+      <span class="ep-path">/api/v01/chat/groups</span>
+      <span class="ep-summary">Create a group conversation</span>
+      <span class="badge-auth">Auth</span>
+      <span class="ep-expand">▾</span>
+    </div>
+    <div class="ep-body">
+      <div class="cb"><div class="cb-header"><span class="cb-lang">json — request</span><button class="copy-btn" onclick="copyCode(this)"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg> Copy</button></div>
+      <pre>{ <span class="n">"name"</span>: <span class="s">"Physics Study Group"</span>, <span class="n">"member_ids"</span>: [<span class="v">3</span>, <span class="v">5</span>, <span class="v">7</span>] }</pre></div>
+      <div class="rpills"><span class="rp rp-2">200 — { success: true, conv_id: 15 }</span></div>
+    </div>
+  </div>
+
+  <div class="ep" id="ep-friend-del">
+    <div class="ep-header" onclick="toggleEp(this)">
+      <span class="mb mb-DELETE">DELETE</span>
+      <span class="ep-path">/api/v01/chat/friends/<span class="param">{other_id}</span></span>
+      <span class="ep-summary">Remove friend and purge shared DM conversation</span>
+      <span class="badge-auth">Auth</span>
+      <span class="ep-expand">▾</span>
+    </div>
+    <div class="ep-body">
+      <div class="note note-info"><span class="note-icon">ℹ️</span><span>Deletes connection record + DM conversation entirely. Group chats shared with this user are unaffected.</span></div>
+      <div class="rpills"><span class="rp rp-2">200 — { success: true }</span></div>
+    </div>
+  </div>
+</section>
+
+<!-- DISCUSSION -->
+<section class="section" id="discussion-section">
+  <div class="section-header">
+    <span class="section-tag">Discussion</span>
+    <h2 class="section-title">Discussion Endpoints</h2>
+    <p class="section-desc">Per-question threaded comments with replies, pinning, and best-answer marking.</p>
+  </div>
+
+  <div class="ep open" id="ep-disc-get">
+    <div class="ep-header" onclick="toggleEp(this)">
+      <span class="mb mb-GET">GET</span>
+      <span class="ep-path">/api/v01/discussions/<span class="param">{question_id}</span></span>
+      <span class="ep-summary">Get threaded comments for a question</span>
+      <span class="badge-auth">Auth</span>
+      <span class="ep-expand">▾</span>
+    </div>
+    <div class="ep-body">
+      <div class="cb"><div class="cb-header"><span class="cb-lang">json — 200</span><button class="copy-btn" onclick="copyCode(this)"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg> Copy</button></div>
+      <pre>{
+  <span class="n">"success"</span>: <span class="v">true</span>,
+  <span class="n">"count"</span>:   <span class="v">5</span>,
+  <span class="n">"comments"</span>: [
+    {
+      <span class="n">"id"</span>:             <span class="v">1</span>,
+      <span class="n">"username"</span>:       <span class="s">"jane.smith"</span>,
+      <span class="n">"message"</span>:        <span class="s">"Approach using energy conservation..."</span>,
+      <span class="n">"is_own"</span>:         <span class="v">false</span>,
+      <span class="n">"is_pinned"</span>:      <span class="v">false</span>,
+      <span class="n">"is_best_answer"</span>: <span class="v">true</span>,
+      <span class="n">"created_at"</span>:     <span class="s">"2025-01-15T10:00:00"</span>,
+      <span class="n">"replies"</span>:        []
+    }
+  ]
+}</pre></div>
+      <div class="note note-info"><span class="note-icon">ℹ️</span><span>Deleted account messages show as <code>username: "Deleted Account"</code> with a placeholder. Thread structure is preserved.</span></div>
+    </div>
+  </div>
+
+  <div class="ep" id="ep-disc-post">
+    <div class="ep-header" onclick="toggleEp(this)">
+      <span class="mb mb-POST">POST</span>
+      <span class="ep-path">/api/v01/discussions/<span class="param">{question_id}</span></span>
+      <span class="ep-summary">Post a comment — max 500 chars, 1 per 10s</span>
+      <span class="badge-auth">Auth</span>
+      <span class="ep-expand">▾</span>
+    </div>
+    <div class="ep-body">
+      <div class="cb"><div class="cb-header"><span class="cb-lang">json — request</span><button class="copy-btn" onclick="copyCode(this)"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg> Copy</button></div>
+      <pre>{
+  <span class="n">"message"</span>:   <span class="s">"The answer is B because..."</span>,
+  <span class="n">"exam_id"</span>:   <span class="v">42</span>,   <span class="c">// optional</span>
+  <span class="n">"parent_id"</span>: <span class="v">1</span>    <span class="c">// optional — for replies</span>
+}</pre></div>
+      <div class="rpills">
+        <span class="rp rp-2">200 — { success: true, message: { id, username, ... } }</span>
+        <span class="rp rp-4">429 — Rate limited (10s)</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="ep" id="ep-disc-edit">
+    <div class="ep-header" onclick="toggleEp(this)">
+      <span class="mb mb-PUT">PUT</span>
+      <span class="ep-path">/api/v01/discussions/comments/<span class="param">{comment_id}</span></span>
+      <span class="ep-summary">Edit own comment (admins can edit any)</span>
+      <span class="badge-auth">Auth</span>
+      <span class="ep-expand">▾</span>
+    </div>
+    <div class="ep-body">
+      <div class="cb"><div class="cb-header"><span class="cb-lang">json — request</span><button class="copy-btn" onclick="copyCode(this)"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg> Copy</button></div>
+      <pre>{ <span class="n">"message"</span>: <span class="s">"Updated explanation..."</span> }</pre></div>
+      <div class="rpills">
+        <span class="rp rp-2">200 — { success: true }</span>
+        <span class="rp rp-4">403 — Forbidden</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="ep" id="ep-disc-del">
+    <div class="ep-header" onclick="toggleEp(this)">
+      <span class="mb mb-DELETE">DELETE</span>
+      <span class="ep-path">/api/v01/discussions/comments/<span class="param">{comment_id}</span></span>
+      <span class="ep-summary">Soft-delete own comment (admins can delete any)</span>
+      <span class="badge-auth">Auth</span>
+      <span class="ep-expand">▾</span>
+    </div>
+    <div class="ep-body">
+      <div class="rpills">
+        <span class="rp rp-2">200 — { success: true }</span>
+        <span class="rp rp-4">403 — Forbidden</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="ep" id="ep-disc-counts">
+    <div class="ep-header" onclick="toggleEp(this)">
+      <span class="mb mb-POST">POST</span>
+      <span class="ep-path">/api/v01/discussions/counts</span>
+      <span class="ep-summary">Get discussion counts for up to 100 questions at once</span>
+      <span class="badge-auth">Auth</span>
+      <span class="ep-expand">▾</span>
+    </div>
+    <div class="ep-body">
+      <div class="tabs">
+        <button class="tab active" onclick="switchTab(this,'t-bulk-req')">Request</button>
+        <button class="tab" onclick="switchTab(this,'t-bulk-res')">Response</button>
+      </div>
+      <div class="tab-content active" id="t-bulk-req">
+        <div class="cb"><div class="cb-header"><span class="cb-lang">json</span><button class="copy-btn" onclick="copyCode(this)"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg> Copy</button></div>
+        <pre>{ <span class="n">"question_ids"</span>: [<span class="v">101</span>, <span class="v">102</span>, <span class="v">103</span>] }  <span class="c">// max 100</span></pre></div>
+      </div>
+      <div class="tab-content" id="t-bulk-res">
+        <div class="cb"><div class="cb-header"><span class="cb-lang">json — 200</span><button class="copy-btn" onclick="copyCode(this)"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg> Copy</button></div>
+        <pre>{ <span class="n">"success"</span>: <span class="v">true</span>, <span class="n">"counts"</span>: { <span class="n">"101"</span>: <span class="v">5</span>, <span class="n">"102"</span>: <span class="v">0</span>, <span class="n">"103"</span>: <span class="v">12</span> } }</pre></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ADMIN -->
+<section class="section" id="admin-section">
+  <div class="section-header">
+    <span class="section-tag">Admin</span>
+    <h2 class="section-title">Admin JSON APIs</h2>
+    <p class="section-desc">Base path: <code>/api/v01/admin/</code>. Every endpoint below requires an authenticated admin: either the standard admin session cookie (set by <code>POST /admin/login</code>) or a JWT with <code>admin</code> in its role, sent as <code>Authorization: Bearer &lt;token&gt;</code>. JSON request bodies require <code>Content-Type: application/json</code>; multipart endpoints (noted per-endpoint) require <code>multipart/form-data</code>.</p>
+  </div>
+  <div class="note note-warn"><span class="note-icon">⚠️</span><span>Every endpoint on this page returns the same two auth failures unless noted otherwise — not repeated per endpoint below: <code>401</code> <span class="s">{ "status": "error", "message": "Authentication required" }</span> when no valid session/token is present, and <code>403</code> <span class="s">{ "status": "error", "message": "Admin access required" }</span> when the caller is authenticated but not an admin.</span></div>
+
+  <!-- EXAM CRUD -->
+  <h3 style="margin:1.5rem 0 .5rem;color:var(--text-1);font-size:1.05rem;">Exams</h3>
+  <div class="note note-info"><span class="note-icon">ℹ️</span><span>Create/edit exam are HTML form pages, not JSON: <code>GET/POST /admin/exams</code>, <code>GET/POST /admin/exams/edit/{exam_id}</code> — see Web Routes.</span></div>
+
+  <div class="ep" id="admin-exams">
+    <div class="ep-header" onclick="toggleEp(this)">
+      <span class="mb mb-DELETE" style="background:var(--danger-bg);color:var(--danger-text);border:1px solid var(--danger-border);">DELETE</span>
+      <span class="ep-path">/api/v01/admin/exams/<span class="param">{exam_id}</span></span>
+      <span class="ep-summary">Delete an exam and every row that depends on it</span>
+      <span class="badge-admin">Admin</span>
+      <span class="ep-expand">▾</span>
+    </div>
+    <div class="ep-body">
+      <div class="note note-info"><span class="note-icon">ℹ️</span><span>No request body. Cascades: responses → results → exam_attempts → question_discussions/discussion_counts → questions → the exam row itself. Irreversible.</span></div>
+      <div class="cb"><div class="cb-header"><span class="cb-lang">json — 200</span><button class="copy-btn" onclick="copyCode(this)"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg> Copy</button></div>
+      <pre>{ <span class="n">"success"</span>: <span class="v">true</span>, <span class="n">"message"</span>: <span class="s">"Exam 'Midterm Physics' deleted."</span> }</pre></div>
+      <div class="rpills">
+        <span class="rp rp-4">404 — {"success": false, "message": "Exam not found"}</span>
+        <span class="rp rp-5">500 — {"success": false, "message": "&lt;db error text&gt;"}</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="ep" id="admin-release-results">
+    <div class="ep-header" onclick="toggleEp(this)">
+      <span class="mb mb-POST">POST</span>
+      <span class="ep-path">/api/v01/admin/exams/<span class="param">{exam_id}</span>/release-results</span>
+      <span class="ep-summary">Toggle whether students can see this exam's results</span>
+      <span class="badge-admin">Admin</span>
+      <span class="ep-expand">▾</span>
+    </div>
+    <div class="ep-body">
+      <div class="note note-info"><span class="note-icon">ℹ️</span><span>No request body. Flips the exam's current <code>results_released</code> flag — call again to toggle back.</span></div>
+      <div class="cb"><div class="cb-header"><span class="cb-lang">json — 200</span><button class="copy-btn" onclick="copyCode(this)"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg> Copy</button></div>
+      <pre>{ <span class="n">"success"</span>: <span class="v">true</span>, <span class="n">"message"</span>: <span class="s">"Results for 'Midterm Physics' have been released."</span>, <span class="n">"released"</span>: <span class="v">true</span> }</pre></div>
+      <div class="rpills">
+        <span class="rp rp-4">404 — {"success": false, "message": "Exam not found"}</span>
+        <span class="rp rp-5">500 — {"success": false, "message": "Failed to update results."}</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- QUESTIONS -->
+  <h3 style="margin:1.5rem 0 .5rem;color:var(--text-1);font-size:1.05rem;">Questions</h3>
+  <div class="note note-info"><span class="note-icon">ℹ️</span><span>Single-question delete and CSV export are web routes, not JSON: <code>POST /admin/questions/delete/{question_id}</code>, <code>GET /admin/questions/export-csv/{exam_id}</code> — see Web Routes.</span></div>
+
+  <div class="ep" id="admin-question-add">
+    <div class="ep-header" onclick="toggleEp(this)">
+      <span class="mb mb-POST">POST</span>
+      <span class="ep-path">/api/v01/admin/questions</span>
+      <span class="ep-summary">Add one question to an exam</span>
+      <span class="badge-admin">Admin</span>
+      <span class="ep-expand">▾</span>
+    </div>
+    <div class="ep-body">
+      <div class="note note-info"><span class="note-icon">ℹ️</span><span><code>Content-Type: multipart/form-data</code> (form fields, not JSON). <code>exam_id</code> required; all other fields optional and default as shown.</span></div>
+      <div class="cb"><div class="cb-header"><span class="cb-lang">multipart/form-data</span><button class="copy-btn" onclick="copyCode(this)"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg> Copy</button></div>
+      <pre>exam_id:         <span class="v">42</span>              <span class="c">// required</span>
+question_text:   <span class="s">"What is 2 + 2?"</span>
+option_a:        <span class="s">"3"</span>
+option_b:        <span class="s">"4"</span>
+option_c:        <span class="s">"5"</span>
+option_d:        <span class="s">"6"</span>
+correct_answer:  <span class="s">"B"</span>
+question_type:   <span class="s">"MCQ"</span>            <span class="c">// default "MCQ" — MCQ | MSQ | NUMERIC</span>
+image_path:      <span class="s">""</span>               <span class="c">// optional image storage key, e.g. "SubjectName/file.png"</span>
+positive_marks:  <span class="v">4</span>                <span class="c">// default 4</span>
+negative_marks:  <span class="v">1</span>                <span class="c">// default 1</span>
+tolerance:       <span class="v">0</span>                <span class="c">// default 0 — used for NUMERIC answers</span></pre></div>
+      <div class="cb"><div class="cb-header"><span class="cb-lang">json — 200</span></div>
+      <pre>{ <span class="n">"success"</span>: <span class="v">true</span>, <span class="n">"message"</span>: <span class="s">"Question added."</span> }</pre></div>
+      <div class="rpills"><span class="rp rp-5">500 — {"success": false, "message": "Failed to add question."}</span></div>
+    </div>
+  </div>
+
+  <div class="ep" id="admin-question-get">
+    <div class="ep-header" onclick="toggleEp(this)">
+      <span class="mb mb-GET">GET</span>
+      <span class="ep-path">/api/v01/admin/questions/<span class="param">{question_id}</span></span>
+      <span class="ep-summary">Fetch a single question</span>
+      <span class="badge-admin">Admin</span>
+      <span class="ep-expand">▾</span>
+    </div>
+    <div class="ep-body">
+      <div class="cb"><div class="cb-header"><span class="cb-lang">json — 200</span><button class="copy-btn" onclick="copyCode(this)"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg> Copy</button></div>
+      <pre>{
+  <span class="n">"success"</span>:  <span class="v">true</span>,
+  <span class="n">"question"</span>: {
+    <span class="n">"id"</span>:             <span class="v">101</span>,
+    <span class="n">"exam_id"</span>:        <span class="v">42</span>,
+    <span class="n">"question_text"</span>:  <span class="s">"What is 2 + 2?"</span>,
+    <span class="n">"option_a"</span>:       <span class="s">"3"</span>,
+    <span class="n">"option_b"</span>:       <span class="s">"4"</span>,
+    <span class="n">"option_c"</span>:       <span class="s">"5"</span>,
+    <span class="n">"option_d"</span>:       <span class="s">"6"</span>,
+    <span class="n">"correct_answer"</span>: <span class="s">"B"</span>,
+    <span class="n">"question_type"</span>:  <span class="s">"MCQ"</span>,
+    <span class="n">"image_path"</span>:     <span class="v">null</span>,
+    <span class="n">"positive_marks"</span>: <span class="v">4</span>,
+    <span class="n">"negative_marks"</span>: <span class="v">1</span>,
+    <span class="n">"tolerance"</span>:      <span class="v">0</span>
+  }
+}</pre></div>
+      <div class="rpills"><span class="rp rp-4">404 — {"success": false, "message": "Not found."}</span></div>
+    </div>
+  </div>
+
+  <div class="ep" id="admin-question-edit">
+    <div class="ep-header" onclick="toggleEp(this)">
+      <span class="mb mb-PATCH">PATCH</span>
+      <span class="ep-path">/api/v01/admin/questions/<span class="param">{question_id}</span></span>
+      <span class="ep-summary">Update a question — same fields as create</span>
+      <span class="badge-admin">Admin</span>
+      <span class="ep-expand">▾</span>
+    </div>
+    <div class="ep-body">
+      <div class="note note-info"><span class="note-icon">ℹ️</span><span><code>Content-Type: multipart/form-data</code>, same fields as <code>POST /api/v01/admin/questions</code>. Omitted fields keep their current value except <code>exam_id</code>, which defaults back to the question's existing exam.</span></div>
+      <div class="cb"><div class="cb-header"><span class="cb-lang">json — 200</span><button class="copy-btn" onclick="copyCode(this)"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg> Copy</button></div>
+      <pre>{ <span class="n">"success"</span>: <span class="v">true</span>, <span class="n">"message"</span>: <span class="s">"Updated."</span> }</pre></div>
+      <div class="rpills"><span class="rp rp-4">404 — {"success": false, "message": "Not found."}</span></div>
+    </div>
+  </div>
+
+  <div class="ep" id="admin-questions-delete-multiple">
+    <div class="ep-header" onclick="toggleEp(this)">
+      <span class="mb mb-POST">POST</span>
+      <span class="ep-path">/api/v01/admin/questions/delete-multiple</span>
+      <span class="ep-summary">Delete several questions and their FK children in one call</span>
+      <span class="badge-admin">Admin</span>
+      <span class="ep-expand">▾</span>
+    </div>
+    <div class="ep-body">
+      <div class="cb"><div class="cb-header"><span class="cb-lang">json — request</span><button class="copy-btn" onclick="copyCode(this)"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg> Copy</button></div>
+      <pre>{ <span class="n">"ids"</span>: [<span class="v">101</span>, <span class="v">102</span>, <span class="v">103</span>] }</pre></div>
+      <div class="cb"><div class="cb-header"><span class="cb-lang">json — 200</span></div>
+      <pre>{ <span class="n">"success"</span>: <span class="v">true</span>, <span class="n">"deleted"</span>: <span class="v">3</span> }</pre></div>
+      <div class="rpills"><span class="rp rp-4">400 — {"success": false, "message": "No IDs provided"}</span></div>
+    </div>
+  </div>
+
+  <div class="ep" id="admin-questions-batch-add">
+    <div class="ep-header" onclick="toggleEp(this)">
+      <span class="mb mb-POST">POST</span>
+      <span class="ep-path">/api/v01/admin/questions/batch-add</span>
+      <span class="ep-summary">Insert several questions into one exam in a single write</span>
+      <span class="badge-admin">Admin</span>
+      <span class="ep-expand">▾</span>
+    </div>
+    <div class="ep-body">
+      <div class="note note-info"><span class="note-icon">ℹ️</span><span>Rows with an empty <code>question_text</code> are silently dropped before insert. Per-question fields default the same way as <code>POST /api/v01/admin/questions</code>.</span></div>
+      <div class="cb"><div class="cb-header"><span class="cb-lang">json — request</span><button class="copy-btn" onclick="copyCode(this)"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg> Copy</button></div>
+      <pre>{
+  <span class="n">"exam_id"</span>: <span class="v">42</span>,
+  <span class="n">"questions"</span>: [
+    {
+      <span class="n">"question_text"</span>:  <span class="s">"What is 2 + 2?"</span>,
+      <span class="n">"option_a"</span>:       <span class="s">"3"</span>,
+      <span class="n">"option_b"</span>:       <span class="s">"4"</span>,
+      <span class="n">"option_c"</span>:       <span class="s">"5"</span>,
+      <span class="n">"option_d"</span>:       <span class="s">"6"</span>,
+      <span class="n">"correct_answer"</span>: <span class="s">"B"</span>,
+      <span class="n">"question_type"</span>:  <span class="s">"MCQ"</span>,
+      <span class="n">"positive_marks"</span>: <span class="v">4</span>,
+      <span class="n">"negative_marks"</span>: <span class="v">1</span>,
+      <span class="n">"tolerance"</span>:      <span class="v">0</span>
+    }
+  ]
+}</pre></div>
+      <div class="cb"><div class="cb-header"><span class="cb-lang">json — 200</span></div>
+      <pre>{ <span class="n">"success"</span>: <span class="v">true</span>, <span class="n">"added"</span>: <span class="v">1</span> }</pre></div>
+      <div class="rpills"><span class="rp rp-4">400 — {"success": false, "message": "No valid rows"}</span></div>
+    </div>
+  </div>
+
+  <div class="ep" id="admin-questions-bulk-update">
+    <div class="ep-header" onclick="toggleEp(this)">
+      <span class="mb mb-POST">POST</span>
+      <span class="ep-path">/api/v01/admin/questions/bulk-update</span>
+      <span class="ep-summary">Set marks/tolerance for every question of one type within an exam</span>
+      <span class="badge-admin">Admin</span>
+      <span class="ep-expand">▾</span>
+    </div>
+    <div class="ep-body">
+      <div class="note note-info"><span class="note-icon">ℹ️</span><span><code>exam_id</code> and <code>question_type</code> are required; the type match is case-insensitive. <code>positive_marks</code>/<code>negative_marks</code>/<code>tolerance</code> are each optional — only the ones present are updated.</span></div>
+      <div class="cb"><div class="cb-header"><span class="cb-lang">json — request</span><button class="copy-btn" onclick="copyCode(this)"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg> Copy</button></div>
+      <pre>{
+  <span class="n">"exam_id"</span>:        <span class="v">42</span>,
+  <span class="n">"question_type"</span>:  <span class="s">"MCQ"</span>,
+  <span class="n">"positive_marks"</span>: <span class="v">5</span>,
+  <span class="n">"negative_marks"</span>: <span class="v">1</span>
+}</pre></div>
+      <div class="cb"><div class="cb-header"><span class="cb-lang">json — 200</span></div>
+      <pre>{ <span class="n">"success"</span>: <span class="v">true</span>, <span class="n">"updated"</span>: <span class="v">12</span> }</pre></div>
+      <div class="rpills"><span class="rp rp-4">400 — {"success": false, "message": "exam_id and question_type required"}</span></div>
+    </div>
+  </div>
+
+  <div class="ep" id="admin-questions-import-csv">
+    <div class="ep-header" onclick="toggleEp(this)">
+      <span class="mb mb-POST">POST</span>
+      <span class="ep-path">/api/v01/admin/questions/import-csv</span>
+      <span class="ep-summary">Bulk-import questions from a CSV file</span>
+      <span class="badge-admin">Admin</span>
+      <span class="ep-expand">▾</span>
+    </div>
+    <div class="ep-body">
+      <div class="note note-info"><span class="note-icon">ℹ️</span><span><code>Content-Type: multipart/form-data</code>, field name <code>csv_file</code>. Required columns: <code>exam_id, question_text, option_a, option_b, option_c, option_d, correct_answer, question_type, image_path, positive_marks, negative_marks, tolerance</code>. Rows with an unknown <code>exam_id</code> or empty <code>question_text</code> are skipped, not rejected — the whole file still imports.</span></div>
+      <div class="cb"><div class="cb-header"><span class="cb-lang">json — 200 (all rows valid)</span><button class="copy-btn" onclick="copyCode(this)"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg> Copy</button></div>
+      <pre>{
+  <span class="n">"success"</span>:  <span class="v">true</span>,
+  <span class="n">"message"</span>:  <span class="s">"Imported 24 question(s)."</span>,
+  <span class="n">"inserted"</span>: <span class="v">24</span>,
+  <span class="n">"skipped"</span>:  <span class="v">0</span>,
+  <span class="n">"errors"</span>:   <span class="v">null</span>
+}</pre></div>
+      <div class="cb"><div class="cb-header"><span class="cb-lang">json — 200 (some rows skipped)</span></div>
+      <pre>{
+  <span class="n">"success"</span>:  <span class="v">true</span>,
+  <span class="n">"message"</span>:  <span class="s">"Imported 22 question(s). Skipped 2."</span>,
+  <span class="n">"inserted"</span>: <span class="v">22</span>,
+  <span class="n">"skipped"</span>:  <span class="v">2</span>,
+  <span class="n">"errors"</span>:   [<span class="s">"Row 5: skipped"</span>, <span class="s">"Row 9: skipped"</span>]
+}</pre></div>
+      <div class="rpills">
+        <span class="rp rp-4">400 — {"success": false, "message": "No file uploaded"}</span>
+        <span class="rp rp-4">400 — {"success": false, "message": "File must be a CSV"}</span>
+        <span class="rp rp-4">400 — {"success": false, "message": "Missing columns: ..."}</span>
+        <span class="rp rp-4">400 — {"success": false, "message": "No questions imported. N errors.", "errors": [...]}</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- USERS -->
+  <h3 style="margin:1.5rem 0 .5rem;color:var(--text-1);font-size:1.05rem;">Users</h3>
+
+  <div class="ep" id="admin-users-search">
+    <div class="ep-header" onclick="toggleEp(this)">
+      <span class="mb mb-GET">GET</span>
+      <span class="ep-path">/api/v01/admin/users/search?q=&role=&page=</span>
+      <span class="ep-summary">Paginated, filterable user list</span>
+      <span class="badge-admin">Admin</span>
+      <span class="ep-expand">▾</span>
+    </div>
+    <div class="ep-body">
+      <div class="note note-info"><span class="note-icon">ℹ️</span><span>Query params, all optional: <code>q</code> (matches username/email/full_name), <code>role</code> (<code>user | admin | both</code>), <code>page</code> (default 1, 50 per page).</span></div>
+      <div class="cb"><div class="cb-header"><span class="cb-lang">json — 200</span><button class="copy-btn" onclick="copyCode(this)"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg> Copy</button></div>
+      <pre>{
+  <span class="n">"users"</span>: [
+    {
+      <span class="n">"id"</span>:         <span class="v">7</span>,
+      <span class="n">"username"</span>:   <span class="s">"jane.doe"</span>,
+      <span class="n">"email"</span>:      <span class="s">"jane@example.com"</span>,
+      <span class="n">"full_name"</span>:  <span class="s">"Jane Doe"</span>,
+      <span class="n">"role"</span>:       <span class="s">"user"</span>,
+      <span class="n">"created_at"</span>: <span class="s">"15 January 2025 10:30 AM"</span>,
+      <span class="n">"updated_at"</span>: <span class="s">"15 January 2025 10:30 AM"</span>
+    }
+  ],
+  <span class="n">"total"</span>:       <span class="v">312</span>,
+  <span class="n">"page"</span>:        <span class="v">1</span>,
+  <span class="n">"per_page"</span>:    <span class="v">50</span>,
+  <span class="n">"total_pages"</span>: <span class="v">7</span>
+}</pre></div>
+      <div class="rpills"><span class="rp rp-5">500 — {"success": false, "message": "&lt;db error text&gt;"}</span></div>
+    </div>
+  </div>
+
+  <div class="ep" id="admin-users-stats">
+    <div class="ep-header" onclick="toggleEp(this)">
+      <span class="mb mb-GET">GET</span>
+      <span class="ep-path">/api/v01/admin/users/stats</span>
+      <span class="ep-summary">Role-count totals</span>
+      <span class="badge-admin">Admin</span>
+      <span class="ep-expand">▾</span>
+    </div>
+    <div class="ep-body">
+      <div class="cb"><div class="cb-header"><span class="cb-lang">json — 200</span><button class="copy-btn" onclick="copyCode(this)"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg> Copy</button></div>
+      <pre>{ <span class="n">"total_users"</span>: <span class="v">312</span>, <span class="n">"user_role"</span>: <span class="v">298</span>, <span class="n">"admin_role"</span>: <span class="v">9</span>, <span class="n">"both_roles"</span>: <span class="v">5</span> }</pre></div>
+    </div>
+  </div>
+
+  <div class="ep" id="admin-users-update-role">
+    <div class="ep-header" onclick="toggleEp(this)">
+      <span class="mb mb-POST">POST</span>
+      <span class="ep-path">/api/v01/admin/users/update-role</span>
+      <span class="ep-summary">Change one user's role</span>
+      <span class="badge-admin">Admin</span>
+      <span class="ep-expand">▾</span>
+    </div>
+    <div class="ep-body">
+      <div class="note note-info"><span class="note-icon">ℹ️</span><span><code>new_role</code> must be exactly <code>user</code>, <code>admin</code>, or <code>user,admin</code>. The system's ghost/deleted-account placeholder (id -1) can never be targeted — always 403.</span></div>
+      <div class="cb"><div class="cb-header"><span class="cb-lang">json — request</span><button class="copy-btn" onclick="copyCode(this)"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg> Copy</button></div>
+      <pre>{ <span class="n">"user_id"</span>: <span class="v">7</span>, <span class="n">"new_role"</span>: <span class="s">"user,admin"</span> }</pre></div>
+      <div class="cb"><div class="cb-header"><span class="cb-lang">json — 200</span></div>
+      <pre>{ <span class="n">"success"</span>: <span class="v">true</span>, <span class="n">"message"</span>: <span class="s">"Role updated to user,admin"</span> }</pre></div>
+      <div class="rpills">
+        <span class="rp rp-4">400 — {"success": false, "message": "Invalid data"}</span>
+        <span class="rp rp-4">403 — {"success": false, "message": "System account cannot be modified."}</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="ep" id="admin-users-bulk-update-roles">
+    <div class="ep-header" onclick="toggleEp(this)">
+      <span class="mb mb-POST">POST</span>
+      <span class="ep-path">/api/v01/admin/users/bulk-update-roles</span>
+      <span class="ep-summary">Change roles for several users in one call</span>
+      <span class="badge-admin">Admin</span>
+      <span class="ep-expand">▾</span>
+    </div>
+    <div class="ep-body">
+      <div class="note note-info"><span class="note-icon">ℹ️</span><span>Invalid entries and the ghost account are skipped individually rather than failing the whole batch — check <code>errors</code> for what was skipped.</span></div>
+      <div class="cb"><div class="cb-header"><span class="cb-lang">json — request</span><button class="copy-btn" onclick="copyCode(this)"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg> Copy</button></div>
+      <pre>{
+  <span class="n">"updates"</span>: [
+    { <span class="n">"user_id"</span>: <span class="v">7</span>,  <span class="n">"new_role"</span>: <span class="s">"admin"</span> },
+    { <span class="n">"user_id"</span>: <span class="v">12</span>, <span class="n">"new_role"</span>: <span class="s">"user"</span> }
+  ]
+}</pre></div>
+      <div class="cb"><div class="cb-header"><span class="cb-lang">json — 200</span></div>
+      <pre>{ <span class="n">"success"</span>: <span class="v">true</span>, <span class="n">"message"</span>: <span class="s">"Successfully updated 2 user(s)"</span>, <span class="n">"errors"</span>: <span class="v">null</span> }</pre></div>
+      <div class="rpills">
+        <span class="rp rp-4">400 — {"success": false, "message": "No updates provided"}</span>
+        <span class="rp rp-4">400 — {"success": false, "message": "No updates applied", "errors": [...]}</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ANALYTICS -->
+  <h3 style="margin:1.5rem 0 .5rem;color:var(--text-1);font-size:1.05rem;">Analytics</h3>
+  <div class="note note-info"><span class="note-icon">ℹ️</span><span>The paginated results table, result/response detail popups, and PDF download all render HTML/binary, not JSON — see Web Routes: <code>/admin/users-analytics/results</code>, <code>/admin/users-analytics/view-result/{result_id}/{exam_id}</code>, <code>/admin/users-analytics/view-responses/{result_id}/{exam_id}</code>, <code>/admin/users-analytics/download-result/{result_id}</code>.</span></div>
+
+  <div class="ep" id="admin-analytics-stats">
+    <div class="ep-header" onclick="toggleEp(this)">
+      <span class="mb mb-GET">GET</span>
+      <span class="ep-path">/api/v01/admin/analytics/stats</span>
+      <span class="ep-summary">Site-wide totals for the analytics dashboard header</span>
+      <span class="badge-admin">Admin</span>
+      <span class="ep-expand">▾</span>
+    </div>
+    <div class="ep-body">
+      <div class="cb"><div class="cb-header"><span class="cb-lang">json — 200</span><button class="copy-btn" onclick="copyCode(this)"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg> Copy</button></div>
+      <pre>{ <span class="n">"total_users"</span>: <span class="v">312</span>, <span class="n">"total_exams"</span>: <span class="v">18</span>, <span class="n">"total_results"</span>: <span class="v">1204</span>, <span class="n">"total_responses"</span>: <span class="v">30512</span> }</pre></div>
+    </div>
+  </div>
+
+  <div class="ep" id="admin-analytics-data">
+    <div class="ep-header" onclick="toggleEp(this)">
+      <span class="mb mb-GET">GET</span>
+      <span class="ep-path">/api/v01/admin/analytics/data?timePeriod=&exam=&startDate=&endDate=</span>
+      <span class="ep-summary">Score distribution, top performers, per-exam stats, recent activity</span>
+      <span class="badge-admin">Admin</span>
+      <span class="ep-expand">▾</span>
+    </div>
+    <div class="ep-body">
+      <div class="note note-info"><span class="note-icon">ℹ️</span><span>Query params, all optional: <code>timePeriod</code> (<code>today | week | month | custom | all</code>, default <code>all</code>), <code>exam</code> (exam id filter), <code>startDate</code>/<code>endDate</code> (<code>YYYY-MM-DD</code>, required together when <code>timePeriod=custom</code>). Computed over at most the 50,000 most recent matching results.</span></div>
+      <div class="cb"><div class="cb-header"><span class="cb-lang">json — 200</span><button class="copy-btn" onclick="copyCode(this)"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg> Copy</button></div>
+      <pre>{
+  <span class="n">"summary"</span>: {
+    <span class="n">"avgScore"</span>:      <span class="v">72.4</span>,
+    <span class="n">"totalAttempts"</span>: <span class="v">1204</span>,
+    <span class="n">"passRate"</span>:      <span class="v">81.2</span>,
+    <span class="n">"activeUsers"</span>:   <span class="v">298</span>,
+    <span class="n">"scoreChange"</span>:      <span class="v">0</span>,
+    <span class="n">"attemptsChange"</span>:   <span class="v">0</span>,
+    <span class="n">"passRateChange"</span>:   <span class="v">0</span>,
+    <span class="n">"usersChange"</span>:      <span class="v">0</span>
+  },
+  <span class="n">"charts"</span>: {
+    <span class="n">"scoreDistribution"</span>: [<span class="v">120</span>, <span class="v">340</span>, <span class="v">410</span>, <span class="v">334</span>],  <span class="c">// counts for >=90, 75-89, 60-74, &lt;60</span>
+    <span class="n">"examPerformance"</span>:   { <span class="n">"labels"</span>: [<span class="s">"Midterm Physics"</span>], <span class="n">"data"</span>: [<span class="v">74.1</span>] },
+    <span class="n">"performanceTrends"</span>: { <span class="n">"labels"</span>: [], <span class="n">"data"</span>: [] },
+    <span class="n">"userActivity"</span>:      { <span class="n">"labels"</span>: [], <span class="n">"data"</span>: [] }
+  },
+  <span class="n">"tables"</span>: {
+    <span class="n">"topPerformers"</span>: [
+      { <span class="n">"student_id"</span>: <span class="s">"7"</span>, <span class="n">"username"</span>: <span class="s">"jane.doe"</span>, <span class="n">"full_name"</span>: <span class="s">"Jane Doe"</span>, <span class="n">"avgScore"</span>: <span class="v">94.5</span>, <span class="n">"attempts"</span>: <span class="v">3</span> }
+    ],
+    <span class="n">"recentActivity"</span>: [
+      { <span class="n">"created_at"</span>: <span class="s">"15 January 2025 10:30 AM"</span>, <span class="n">"username"</span>: <span class="s">"jane.doe"</span>, <span class="n">"full_name"</span>: <span class="s">"Jane Doe"</span>, <span class="n">"exam_name"</span>: <span class="s">"Midterm Physics"</span>, <span class="n">"score"</span>: <span class="v">76</span>, <span class="n">"max_score"</span>: <span class="v">100</span>, <span class="n">"percentage"</span>: <span class="v">76.0</span> }
+    ],
+    <span class="n">"examStats"</span>: [
+      { <span class="n">"name"</span>: <span class="s">"Midterm Physics"</span>, <span class="n">"attempts"</span>: <span class="v">204</span>, <span class="n">"avgScore"</span>: <span class="v">74.1</span>, <span class="n">"passRate"</span>: <span class="v">82.4</span> }
+    ]
+  }
+}</pre></div>
+      <div class="rpills"><span class="rp rp-5">500 — {"error": "Failed", "message": "&lt;error text&gt;"}</span></div>
+    </div>
+  </div>
+
+  <!-- AI GEN -->
+  <h3 style="margin:1.5rem 0 .5rem;color:var(--text-1);font-size:1.05rem;">AI Question Generation</h3>
+
+  <div class="ep" id="admin-ai-gen">
+    <div class="ep-header" onclick="toggleEp(this)">
+      <span class="mb mb-POST">POST</span>
+      <span class="ep-path">/api/v01/admin/ai/generate</span>
+      <span class="ep-summary">Start a background job that AI-generates exam questions</span>
+      <span class="badge-admin">Admin</span>
+      <span class="ep-expand">▾</span>
+    </div>
+    <div class="ep-body">
+      <div class="tabs">
+        <button class="tab active" onclick="switchTab(this,'t-aigen-req')">Request</button>
+        <button class="tab" onclick="switchTab(this,'t-aigen-res')">Response</button>
+        <button class="tab" onclick="switchTab(this,'t-aigen-err')">Errors</button>
+      </div>
+      <div class="tab-content active" id="t-aigen-req">
+        <div class="note note-info"><span class="note-icon">ℹ️</span><span><code>Content-Type: multipart/form-data</code>. <code>mode</code> determines what else is required: <code>extract</code>/<code>mine</code> need <code>pdf_file</code>; <code>pure</code> needs <code>topic</code>. This only starts the job — it returns a <code>job_id</code> immediately, it does not wait for generation to finish.</span></div>
+        <div class="cb"><div class="cb-header"><span class="cb-lang">multipart/form-data</span><button class="copy-btn" onclick="copyCode(this)"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg> Copy</button></div>
+        <pre>mode:                 <span class="s">"extract"</span>  <span class="c">// required — extract | mine | pure</span>
+exam_id:              <span class="v">42</span>       <span class="c">// required</span>
+difficulty:           <span class="s">"Medium"</span>   <span class="c">// default "Medium" — Easy | Medium | Hard</span>
+mcq_count:             <span class="v">5</span>        <span class="c">// default 0</span>
+msq_count:             <span class="v">2</span>        <span class="c">// default 0</span>
+numeric_count:          <span class="v">3</span>        <span class="c">// default 0</span>
+mcq_plus:               <span class="v">4</span>        <span class="c">// default 4 — positive marks per MCQ</span>
+mcq_minus:              <span class="v">1</span>        <span class="c">// default 1 — negative marks per MCQ</span>
+msq_plus:               <span class="v">4</span>        <span class="c">// default 4</span>
+msq_minus:              <span class="v">2</span>        <span class="c">// default 2</span>
+numeric_plus:           <span class="v">3</span>        <span class="c">// default 3</span>
+numeric_tolerance:      <span class="v">0.01</span>     <span class="c">// default 0.01</span>
+custom_instructions:   <span class="s">""</span>        <span class="c">// optional, free text</span>
+excluded_texts:        <span class="s">"[]"</span>       <span class="c">// optional, JSON-encoded array of strings to avoid duplicating</span>
+pdf_file:              <span class="s">&lt;file&gt;</span>     <span class="c">// required if mode is extract or mine</span>
+topic:                 <span class="s">"Newton's Laws"</span>  <span class="c">// required if mode is pure</span></pre></div>
+      </div>
+      <div class="tab-content" id="t-aigen-res">
+        <div class="cb"><div class="cb-header"><span class="cb-lang">json — 200</span><button class="copy-btn" onclick="copyCode(this)"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg> Copy</button></div>
+        <pre>{ <span class="n">"success"</span>: <span class="v">true</span>, <span class="n">"job_id"</span>: <span class="s">"a1b2c3d4e5f6"</span> }</pre></div>
+        <div class="note note-info"><span class="note-icon">ℹ️</span><span>Poll <code>GET /api/v01/admin/ai/status/{job_id}</code> with the returned <code>job_id</code> to track progress and retrieve the generated questions once <code>status</code> is <code>"done"</code>.</span></div>
+      </div>
+      <div class="tab-content" id="t-aigen-err">
+        <div class="rpills">
+          <span class="rp rp-4">400 — {"success": false, "message": "PDF file required"}</span>
+          <span class="rp rp-4">400 — {"success": false, "message": "No file selected"}</span>
+          <span class="rp rp-4">400 — {"success": false, "message": "Topic required"}</span>
+          <span class="rp rp-5">500 — {"success": false, "message": "Failed to start job: &lt;error&gt;"}</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="ep" id="admin-ai-status">
+    <div class="ep-header" onclick="toggleEp(this)">
+      <span class="mb mb-GET">GET</span>
+      <span class="ep-path">/api/v01/admin/ai/status/<span class="param">{job_id}</span></span>
+      <span class="ep-summary">Poll a generation job's progress</span>
+      <span class="badge-admin">Admin</span>
+      <span class="ep-expand">▾</span>
+    </div>
+    <div class="ep-body">
+      <div class="note note-info"><span class="note-icon">ℹ️</span><span>Job state is held in-process (in-memory) — only reliable when the app runs as a single worker. <code>status</code> is <code>running</code>, <code>done</code>, or <code>failed</code>; <code>questions</code> is populated once <code>done</code> (or partially populated on <code>failed</code>, if any batches succeeded before the error).</span></div>
+      <div class="cb"><div class="cb-header"><span class="cb-lang">json — 200 (in progress)</span><button class="copy-btn" onclick="copyCode(this)"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg> Copy</button></div>
+      <pre>{
+  <span class="n">"status"</span>:             <span class="s">"running"</span>,
+  <span class="n">"message"</span>:            <span class="s">"Generating batch 2 of 4..."</span>,
+  <span class="n">"last_event"</span>:         <span class="s">"batch_start"</span>,
+  <span class="n">"total_batches"</span>:      <span class="v">4</span>,
+  <span class="n">"completed_batches"</span>:  <span class="v">1</span>,
+  <span class="n">"questions_so_far"</span>:   <span class="v">5</span>,
+  <span class="n">"percent"</span>:            <span class="v">40</span>,
+  <span class="n">"questions"</span>:          [],
+  <span class="n">"error"</span>:              <span class="v">null</span>
+}</pre></div>
+      <div class="cb"><div class="cb-header"><span class="cb-lang">json — 200 (done)</span></div>
+      <pre>{
+  <span class="n">"status"</span>:   <span class="s">"done"</span>,
+  <span class="n">"message"</span>:  <span class="s">"Complete — 10 questions generated."</span>,
+  <span class="n">"percent"</span>:  <span class="v">100</span>,
+  <span class="n">"questions_so_far"</span>: <span class="v">10</span>,
+  <span class="n">"questions"</span>: [
+    {
+      <span class="n">"exam_id"</span>:        <span class="v">42</span>,
+      <span class="n">"question_text"</span>:  <span class="s">"A block of mass m slides..."</span>,
+      <span class="n">"option_a"</span>:       <span class="s">"..."</span>,
+      <span class="n">"correct_answer"</span>: <span class="s">"A"</span>,
+      <span class="n">"question_type"</span>:  <span class="s">"MCQ"</span>,
+      <span class="n">"positive_marks"</span>: <span class="v">4.0</span>,
+      <span class="n">"negative_marks"</span>: <span class="v">1.0</span>
+    }
+  ]
+}</pre></div>
+      <div class="rpills"><span class="rp rp-4">404 — {"success": false, "message": "Job not found"}</span></div>
+    </div>
+  </div>
+
+  <div class="note note-info"><span class="note-icon">ℹ️</span><span>Once a generation job's status is <code>done</code>, the admin UI navigates to <code>/admin/ai-command-centre/csv-upload?source=ai&amp;job_id={id}</code> — the CSV Editor re-fetches this same status endpoint to load the generated questions, then reuses the exact same preview/edit/Load More/save pipeline as a manually uploaded CSV (<code>POST /api/v01/admin/questions/import-csv</code>, documented under Questions). There is no separate save or export endpoint for AI-generated questions anymore.</span></div>
+
+  <!-- CATEGORIES -->
+  <h3 style="margin:1.5rem 0 .5rem;color:var(--text-1);font-size:1.05rem;">Categories</h3>
+
+  <div class="ep" id="admin-categories-list">
+    <div class="ep-header" onclick="toggleEp(this)">
+      <span class="mb mb-GET">GET</span>
+      <span class="ep-path">/api/v01/admin/categories</span>
+      <span class="ep-summary">List every exam category</span>
+      <span class="badge-admin">Admin</span>
+      <span class="ep-expand">▾</span>
+    </div>
+    <div class="ep-body">
+      <div class="cb"><div class="cb-header"><span class="cb-lang">json — 200</span><button class="copy-btn" onclick="copyCode(this)"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg> Copy</button></div>
+      <pre>{
+  <span class="n">"categories"</span>: [
+    { <span class="n">"id"</span>: <span class="v">3</span>, <span class="n">"name"</span>: <span class="s">"JEE Main"</span>, <span class="n">"drive_file_id"</span>: <span class="s">"Category/jee-main_a1b2c3d4.png"</span>, <span class="n">"image_url"</span>: <span class="s">"https://storage.example.com/note-assets/Category/jee-main_a1b2c3d4.png?X-Amz-..."</span> }
+  ]
+}</pre></div>
+    </div>
+  </div>
+
+  <div class="ep" id="admin-categories-create">
+    <div class="ep-header" onclick="toggleEp(this)">
+      <span class="mb mb-POST">POST</span>
+      <span class="ep-path">/api/v01/admin/categories</span>
+      <span class="ep-summary">Create a category, optionally with an image</span>
+      <span class="badge-admin">Admin</span>
+      <span class="ep-expand">▾</span>
+    </div>
+    <div class="ep-body">
+      <div class="note note-info"><span class="note-icon">ℹ️</span><span><code>Content-Type: multipart/form-data</code>. <code>name</code> required; <code>image</code> optional (png/jpg/jpeg/gif/webp, max 500 KB).</span></div>
+      <div class="cb"><div class="cb-header"><span class="cb-lang">multipart/form-data</span><button class="copy-btn" onclick="copyCode(this)"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg> Copy</button></div>
+      <pre>name:  <span class="s">"JEE Main"</span>   <span class="c">// required</span>
+image: <span class="s">&lt;file&gt;</span>      <span class="c">// optional</span></pre></div>
+      <div class="cb"><div class="cb-header"><span class="cb-lang">json — 200</span></div>
+      <pre>{ <span class="n">"success"</span>: <span class="v">true</span>, <span class="n">"category"</span>: { <span class="n">"id"</span>: <span class="v">3</span>, <span class="n">"name"</span>: <span class="s">"JEE Main"</span>, <span class="n">"drive_file_id"</span>: <span class="s">"Category/jee-main_a1b2c3d4.png"</span>, <span class="n">"image_url"</span>: <span class="s">"https://storage.example.com/note-assets/Category/jee-main_a1b2c3d4.png?X-Amz-..."</span> } }</pre></div>
+      <div class="rpills">
+        <span class="rp rp-4">400 — {"success": false, "message": "Name is required"}</span>
+        <span class="rp rp-4">400 — {"success": false, "message": "Failed — name may already exist"}</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="ep" id="admin-categories-update">
+    <div class="ep-header" onclick="toggleEp(this)">
+      <span class="mb mb-PATCH">PATCH</span>
+      <span class="ep-path">/api/v01/admin/categories/<span class="param">{cat_id}</span></span>
+      <span class="ep-summary">Rename a category and/or replace its image</span>
+      <span class="badge-admin">Admin</span>
+      <span class="ep-expand">▾</span>
+    </div>
+    <div class="ep-body">
+      <div class="note note-info"><span class="note-icon">ℹ️</span><span><code>Content-Type: multipart/form-data</code>. Both fields optional, but at least one must be present.</span></div>
+      <div class="cb"><div class="cb-header"><span class="cb-lang">multipart/form-data</span><button class="copy-btn" onclick="copyCode(this)"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg> Copy</button></div>
+      <pre>name:  <span class="s">"JEE Main (Updated)"</span>  <span class="c">// optional</span>
+image: <span class="s">&lt;file&gt;</span>              <span class="c">// optional — replaces the existing image</span></pre></div>
+      <div class="cb"><div class="cb-header"><span class="cb-lang">json — 200</span></div>
+      <pre>{ <span class="n">"success"</span>: <span class="v">true</span> }</pre></div>
+      <div class="rpills">
+        <span class="rp rp-4">404 — {"success": false, "message": "Category not found"}</span>
+        <span class="rp rp-4">400 — {"success": false, "message": "Nothing to update"}</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="ep" id="admin-categories-delete">
+    <div class="ep-header" onclick="toggleEp(this)">
+      <span class="mb mb-DELETE" style="background:var(--danger-bg);color:var(--danger-text);border:1px solid var(--danger-border);">DELETE</span>
+      <span class="ep-path">/api/v01/admin/categories/<span class="param">{cat_id}</span></span>
+      <span class="ep-summary">Delete a category (blocked if any exam still references it)</span>
+      <span class="badge-admin">Admin</span>
+      <span class="ep-expand">▾</span>
+    </div>
+    <div class="ep-body">
+      <div class="cb"><div class="cb-header"><span class="cb-lang">json — 200</span><button class="copy-btn" onclick="copyCode(this)"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg> Copy</button></div>
+      <pre>{ <span class="n">"success"</span>: <span class="v">true</span> }</pre></div>
+      <div class="rpills">
+        <span class="rp rp-4">404 — {"success": false, "message": "Category not found"}</span>
+        <span class="rp rp-4">400 — {"success": false, "message": "Cannot delete — exams are linked to this category. Reassign them first."}</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ATTEMPTS -->
+  <h3 style="margin:1.5rem 0 .5rem;color:var(--text-1);font-size:1.05rem;">Attempts</h3>
+
+  <div class="ep" id="admin-attempts-search">
+    <div class="ep-header" onclick="toggleEp(this)">
+      <span class="mb mb-GET">GET</span>
+      <span class="ep-path">/api/v01/admin/attempts/search?q=&exam_id=&status=&page=</span>
+      <span class="ep-summary">Paginated per-student, per-exam attempt usage</span>
+      <span class="badge-admin">Admin</span>
+      <span class="ep-expand">▾</span>
+    </div>
+    <div class="ep-body">
+      <div class="note note-info"><span class="note-icon">ℹ️</span><span>Query params, all optional: <code>q</code> (username/full_name search), <code>exam_id</code>, <code>status</code> (<code>unlimited | available | exhausted</code>), <code>page</code> (default 1, 50 per page).</span></div>
+      <div class="cb"><div class="cb-header"><span class="cb-lang">json — 200</span><button class="copy-btn" onclick="copyCode(this)"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg> Copy</button></div>
+      <pre>{
+  <span class="n">"rows"</span>: [
+    {
+      <span class="n">"student_id"</span>:    <span class="v">7</span>,
+      <span class="n">"username"</span>:      <span class="s">"jane.doe"</span>,
+      <span class="n">"exam_id"</span>:       <span class="v">42</span>,
+      <span class="n">"exam_name"</span>:     <span class="s">"Midterm Physics"</span>,
+      <span class="n">"max_attempts"</span>:  <span class="s">"3"</span>,
+      <span class="n">"attempts_used"</span>: <span class="v">2</span>,
+      <span class="n">"remaining"</span>:     <span class="v">1</span>,
+      <span class="n">"status"</span>:        <span class="s">"available"</span>
+    }
+  ],
+  <span class="n">"total"</span>:       <span class="v">1</span>,
+  <span class="n">"page"</span>:        <span class="v">1</span>,
+  <span class="n">"per_page"</span>:    <span class="v">50</span>,
+  <span class="n">"total_pages"</span>: <span class="v">1</span>
+}</pre></div>
+      <div class="note note-info"><span class="note-icon">ℹ️</span><span><code>max_attempts</code>/<code>remaining</code> are <code>"∞"</code> strings for exams with no attempt cap.</span></div>
+    </div>
+  </div>
+
+  <div class="ep" id="admin-attempts-modify">
+    <div class="ep-header" onclick="toggleEp(this)">
+      <span class="mb mb-POST">POST</span>
+      <span class="ep-path">/api/v01/admin/attempts/modify</span>
+      <span class="ep-summary">Reset, add, or remove attempts for one student on one exam</span>
+      <span class="badge-admin">Admin</span>
+      <span class="ep-expand">▾</span>
+    </div>
+    <div class="ep-body">
+      <div class="note note-info"><span class="note-icon">ℹ️</span><span><code>action</code>: <code>reset</code> (delete all attempts), <code>increase</code> (add <code>amount</code> manual attempts), <code>decrease</code> (remove the <code>amount</code> most recent attempts). <code>amount</code> defaults to 1.</span></div>
+      <div class="cb"><div class="cb-header"><span class="cb-lang">json — request</span><button class="copy-btn" onclick="copyCode(this)"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg> Copy</button></div>
+      <pre>{ <span class="n">"student_id"</span>: <span class="v">7</span>, <span class="n">"exam_id"</span>: <span class="v">42</span>, <span class="n">"action"</span>: <span class="s">"increase"</span>, <span class="n">"amount"</span>: <span class="v">1</span> }</pre></div>
+      <div class="cb"><div class="cb-header"><span class="cb-lang">json — 200</span></div>
+      <pre>{ <span class="n">"success"</span>: <span class="v">true</span> }</pre></div>
+      <div class="rpills">
+        <span class="rp rp-4">400 — {"success": false, "message": "Not enough attempts to remove"}</span>
+        <span class="rp rp-4">400 — {"success": false, "message": "Invalid action"}</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="ep" id="admin-attempts-bulk-modify">
+    <div class="ep-header" onclick="toggleEp(this)">
+      <span class="mb mb-POST">POST</span>
+      <span class="ep-path">/api/v01/admin/attempts/bulk-modify</span>
+      <span class="ep-summary">Apply the same reset/increase/decrease action to several student+exam pairs</span>
+      <span class="badge-admin">Admin</span>
+      <span class="ep-expand">▾</span>
+    </div>
+    <div class="ep-body">
+      <div class="note note-info"><span class="note-icon">ℹ️</span><span>Same <code>action</code>/<code>amount</code> semantics as <code>/attempts/modify</code>, applied to every item. Failures on individual items don't stop the rest — check <code>errors</code>.</span></div>
+      <div class="cb"><div class="cb-header"><span class="cb-lang">json — request</span><button class="copy-btn" onclick="copyCode(this)"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg> Copy</button></div>
+      <pre>{
+  <span class="n">"items"</span>: [
+    { <span class="n">"student_id"</span>: <span class="v">7</span>,  <span class="n">"exam_id"</span>: <span class="v">42</span> },
+    { <span class="n">"student_id"</span>: <span class="v">12</span>, <span class="n">"exam_id"</span>: <span class="v">42</span> }
+  ],
+  <span class="n">"action"</span>: <span class="s">"reset"</span>,
+  <span class="n">"amount"</span>: <span class="v">1</span>
+}</pre></div>
+      <div class="cb"><div class="cb-header"><span class="cb-lang">json — 200</span></div>
+      <pre>{ <span class="n">"success"</span>: <span class="v">true</span>, <span class="n">"processed"</span>: <span class="v">2</span>, <span class="n">"errors"</span>: <span class="v">null</span> }</pre></div>
+    </div>
+  </div>
+
+  <!-- ACCESS REQUESTS -->
+  <h3 style="margin:1.5rem 0 .5rem;color:var(--text-1);font-size:1.05rem;">Access Requests</h3>
+
+  <div class="ep" id="admin-requests-list">
+    <div class="ep-header" onclick="toggleEp(this)">
+      <span class="mb mb-GET">GET</span>
+      <span class="ep-path">/api/v01/admin/access-requests?status=pending&page=1</span>
+      <span class="ep-summary">Paginated list of role-change requests</span>
+      <span class="badge-admin">Admin</span>
+      <span class="ep-expand">▾</span>
+    </div>
+    <div class="ep-body">
+      <div class="note note-info"><span class="note-icon">ℹ️</span><span><code>status</code>: <code>pending</code> (default) or anything else, which returns both <code>completed</code> and <code>denied</code>. <code>page</code> default 1, 25 per page.</span></div>
+      <div class="cb"><div class="cb-header"><span class="cb-lang">json — 200</span><button class="copy-btn" onclick="copyCode(this)"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg> Copy</button></div>
+      <pre>{
+  <span class="n">"requests"</span>: [
+    {
+      <span class="n">"request_id"</span>:       <span class="v">14</span>,
+      <span class="n">"username"</span>:         <span class="s">"jane.doe"</span>,
+      <span class="n">"email"</span>:            <span class="s">"jane@example.com"</span>,
+      <span class="n">"current_access"</span>:   <span class="s">"user"</span>,
+      <span class="n">"requested_access"</span>: <span class="s">"admin"</span>,
+      <span class="n">"request_date"</span>:     <span class="s">"15 January 2025 10:30 AM"</span>,
+      <span class="n">"status"</span>:           <span class="s">"pending"</span>,
+      <span class="n">"reason"</span>:           <span class="s">"[USER REQUEST] I need to manage exams"</span>,
+      <span class="n">"processed_by"</span>:     <span class="s">"Admin"</span>,
+      <span class="n">"processed_date"</span>:   <span class="v">null</span>
+    }
+  ],
+  <span class="n">"total"</span>:       <span class="v">1</span>,
+  <span class="n">"page"</span>:        <span class="v">1</span>,
+  <span class="n">"per_page"</span>:    <span class="v">25</span>,
+  <span class="n">"total_pages"</span>: <span class="v">1</span>
+}</pre></div>
+    </div>
+  </div>
+
+  <div class="ep" id="admin-requests-stats">
+    <div class="ep-header" onclick="toggleEp(this)">
+      <span class="mb mb-GET">GET</span>
+      <span class="ep-path">/api/v01/admin/access-requests/stats</span>
+      <span class="ep-summary">Request-count totals by status</span>
+      <span class="badge-admin">Admin</span>
+      <span class="ep-expand">▾</span>
+    </div>
+    <div class="ep-body">
+      <div class="cb"><div class="cb-header"><span class="cb-lang">json — 200</span><button class="copy-btn" onclick="copyCode(this)"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg> Copy</button></div>
+      <pre>{ <span class="n">"pending"</span>: <span class="v">4</span>, <span class="n">"completed"</span>: <span class="v">18</span>, <span class="n">"denied"</span>: <span class="v">2</span>, <span class="n">"total"</span>: <span class="v">24</span> }</pre></div>
+    </div>
+  </div>
+
+  <div class="ep" id="admin-requests-approve">
+    <div class="ep-header" onclick="toggleEp(this)">
+      <span class="mb mb-POST">POST</span>
+      <span class="ep-path">/api/v01/admin/access-requests/<span class="param">{request_id}</span>/approve</span>
+      <span class="ep-summary">Approve a pending request and grant the new role</span>
+      <span class="badge-admin">Admin</span>
+      <span class="ep-expand">▾</span>
+    </div>
+    <div class="ep-body">
+      <div class="cb"><div class="cb-header"><span class="cb-lang">json — request</span><button class="copy-btn" onclick="copyCode(this)"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg> Copy</button></div>
+      <pre>{ <span class="n">"approved_access"</span>: <span class="s">"admin"</span> }</pre></div>
+      <div class="cb"><div class="cb-header"><span class="cb-lang">json — 200</span></div>
+      <pre>{ <span class="n">"success"</span>: <span class="v">true</span>, <span class="n">"message"</span>: <span class="s">"Approved. User now has admin access."</span> }</pre></div>
+      <div class="rpills">
+        <span class="rp rp-4">400 — {"success": false, "message": "Please select an access level"}</span>
+        <span class="rp rp-4">404 — {"success": false, "message": "Request not found or already processed"}</span>
+        <span class="rp rp-4">404 — {"success": false, "message": "User not found"}</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="ep" id="admin-requests-deny">
+    <div class="ep-header" onclick="toggleEp(this)">
+      <span class="mb mb-POST">POST</span>
+      <span class="ep-path">/api/v01/admin/access-requests/<span class="param">{request_id}</span>/deny</span>
+      <span class="ep-summary">Deny a pending request with a reason</span>
+      <span class="badge-admin">Admin</span>
+      <span class="ep-expand">▾</span>
+    </div>
+    <div class="ep-body">
+      <div class="cb"><div class="cb-header"><span class="cb-lang">json — request</span><button class="copy-btn" onclick="copyCode(this)"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg> Copy</button></div>
+      <pre>{ <span class="n">"reason"</span>: <span class="s">"Not eligible for admin access at this time."</span> }</pre></div>
+      <div class="cb"><div class="cb-header"><span class="cb-lang">json — 200</span></div>
+      <pre>{ <span class="n">"success"</span>: <span class="v">true</span>, <span class="n">"message"</span>: <span class="s">"Request denied."</span> }</pre></div>
+      <div class="rpills">
+        <span class="rp rp-4">400 — {"success": false, "message": "Please provide a denial reason"}</span>
+        <span class="rp rp-4">404 — {"success": false, "message": "Not found or already processed"}</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- IMAGES -->
+  <h3 style="margin:1.5rem 0 .5rem;color:var(--text-1);font-size:1.05rem;">Images</h3>
+
+  <div class="ep" id="admin-images">
+    <div class="ep-header" onclick="toggleEp(this)">
+      <span class="mb mb-POST">POST</span>
+      <span class="ep-path">/api/v01/admin/images</span>
+      <span class="ep-summary">Bulk-upload question images to a subject's storage folder</span>
+      <span class="badge-admin">Admin</span>
+      <span class="ep-expand">▾</span>
+    </div>
+    <div class="ep-body">
+      <div class="note note-info"><span class="note-icon">ℹ️</span><span><code>Content-Type: multipart/form-data</code>. Files matching an existing filename in the target folder are overwritten (updated in place) rather than duplicated.</span></div>
+      <div class="cb"><div class="cb-header"><span class="cb-lang">multipart/form-data</span><button class="copy-btn" onclick="copyCode(this)"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg> Copy</button></div>
+      <pre>subject_folder_id: <span class="s">"1AbCFolderId..."</span>  <span class="c">// required</span>
+images:            <span class="s">&lt;file&gt;, &lt;file&gt;, ...</span>  <span class="c">// required, one or more</span></pre></div>
+      <div class="cb"><div class="cb-header"><span class="cb-lang">json — 200</span></div>
+      <pre>{
+  <span class="n">"success"</span>:  <span class="v">true</span>,
+  <span class="n">"uploaded"</span>: <span class="v">2</span>,
+  <span class="n">"failed"</span>:   [
+    { <span class="n">"filename"</span>: <span class="s">"q17.bmp"</span>, <span class="n">"error"</span>: <span class="s">"Not allowed (.bmp)"</span> }
+  ]
+}</pre></div>
+      <div class="rpills">
+        <span class="rp rp-4">400 — {"success": false, "message": "No folder selected."}</span>
+        <span class="rp rp-4">400 — {"success": false, "message": "No files received."}</span>
+        <span class="rp rp-5">500 — {"success": false, "message": "&lt;storage service error&gt;"}</span>
+      </div>
+      <div class="note note-info"><span class="note-icon">ℹ️</span><span>Allowed extensions and the per-file size cap are server config (<code>ALLOWED_IMAGE_EXTS</code>, <code>MAX_IMAGE_SIZE_KB</code>, default 500 KB) — oversized/disallowed files are reported per-file in <code>failed</code>, not rejected as a whole request.</span></div>
+    </div>
+  </div>
+
+  <!-- DISCUSSION MODERATION -->
+  <h3 style="margin:1.5rem 0 .5rem;color:var(--text-1);font-size:1.05rem;">Discussion Moderation</h3>
+
+  <div class="ep" id="admin-discussion-pin">
+    <div class="ep-header" onclick="toggleEp(this)">
+      <span class="mb mb-PUT">PUT</span>
+      <span class="ep-path">/api/v01/admin/discussions/comments/<span class="param">{comment_id}</span>/pin</span>
+      <span class="ep-summary">Toggle a discussion comment's pinned state</span>
+      <span class="badge-admin">Admin</span>
+      <span class="ep-expand">▾</span>
+    </div>
+    <div class="ep-body">
+      <div class="note note-info"><span class="note-icon">ℹ️</span><span>No request body. Flips the comment's current pinned flag.</span></div>
+      <div class="cb"><div class="cb-header"><span class="cb-lang">json — 200</span><button class="copy-btn" onclick="copyCode(this)"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg> Copy</button></div>
+      <pre>{ <span class="n">"success"</span>: <span class="v">true</span>, <span class="n">"is_pinned"</span>: <span class="v">true</span> }</pre></div>
+      <div class="rpills"><span class="rp rp-4">404 — {"success": false}</span></div>
+    </div>
+  </div>
+
+  <div class="ep" id="admin-discussion-best">
+    <div class="ep-header" onclick="toggleEp(this)">
+      <span class="mb mb-PUT">PUT</span>
+      <span class="ep-path">/api/v01/admin/discussions/comments/<span class="param">{comment_id}</span>/best</span>
+      <span class="ep-summary">Toggle a comment as the best answer for its question</span>
+      <span class="badge-admin">Admin</span>
+      <span class="ep-expand">▾</span>
+    </div>
+    <div class="ep-body">
+      <div class="note note-info"><span class="note-icon">ℹ️</span><span>No request body. Marking a comment best-answer automatically un-marks any other best-answer on the same question — at most one per question.</span></div>
+      <div class="cb"><div class="cb-header"><span class="cb-lang">json — 200</span><button class="copy-btn" onclick="copyCode(this)"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg> Copy</button></div>
+      <pre>{ <span class="n">"success"</span>: <span class="v">true</span>, <span class="n">"is_best_answer"</span>: <span class="v">true</span> }</pre></div>
+      <div class="rpills"><span class="rp rp-4">404 — {"success": false}</span></div>
+    </div>
+  </div>
+</section>
+
+<!-- NOTES / NOTEBOOKS -->
+<section class="section" id="notes-section">
+  <div class="section-header">
+    <span class="section-tag">Notes</span>
+    <h2 class="section-title">Notes / Notebooks API</h2>
+    <p class="section-desc">Notebook, page, and asset CRUD for the drawing-canvas Notes feature, plus the public library. All require auth. Base path: <code>/api/v01/</code>. Newly documented in the v01 refactor — request/response bodies follow the same <code>{ success, ... }</code> shape as the rest of this reference.</p>
+  </div>
+  <div class="admin-grid">
+    <div class="ag-row"><span class="ag-method mb-POST">POST</span><div><div class="ag-path">/api/v01/notebooks</div><div class="ag-desc">Create a notebook</div></div></div>
+    <div class="ag-row"><span class="ag-method mb-GET">GET</span><div><div class="ag-path">/api/v01/notebooks/{notebook_id}</div><div class="ag-desc">Fetch one owned notebook</div></div></div>
+    <div class="ag-row"><span class="ag-method mb-PATCH">PATCH</span><div><div class="ag-path">/api/v01/notebooks/{notebook_id}</div><div class="ag-desc">Rename / update notebook</div></div></div>
+    <div class="ag-row"><span class="ag-method mb-DELETE" style="background:var(--danger-bg);color:var(--danger-text);border:1px solid var(--danger-border);">DELETE</span><div><div class="ag-path">/api/v01/notebooks/{notebook_id}</div><div class="ag-desc">Move to Trash</div></div></div>
+    <div class="ag-row"><span class="ag-method mb-POST">POST</span><div><div class="ag-path">/api/v01/notebooks/{notebook_id}/restore</div><div class="ag-desc">Restore from Trash</div></div></div>
+    <div class="ag-row"><span class="ag-method mb-DELETE" style="background:var(--danger-bg);color:var(--danger-text);border:1px solid var(--danger-border);">DELETE</span><div><div class="ag-path">/api/v01/notebooks/{notebook_id}/permanent</div><div class="ag-desc">Permanently delete (must be in Trash)</div></div></div>
+    <div class="ag-row"><span class="ag-method mb-GET">GET</span><div><div class="ag-path">/api/v01/notebooks/{notebook_id}/pages</div><div class="ag-desc">List pages</div></div></div>
+    <div class="ag-row"><span class="ag-method mb-POST">POST</span><div><div class="ag-path">/api/v01/notebooks/{notebook_id}/pages</div><div class="ag-desc">Create a page</div></div></div>
+    <div class="ag-row"><span class="ag-method mb-PATCH">PATCH</span><div><div class="ag-path">/api/v01/notebooks/{notebook_id}/pages/{page_id}</div><div class="ag-desc">Rename page</div></div></div>
+    <div class="ag-row"><span class="ag-method mb-DELETE" style="background:var(--danger-bg);color:var(--danger-text);border:1px solid var(--danger-border);">DELETE</span><div><div class="ag-path">/api/v01/notebooks/{notebook_id}/pages/{page_id}</div><div class="ag-desc">Delete page</div></div></div>
+    <div class="ag-row"><span class="ag-method mb-GET">GET</span><div><div class="ag-path">/api/v01/notebooks/{notebook_id}/pages/{page_id}/objects</div><div class="ag-desc">Fetch canvas objects for a page</div></div></div>
+    <div class="ag-row"><span class="ag-method mb-PUT">PUT</span><div><div class="ag-path">/api/v01/notebooks/{notebook_id}/pages/{page_id}/objects</div><div class="ag-desc">Save canvas objects. Body: <code>{ objects, deleted_ids, start_index }</code></div></div></div>
+    <div class="ag-row"><span class="ag-method mb-POST">POST</span><div><div class="ag-path">/api/v01/notebooks/{notebook_id}/assets</div><div class="ag-desc">Upload an image asset (multipart <code>image</code>)</div></div></div>
+    <div class="ag-row"><span class="ag-method mb-GET">GET</span><div><div class="ag-path">/api/v01/assets/{asset_id}/url</div><div class="ag-desc">Signed/local URL for one asset</div></div></div>
+    <div class="ag-row"><span class="ag-method mb-GET">GET</span><div><div class="ag-path">/api/v01/assets/{asset_id}/file</div><div class="ag-desc">Same-origin byte stream (used by PDF export to avoid canvas tainting)</div></div></div>
+    <div class="ag-row"><span class="ag-method mb-POST">POST</span><div><div class="ag-path">/api/v01/notebooks/import</div><div class="ag-desc">Import a notebook from exported JSON</div></div></div>
+    <div class="ag-row"><span class="ag-method mb-GET">GET</span><div><div class="ag-path">/api/v01/notebooks/{notebook_id}/export</div><div class="ag-desc">Export owned notebook as downloadable JSON</div></div></div>
+    <div class="ag-row"><span class="ag-method mb-GET">GET</span><div><div class="ag-path">/api/v01/notebooks/{notebook_id}/export-data</div><div class="ag-desc">Every page's objects in one request — PDF export is assembled client-side (jsPDF), no server PDF route</div></div></div>
+    <div class="ag-row"><span class="ag-method mb-GET">GET</span><div><div class="ag-path">/api/v01/library?q=</div><div class="ag-desc">Search the public notebook library</div></div></div>
+    <div class="ag-row"><span class="ag-method mb-POST">POST</span><div><div class="ag-path">/api/v01/library/{notebook_id}/{kind}</div><div class="ag-desc">Toggle engagement, <code>kind</code>: <code>like | bookmark</code></div></div></div>
+    <div class="ag-row"><span class="ag-method mb-GET">GET</span><div><div class="ag-path">/api/v01/library/{notebook_id}/pages</div><div class="ag-desc">List pages of a public notebook</div></div></div>
+    <div class="ag-row"><span class="ag-method mb-GET">GET</span><div><div class="ag-path">/api/v01/library/{notebook_id}/pages/{page_id}/objects</div><div class="ag-desc">Fetch canvas objects (public, read-only)</div></div></div>
+    <div class="ag-row"><span class="ag-method mb-GET">GET</span><div><div class="ag-path">/api/v01/library/{notebook_id}/export</div><div class="ag-desc">Export a public notebook as downloadable JSON</div></div></div>
+  </div>
+</section>
+
+<!-- WEB ROUTES -->
+<section class="section" id="web-routes-section">
+  <div class="section-header">
+    <span class="section-tag">Web</span>
+    <h2 class="section-title">Web Routes</h2>
+    <p class="section-desc">HTML pages — not JSON APIs. Listed separately per the site's route/API separation. Most require a logged-in session and redirect to <code>/login</code> (or <code>/admin/login</code>) otherwise.</p>
+  </div>
+  <div class="admin-grid">
+    <div class="ag-row"><span class="ag-method mb-GET">GET</span><div><div class="ag-path">/, /about, /contact, /support, /privacy-policy, /terms-of-service, /account-deletion-policy</div><div class="ag-desc">Public static pages</div></div></div>
+    <div class="ag-row"><span class="ag-method mb-GET">GET</span><div><div class="ag-path">/login, /create_account, /select-portal, /logout</div><div class="ag-desc">Auth pages</div></div></div>
+    <div class="ag-row"><span class="ag-method mb-GET">GET</span><div><div class="ag-path">/reset-password[/{token}], /setup-password/{token}</div><div class="ag-desc">Password reset / account setup pages</div></div></div>
+    <div class="ag-row"><span class="ag-method mb-GET">GET</span><div><div class="ag-path">/auth/google, /auth/google/callback</div><div class="ag-desc">Google OAuth redirect flow — never rename, registered with Google's console</div></div></div>
+    <div class="ag-row"><span class="ag-method mb-GET">GET</span><div><div class="ag-path">/dashboard, /results_history, /analytics</div><div class="ag-desc">Student dashboard, exam history, personal analytics</div></div></div>
+    <div class="ag-row"><span class="ag-method mb-GET">GET</span><div><div class="ag-path">/select-category, /set-category</div><div class="ag-desc">Category selection</div></div></div>
+    <div class="ag-row"><span class="ag-method mb-GET">GET</span><div><div class="ag-path">/exam-instructions/{exam_id}, /exam/{exam_id}</div><div class="ag-desc">Exam instructions and the exam-taking page</div></div></div>
+    <div class="ag-row"><span class="ag-method mb-POST">POST</span><div><div class="ag-path">/submit-exam/{exam_id}</div><div class="ag-desc">Submit exam — redirects to result or result-pending</div></div></div>
+    <div class="ag-row"><span class="ag-method mb-GET">GET</span><div><div class="ag-path">/result/{exam_id}[/{result_id}], /response/{exam_id}[/{result_id}], /result-pending/{exam_id}[/{result_id}]</div><div class="ag-desc">Result / response-review / pending pages</div></div></div>
+    <div class="ag-row"><span class="ag-method mb-GET">GET</span><div><div class="ag-path">/response-pdf/{exam_id}</div><div class="ag-desc">Student's own response PDF download</div></div></div>
+    <div class="ag-row"><span class="ag-method mb-GET">GET</span><div><div class="ag-path">/notes, /notes/trash, /notes/library, /notes/notebook/{id}, /notes/public/{id}</div><div class="ag-desc">Notes pages</div></div></div>
+    <div class="ag-row"><span class="ag-method mb-GET">GET</span><div><div class="ag-path">/notes/asset-file/{path}</div><div class="ag-desc">Local-storage-backend asset streaming (also <code>STORAGE_LOCAL_URL_PREFIX</code> — do not rename)</div></div></div>
+    <div class="ag-row"><span class="ag-method mb-GET">GET</span><div><div class="ag-path">/chat, /ai-assistant</div><div class="ag-desc">Chat and AI Study Assistant page shells (JSON APIs documented above)</div></div></div>
+    <div class="ag-row"><span class="ag-method mb-GET">GET</span><div><div class="ag-path">/api-docs</div><div class="ag-desc">This page</div></div></div>
+    <div class="ag-row"><span class="ag-method mb-GET">GET</span><div><div class="ag-path">/admin/login, /admin/logout, /admin/dashboard, /admin/publish</div><div class="ag-desc">Admin auth + dashboard</div></div></div>
+    <div class="ag-row"><span class="ag-method mb-GET">GET</span><div><div class="ag-path">/admin/subjects[/edit/{id}], /admin/categories, /admin/exams[/edit/{id}], /admin/questions, /admin/upload-images, /admin/latex_editor</div><div class="ag-desc">Admin content-management pages (JSON APIs documented above)</div></div></div>
+    <div class="ag-row"><span class="ag-method mb-POST">POST</span><div><div class="ag-path">/admin/subjects/delete/{id}, /admin/questions/delete/{id}</div><div class="ag-desc">Form-POST deletes (not JSON)</div></div></div>
+    <div class="ag-row"><span class="ag-method mb-GET">GET</span><div><div class="ag-path">/admin/questions/export-csv/{exam_id}</div><div class="ag-desc">CSV download</div></div></div>
+    <div class="ag-row"><span class="ag-method mb-GET">GET</span><div><div class="ag-path">/admin/attempts, /admin/requests, /admin/users-analytics[/results|/analytics], /admin/ai-command-centre</div><div class="ag-desc">Admin management pages, data loaded via the JSON APIs documented above</div></div></div>
+    <div class="ag-row"><span class="ag-method mb-GET">GET</span><div><div class="ag-path">/admin/users-analytics/view-result/{result_id}/{exam_id}, /admin/users-analytics/view-responses/{result_id}/{exam_id}</div><div class="ag-desc">Result/response detail popups</div></div></div>
+    <div class="ag-row"><span class="ag-method mb-GET">GET</span><div><div class="ag-path">/admin/users-analytics/download-result/{result_id}</div><div class="ag-desc">Result PDF download</div></div></div>
+  </div>
+</section>
+
+</div><!-- apidoc-main-inner -->
+</div><!-- apidoc-main -->
+</div><!-- apidoc-body -->
+
+<footer class="apidoc-footer">
+  <div class="footer-left">
+    <span>© <span id="footer-year">2025</span> SmartAIExam</span>
+    <span style="color:var(--text-3)">·</span>
+    <span>API Reference <span id="footer-version">v01</span></span>
+  </div>
+      <a class="footer-logo">
+          <video src="{{ url_for('static', filename='logo.mp4') }}" autoplay loop muted playsinline style="height:26px;width:auto;"></video>
+      </a>
+  <span id="footer-url" style="color:var(--text3);"></span>
+</footer>
+</div><!-- apidoc-wrap -->
+
+<script>
+/* ── INIT: inject config values ── */
+document.addEventListener('DOMContentLoaded', () => {
+  const b = API_CONFIG.baseUrl;
+  const v = API_CONFIG.version;
+  const y = API_CONFIG.year;
+
+  document.getElementById('hdr-version').textContent    = v;
+  document.getElementById('hdr-version-chip').textContent = v;
+  document.getElementById('hdr-url-text').textContent   = b.replace(/^https?:\/\//, '');
+  document.getElementById('ic-base-url').textContent    = b.replace(/^https?:\/\//, '');
+  document.getElementById('ic-version').textContent     = v;
+  document.getElementById('footer-year').textContent    = y;
+  document.getElementById('footer-version').textContent = v;
+  document.getElementById('footer-url').textContent     = b.replace(/^https?:\/\//, '');
+});
+
+/* ── SIDEBAR COLLAPSE — no flicker ── */
+(function(){
+  const sb = document.getElementById('sidebar');
+  const icon = document.getElementById('sb-collapse-icon');
+  const wrap = document.getElementById('apidoc-body');
+  if (!sb) return;
+  sb.style.transition = 'none';
+  if (localStorage.getItem('sae-sb-collapsed') === '1' && window.innerWidth > 768) {
+    sb.classList.add('sb-collapsed');
+    if (wrap) wrap.classList.add('sb-is-collapsed');
+    if (icon) icon.style.transform = 'rotate(180deg)';
+  }
+  requestAnimationFrame(() => requestAnimationFrame(() => { sb.style.transition = ''; }));
+})();
+
+function toggleSidebarCollapse() {
+  const sb = document.getElementById('sidebar');
+  const icon = document.getElementById('sb-collapse-icon');
+  const wrap = document.getElementById('apidoc-body');
+  const isNow = sb.classList.toggle('sb-collapsed');
+  if (wrap) wrap.classList.toggle('sb-is-collapsed', isNow);
+  icon.style.transform = isNow ? 'rotate(180deg)' : '';
+  localStorage.setItem('sae-sb-collapsed', isNow ? '1' : '0');
+}
+
+/* ── GROUP COLLAPSE ── */
+function toggleGroup(id) {
+  document.getElementById(id).classList.toggle('open');
+}
+
+/* ── SIDEBAR SEARCH ── */
+function filterSidebar(q) {
+  const t = q.trim().toLowerCase();
+  document.querySelectorAll('.sl').forEach(l => {
+    l.classList.toggle('hidden', t.length > 0 && !l.textContent.toLowerCase().includes(t));
+  });
+  if (t.length > 0) document.querySelectorAll('.sg').forEach(g => g.classList.remove('collapsed'));
+}
+
+/* ── ENDPOINT TOGGLE ── */
+function toggleEp(header) { header.parentElement.classList.toggle('open'); }
+
+/* ── TAB SWITCHER ── */
+function switchTab(btn, tid) {
+  const body = btn.closest('.ep-body');
+  body.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  body.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+  btn.classList.add('active');
+  const el = document.getElementById(tid);
+  if (el) el.classList.add('active');
+}
+
+/* ── COPY CODE ── */
+function copyCode(btn) {
+  const pre = btn.closest('.cb').querySelector('pre');
+  const text = pre.innerText || pre.textContent;
+  navigator.clipboard.writeText(text).then(() => {
+    btn.innerHTML = '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg> Copied!';
+    btn.classList.add('copied');
+    setTimeout(() => {
+      btn.innerHTML = '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg> Copy';
+      btn.classList.remove('copied');
+    }, 2000);
+  });
+}
+
+/* ── COPY BASE URL ── */
+function copyBaseUrl() {
+  navigator.clipboard.writeText(API_CONFIG.baseUrl).then(() => {
+    const el = document.getElementById('hdr-url-text');
+    const ic = document.getElementById('ic-base-url');
+    const orig = el.textContent;
+    el.textContent = 'Copied!';
+    if (ic) ic.textContent = 'Copied!';
+    setTimeout(() => {
+      el.textContent = API_CONFIG.baseUrl.replace(/^https?:\/\//, '');
+      if (ic) ic.textContent = API_CONFIG.baseUrl.replace(/^https?:\/\//, '');
+    }, 1500);
+  });
+}
+
+/* ── ACTIVE SIDEBAR LINK on scroll ── */
+const allSections = document.querySelectorAll('.section, .ep');
+const sidebarLinks = document.querySelectorAll('.sl');
+const _scrollRoot = document.querySelector('.apidoc-main-inner');
+const io = new IntersectionObserver(entries => {
+  entries.forEach(e => {
+    if (!e.isIntersecting) return;
+    const id = e.target.id;
+    if (!id) return;
+    sidebarLinks.forEach(l => l.classList.toggle('active', l.getAttribute('href') === '#' + id));
+  });
+}, { root: _scrollRoot, rootMargin: '-10% 0px -75% 0px', threshold: 0 });
+allSections.forEach(s => { if (s.id) io.observe(s); });
+
+/* ── URL INJECT — single source of truth ── */
+(function() {
+  const base    = API_CONFIG.baseUrl;                         // e.g. https://smartaiexam.in
+  const display = base.replace(/^https?:\/\//, '');           // e.g. smartaiexam.in
+
+  // Named elements
+  ['hdr-url-text', 'ic-base-url', 'footer-url'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.textContent = display;
+  });
+
+  // Code block strings — replace any leftover hardcoded URL
+  document.querySelectorAll('.cb pre .s').forEach(el => {
+    if (el.textContent.includes('smartaiexam.in')) {
+      el.textContent = el.textContent.replace(/https?:\/\/smartaiexam\.in/g, base)
+                                     .replace(/smartaiexam\.in/g, display);
+    }
+  });
+})();
+
+/* ── MOBILE SIDEBAR ── */
+function toggleMobileSidebar() {
+  const sb = document.getElementById('sidebar');
+  const ov = document.getElementById('mobOverlay');
+  const open = sb.classList.toggle('mob-sb-open');
+  ov.classList.toggle('active', open);
+}
+
+/* ── SMOOTH SCROLL ── */
+function _getScrollParent(el) {
+  while (el && el !== document.documentElement) {
+    const ov = getComputedStyle(el).overflowY;
+    if ((ov === 'auto' || ov === 'scroll') && el.scrollHeight > el.clientHeight) return el;
+    el = el.parentElement;
+  }
+  return window;
+}
+
+document.querySelectorAll('a[href^="#"]').forEach(a => {
+  a.addEventListener('click', e => {
+    const href = a.getAttribute('href');
+    if (!href || href === '#') return;
+    const target = document.querySelector(href);
+    if (!target) return;
+    e.preventDefault();
+
+    // Open collapsed .ep if target is one or inside one
+    if (target.classList.contains('ep')) target.classList.add('open');
+    const parentEp = target.closest ? target.closest('.ep:not(#' + target.id + ')') : null;
+    if (parentEp) parentEp.classList.add('open');
+
+    // rAF so layout settles after opening collapsed elements
+    requestAnimationFrame(() => {
+      const scroller = _getScrollParent(target);
+      const OFFSET = 28;
+      if (scroller === window) {
+        window.scrollTo({ top: window.scrollY + target.getBoundingClientRect().top - OFFSET, behavior: 'smooth' });
+      } else {
+        const diff = target.getBoundingClientRect().top - scroller.getBoundingClientRect().top;
+        scroller.scrollTo({ top: scroller.scrollTop + diff - OFFSET, behavior: 'smooth' });
+      }
+    });
+
+    // Active link update
+    document.querySelectorAll('.sl').forEach(l =>
+      l.classList.toggle('active', l.getAttribute('href') === href)
+    );
+  });
+});
+</script>
+
+{% endblock %}

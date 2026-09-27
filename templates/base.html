@@ -1,0 +1,1476 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <link rel="icon" type="image/x-icon" href="{{ url_for('static', filename='logo.png') }}">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}SmartAIExam{% endblock %}</title>
+
+  <script>
+  (function(){
+    var lt = localStorage.getItem('landingTheme') || 'sunset';
+    document.documentElement.setAttribute('data-theme', lt === 'paper' ? 'light' : lt);
+    if (localStorage.getItem('sbCollapsed') === '1')
+      document.documentElement.setAttribute('data-sb', 'collapsed');
+  })();
+  </script>
+
+  <link href="{{ url_for('static', filename='theme.css') }}" rel="stylesheet">
+  <link href="{{ url_for('static', filename='shared/ai-badge.css') }}" rel="stylesheet">
+  <link href="{{ url_for('static', filename='shared/plan-badge.css') }}" rel="stylesheet">
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
+  <script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js" defer></script>
+  <!-- mhchem must load after katex.min.js but before auto-render.min.js (per KaTeX docs) -->
+  <script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/mhchem.min.js" defer></script>
+  <script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js" defer></script>
+  <script>
+  // _mathJaxReady / _mathJaxReadyPromise: MathJax-script below loads `async`,
+  // so `window.MathJax` exists immediately as this plain config object, but
+  // `MathJax.typesetPromise` isn't attached until the library itself finishes
+  // downloading and initializing — calling it before then throws synchronously
+  // (not a promise rejection, so .catch() never sees it), which is what caused
+  // LaTeX to sometimes render as raw source on first load. startup.ready()
+  // fires only once MathJax is fully usable. window.mathJaxTypeset() (defined
+  // below) is the one safe way any page/script should ever call MathJax from
+  // now on: it waits for readiness instead of guessing with a timeout, AND
+  // serializes every call through one shared queue, since calling
+  // MathJax.typesetPromise() again while a previous call is still in flight
+  // is unsafe (observed in production as "Cannot read properties of null
+  // (reading 'replaceChild')" when multiple pieces of content typeset
+  // concurrently) — every caller across the app now shares this one queue.
+  //
+  // startup.typeset:false — MathJax's default (true) makes it automatically
+  // typeset the whole document itself once ready, via its own internal,
+  // unserialized call. That call raced window.mathJaxTypeset()'s own queued
+  // typesetPromise() call on the very same elements (confirmed empirically:
+  // MathJax's auto pass mutated the question/option nodes microseconds
+  // before our own call started), which is exactly the kind of concurrent
+  // typesetting this queue exists to prevent — root cause of LaTeX
+  // sometimes rendering, sometimes showing as raw source. Disabling it means
+  // the only typesetting that ever happens goes through our single queue.
+  window._mathJaxReady = false;
+  window._mathJaxReadyPromise = new Promise(function(resolve){ window._mathJaxReadyResolve = resolve; });
+  window.MathJax={
+    loader:{load:['[tex]/mhchem']},
+    tex:{
+      packages:{'[+]':['mhchem']},
+      inlineMath:[['$','$'],['\\(','\\)']],
+      displayMath:[['$$','$$'],['\\[','\\]']],
+      processEscapes:true,
+      processEnvironments:true
+    },
+    chtml:{linebreaks:{automatic:true,width:"container"}},
+    options:{skipHtmlTags:['script','noscript','style','textarea','pre','code']},
+    startup:{
+      typeset:false,
+      ready(){
+        MathJax.startup.defaultReady();
+        window._mathJaxReady = true;
+        window._mathJaxReadyResolve();
+      }
+    }
+  };
+  // Safe MathJax typeset helper — call any time (before or after MathJax has
+  // finished loading, any number of times concurrently). `elements` optionally
+  // scopes typesetting to specific DOM nodes (faster than a full-document
+  // typeset, and lets typesetClear() re-typeset already-rendered nodes
+  // cleanly); omit for the whole page. Returns a Promise resolved once this
+  // call's typesetting actually completes.
+  window._mathJaxQueue = Promise.resolve();
+  window.mathJaxTypeset = function(elements){
+    window._mathJaxQueue = window._mathJaxQueue
+      .then(function(){ return window._mathJaxReady ? null : window._mathJaxReadyPromise; })
+      .then(function(){
+        if (!window.MathJax || typeof MathJax.typesetPromise !== 'function') return;
+        if (elements && typeof MathJax.typesetClear === 'function') {
+          try { MathJax.typesetClear(elements); } catch(e) {}
+        }
+        return MathJax.typesetPromise(elements);
+      })
+      .catch(function(e){ console.warn('[MathJax]', e); });
+    return window._mathJaxQueue;
+  };
+  </script>
+  <!-- mhchem: required for \ce{...} chemistry notation used by AI explanations.
+       Version pinned (not the floating "@3" alias) so a new MathJax release
+       can never silently change behavior on this page. -->
+  <script id="MathJax-script" src="https://cdn.jsdelivr.net/npm/mathjax@3.2.2/es5/tex-mml-chtml.js" async></script>
+
+  <style>
+  *, *::before, *::after { box-sizing: border-box; }
+  html, body { margin:0; padding:0; }
+  body {
+    min-height:100vh; font-family:'DM Sans',system-ui,sans-serif;
+    background:var(--bg); color:var(--text-1);
+    display:flex; flex-direction:column;
+  }
+
+  /* ══ TOP NAV (thin — only brand + profile) ═══════════════════ */
+  .t-nav {
+    height:48px; background:var(--surface); border-bottom:1px solid var(--border);
+    display:flex; align-items:center; padding:0 1rem; gap:.75rem;
+    position:sticky; top:0; z-index:200; flex-shrink:0;
+  }
+  .t-nav-brand {
+    display:flex; align-items:center; gap:.5rem;
+    text-decoration:none; flex-shrink:0;
+  }
+  .t-nav-spacer { flex:1; }
+
+  /* Profile chip */
+  .prof-chip {
+    display:flex; align-items:center; gap:.45rem;
+    padding:.28rem .55rem .28rem .32rem;
+    background:var(--surface-2); border:1px solid var(--border);
+    border-radius:20px; cursor:pointer; font-family:inherit;
+    transition:border-color .12s; position:relative;
+  }
+  .prof-chip:hover { border-color:var(--accent); }
+  .prof-av {
+    width:24px; height:24px; border-radius:50%;
+    background:var(--accent); color:var(--accent-on);
+    display:flex; align-items:center; justify-content:center;
+    font-size:.68rem; font-weight:700; flex-shrink:0;
+  }
+  .prof-name { font-size:.75rem; font-weight:600; color:var(--text-1); }
+  .prof-chev { font-size:.55rem; color:var(--text-3); transition:transform .18s; }
+  .prof-chip.open .prof-chev { transform:rotate(180deg); }
+
+  /* Profile dropdown */
+  .prof-dd {
+    position:absolute; top:calc(100% + 6px); right:0;
+    background:var(--surface); border:1px solid var(--border);
+    border-radius:calc(var(--radius)+2px); min-width:200px;
+    padding:.3rem; box-shadow:var(--shadow-lg); z-index:300;
+    display:none; animation:ddin .12s ease-out;
+  }
+  .prof-dd.open { display:block; }
+  @keyframes ddin { from{opacity:0;transform:translateY(-5px)} to{opacity:1;transform:translateY(0)} }
+  .dd-hd { padding:.55rem .7rem .45rem; border-bottom:1px solid var(--border); margin-bottom:.25rem; }
+  .dd-hd-name { font-size:.82rem; font-weight:700; color:var(--text-1); }
+  .dd-hd-role { font-size:.68rem; color:var(--text-3); }
+  .dd-lnk {
+    display:flex; align-items:center; gap:.55rem;
+    padding:.42rem .7rem; border-radius:calc(var(--radius)-2px);
+    font-size:.78rem; font-weight:500; color:var(--text-2);
+    text-decoration:none; cursor:pointer; transition:background .1s,color .1s;
+    border:none; background:none; width:100%; text-align:left; font-family:inherit;
+  }
+  .dd-lnk:hover { background:var(--surface-2); color:var(--text-1); }
+  .dd-lnk i { width:13px; text-align:center; font-size:.72rem; color:var(--text-3); }
+  .dd-lnk:hover i { color:var(--accent); }
+  .dd-lnk.danger { color:var(--danger-text); }
+  .dd-lnk.danger i { color:var(--danger-text); }
+  .dd-lnk.danger:hover { background:var(--danger-bg); }
+  .dd-sep { height:1px; background:var(--border); margin:.25rem 0; }
+
+  /* ══ SIDEBAR (user portal only) ══════════════════════════════
+     Collapsed: 52px wide — icons only + tooltips
+     Expanded : 220px wide — icons + labels
+     Toggled  : via #sb-toggle btn or localStorage 'sbCollapsed'
+  ══════════════════════════════════════════════════════════════ */
+  .sb {
+    width:220px; flex-shrink:0;
+    background:var(--surface); border-right:1px solid var(--border);
+    /* static/theme.css defines an unrelated generic `.sb` component with its
+       own border-radius/padding — this nav rail shares the class name, so
+       both must be reset here or the sidebar picks up rounded corners and
+       internal padding that make it look like a floating card instead of a
+       flush, docked navigation rail. */
+    border-radius:0; padding:0;
+    display:flex; flex-direction:column;
+    position:sticky; top:48px; height:calc(100vh - 48px);
+    overflow:hidden;
+    transition:width .2s ease;
+    z-index:100;
+  }
+  /* Collapsed state */
+  .sb.collapsed { width:52px; }
+
+  /* SSR pre-paint collapsed (avoids flash) */
+  [data-sb="collapsed"] .sb { width:52px; }
+
+  /* Sidebar header row */
+  .sb-hdr {
+    height:48px; display:flex; align-items:center;
+    padding:0 .6rem; border-bottom:1px solid var(--border);
+    gap:.5rem; flex-shrink:0;
+  }
+  .sb.collapsed .sb-hdr { justify-content:center; padding:0 .5rem; }
+  .sb.collapsed .sb-toggle { margin-left:0; }
+  .sb-brand-txt {
+    font-size:.78rem; font-weight:700; color:var(--text-1);
+    white-space:nowrap; overflow:hidden; flex:1;
+    transition:opacity .15s;
+  }
+  .sb.collapsed .sb-brand-txt { opacity:0; width:0; flex:0; padding:0; }
+
+  /* Toggle button */
+  .sb-toggle {
+    width:26px; height:26px; flex-shrink:0;
+    display:flex; align-items:center; justify-content:center;
+    background:var(--surface-2); border:1px solid var(--border);
+    border-radius:7px; cursor:pointer; color:var(--text-3);
+    font-size:.6rem; transition:background .12s,color .12s;
+    margin-left:auto;
+  }
+  .sb-toggle:hover { background:var(--bg); color:var(--text-1); }
+
+  /* Nav scroll area */
+  /* min-height:0 is required here — a flex child defaults to min-height:auto,
+     which refuses to shrink below its natural content height, so with
+     enough nav items this list silently grows past .sb's fixed height
+     instead of scrolling, and .sb's overflow:hidden then clips whatever
+     didn't fit — including .sb-foot (Profile & Logout) below it. Same fix
+     as templates/admin_base.html's .sb-nav-wrap. */
+  .sb-nav { flex:1; min-height:0; overflow-y:auto; overflow-x:hidden; padding:.3rem; scrollbar-width:none; overscroll-behavior:contain; -webkit-overflow-scrolling:touch; }
+  .sb-nav::-webkit-scrollbar { display:none; }
+
+  /* Section label */
+  .sb-sec {
+    font-size:.58rem; font-weight:700; text-transform:uppercase;
+    letter-spacing:.1em; color:var(--text-3);
+    padding:.8rem .5rem .25rem; display:block; white-space:nowrap;
+    transition:opacity .15s;
+  }
+  .sb.collapsed .sb-sec { opacity:0; height:0; padding:0; overflow:hidden; }
+
+  /* Nav item */
+  .sb-item {
+    display:flex; align-items:center; gap:.6rem;
+    padding:.45rem .5rem; border-radius:var(--radius);
+    font-size:.8rem; font-weight:500; color:var(--text-2);
+    text-decoration:none; cursor:pointer; position:relative;
+    transition:background .1s,color .1s;
+    border:none; background:none; width:100%; text-align:left; font-family:inherit;
+    white-space:nowrap;
+  }
+  .sb-item:hover { background:var(--surface-2); color:var(--text-1); }
+  .sb-item.active { background:var(--accent-subtle); color:var(--accent); font-weight:600; }
+  /* Collapsed: center icon */
+  .sb.collapsed .sb-item {
+    justify-content:center;
+    padding:.5rem 0;
+    gap:0;
+    width:100%;
+  }
+  .sb.collapsed .sb-item:hover { background:none; }
+  .sb.collapsed .sb-item:hover .sb-ic { background:var(--surface-2); }
+  .sb.collapsed .sb-item.active .sb-ic { background:var(--accent-subtle); }
+
+  /* Icon */
+  .sb-ic {
+    width:30px; height:30px; flex-shrink:0; position:relative;
+    display:flex; align-items:center; justify-content:center;
+    border-radius:7px; font-size:.85rem;
+  }
+  .sb-item.active .sb-ic { background:none; }
+  .sb.collapsed .sb-item:hover { background:transparent; }
+  .sb.collapsed .sb-item:hover .sb-ic {
+    background:var(--surface-2);
+    border-radius:8px;
+  }
+  .sb.collapsed .sb-item.active { background:transparent; }
+  .sb.collapsed .sb-item.active .sb-ic {
+    background:var(--accent-subtle);
+    border-radius:8px;
+    color:var(--accent);
+  }
+
+  /* Label */
+  .sb-lbl { overflow:hidden; transition:opacity .15s,width .15s; flex:1; }
+  .sb.collapsed .sb-lbl { opacity:0; width:0; flex:0; }
+
+  /* Badge — anchored to the icon's own corner (not the row), so it renders
+     identically whether the sidebar is collapsed or expanded, never affects
+     row layout (fully out of flow), and can't get clipped/offset by the
+     icon's centering in collapsed mode. */
+  .sb-badge {
+    position:absolute; top:-4px; right:-6px;
+    display:flex; align-items:center; justify-content:center;
+    min-width:15px; height:15px; padding:0 3px; box-sizing:border-box;
+    background:var(--danger); color:#fff;
+    font-size:.58rem; font-weight:700; line-height:1;
+    border-radius:20px; border:1.5px solid var(--surface);
+  }
+
+  /* Tooltip — JS-rendered fixed tooltip, not CSS overflow */
+  .sb-tip { display:none; }
+  #sb-tooltip {
+    position:fixed; background:var(--surface); border:1px solid var(--border);
+    color:var(--text-1); font-size:.73rem; font-weight:600;
+    padding:.32rem .7rem; border-radius:var(--radius);
+    white-space:nowrap; box-shadow:var(--shadow-md);
+    pointer-events:none; z-index:9999;
+    opacity:0; transition:opacity .12s;
+  }
+  #sb-tooltip.show { opacity:1; }
+  /* the same tooltip with more to say (your plan, a locked item): a title, a detail line and a hint */
+  #sb-tooltip.rich { white-space:normal; width:max-content; max-width:15rem; padding:.55rem .8rem; font-weight:400; line-height:1.35; }
+  #sb-tooltip.rich .tip-title { font-weight:700; font-size:.78rem; }
+  #sb-tooltip.rich .tip-sub { margin-top:.15rem; font-size:.72rem; color:var(--text-2); }
+  #sb-tooltip.rich .tip-hint { margin-top:.4rem; padding-top:.4rem; border-top:1px solid var(--border); font-size:.68rem; color:var(--text-3); }
+
+  /* Logout */
+  .sb-item.logout { color:var(--danger-text); }
+  .sb-plan { display:flex; padding:.35rem .5rem .55rem; text-decoration:none; }
+  .sb-plan .plan-badge { flex:0 0 auto; }
+  .sb.collapsed .sb-plan { justify-content:center; padding:.35rem 0 .55rem; }
+  .sb.collapsed .sb-plan .plan-badge { flex:0 0 auto; padding:.2rem; }
+  .sb.collapsed .sb-plan .pb-text { display:none; }
+  .sb-item.locked .sb-ic, .sb-item.locked .sb-lbl { opacity:.55; }
+  .sb-lock { font-size:.62rem; opacity:.7; margin-left:.3rem; flex-shrink:0; }
+  .sb.collapsed .sb-lock { display:none; }
+  .sb-item.logout:hover { background:var(--danger-bg); }
+
+  /* Footer area */
+  .sb-foot { padding:.3rem; border-top:1px solid var(--border); flex-shrink:0; }
+
+  /* ══ LAYOUT SHELL ════════════════════════════════════════════ */
+  .app-shell { display:flex; flex:1; min-height:0; }
+  .page-main { flex:1; min-width:0; display:flex; flex-direction:column; min-height:calc(100vh - 48px); }
+
+  /* ══ MODALS ══════════════════════════════════════════════════ */
+  .modal-bd {
+    display:none; position:fixed; inset:0; z-index:500;
+    background:rgba(0,0,0,.55); backdrop-filter:blur(3px);
+    align-items:center; justify-content:center; padding:1rem;
+  }
+  .modal-bd.open { display:flex; }
+  .modal-box {
+    background:var(--surface); border:1px solid var(--border);
+    border-radius:calc(var(--radius)+4px); width:100%; max-width:420px;
+    box-shadow:var(--shadow-lg); animation:min .18s ease-out;
+  }
+  @keyframes min { from{opacity:0;transform:translateY(-8px)} to{opacity:1;transform:translateY(0)} }
+  .modal-hdr {
+    padding:.9rem 1.1rem; border-bottom:1px solid var(--border);
+    display:flex; align-items:center; justify-content:space-between;
+  }
+  .modal-hdr h5 { margin:0; font-size:.88rem; font-weight:700; color:var(--text-1); display:flex; align-items:center; gap:.4rem; }
+  .modal-x { background:none; border:none; color:var(--text-3); cursor:pointer; font-size:.82rem; padding:0; }
+  .modal-x:hover { color:var(--text-1); }
+  .modal-bdy { padding:1.1rem; }
+  .modal-ftr { padding:.8rem 1.1rem; border-top:1px solid var(--border); display:flex; justify-content:flex-end; gap:.5rem; }
+
+  /* ── Updates bell + popup (shared across every student page) ── */
+  .updates-bell {
+    position:relative; width:34px; height:34px; border-radius:50%;
+    background:none; border:1px solid transparent; color:var(--text-2);
+    display:flex; align-items:center; justify-content:center; font-size:.9rem;
+    cursor:pointer; margin-right:.5rem; transition:background .12s,color .12s;
+  }
+  .updates-bell:hover { background:var(--surface-2); color:var(--text-1); }
+  .updates-badge {
+    position:absolute; top:-2px; right:-2px; min-width:16px; height:16px; padding:0 3px;
+    background:var(--accent); color:var(--accent-on); border-radius:20px;
+    font-size:.6rem; font-weight:700; line-height:16px; text-align:center;
+  }
+  #updatesModal .modal-box { max-width:440px; }
+  #updatesModal .modal-bdy { max-height:70vh; overflow-y:auto; padding:.4rem .9rem; }
+
+  /* ── Notification-center rows (compact — one line per item, not a card) ── */
+  .ntf-section-label {
+    font-size:.64rem; font-weight:700; text-transform:uppercase; letter-spacing:.07em;
+    color:var(--text-3); padding:.75rem .3rem .35rem;
+  }
+  .ntf-section-label:first-child { padding-top:.3rem; }
+  .ntf-row {
+    display:flex; align-items:center; gap:.65rem; padding:.5rem .3rem;
+    border-bottom:1px solid var(--border); text-decoration:none; color:inherit;
+  }
+  .ntf-row:last-child { border-bottom:none; }
+  .ntf-row-link { transition:background .1s; border-radius:8px; }
+  .ntf-row-link:hover { background:var(--surface-2); }
+  .ntf-icon {
+    width:32px; height:32px; border-radius:9px; flex-shrink:0;
+    display:flex; align-items:center; justify-content:center; font-size:.8rem;
+  }
+  .ntf-icon-info    { background:var(--info-bg);    color:var(--info-text); }
+  .ntf-icon-success { background:var(--success-bg); color:var(--success-text); }
+  .ntf-icon-warning { background:var(--warning-bg); color:var(--warning-text); }
+  .ntf-icon-danger  { background:var(--danger-bg);  color:var(--danger-text); }
+  .ntf-icon-shared  { background:var(--shared-bg);  color:var(--shared-text); }
+  .ntf-icon-muted   { background:var(--surface-2);  color:var(--text-3); }
+  .ntf-avatar {
+    background:var(--accent-subtle); color:var(--accent); font-weight:700; font-size:.75rem;
+    overflow:hidden;
+  }
+  .ntf-avatar img { width:100%; height:100%; object-fit:cover; }
+  .ntf-body { flex:1; min-width:0; }
+  .ntf-title {
+    font-size:.79rem; font-weight:700; color:var(--text-1);
+    display:flex; align-items:center; gap:.35rem; flex-wrap:wrap; line-height:1.3;
+  }
+  .ntf-tag {
+    font-size:.58rem; font-weight:700; text-transform:uppercase; letter-spacing:.02em;
+    color:var(--text-3); background:var(--surface-2); padding:.08rem .4rem; border-radius:20px;
+  }
+  .ntf-tag-sched {
+    color:var(--accent); background:var(--accent-subtle); display:inline-flex; align-items:center; gap:.2rem;
+  }
+  .ntf-live { display:inline-flex; align-items:center; gap:.28rem; font-size:.6rem; font-weight:700; text-transform:uppercase; color:var(--success-text); }
+  .ntf-live-dot { width:6px; height:6px; border-radius:50%; background:var(--success-text); animation:livepulse2 1.6s infinite; }
+  @keyframes livepulse2 { 0%,100%{opacity:1} 50%{opacity:.35} }
+  .ntf-meta {
+    font-size:.71rem; color:var(--text-3); margin-top:.05rem;
+    white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+  }
+  .ntf-meta .countdown { font-weight:700; color:var(--text-2); font-variant-numeric:tabular-nums; }
+  .ntf-action { flex-shrink:0; }
+  .ntf-btn {
+    display:inline-block; padding:.3rem .68rem; border-radius:20px;
+    border:none; font-family:inherit; font-size:.68rem; font-weight:700;
+    text-decoration:none; cursor:pointer; white-space:nowrap;
+  }
+  .ntf-btn.success { background:var(--success); color:#fff; }
+  .ntf-btn.primary { background:var(--accent); color:var(--accent-on); }
+  .ntf-btn.ghost   { background:var(--surface-2); color:var(--text-3); cursor:default; }
+  .ntf-count {
+    display:inline-flex; align-items:center; justify-content:center;
+    min-width:17px; height:17px; padding:0 4px; border-radius:20px;
+    background:var(--accent); color:var(--accent-on); font-size:.62rem; font-weight:700;
+  }
+  .ntf-chevron { color:var(--text-3); font-size:.68rem; }
+  .ntf-action { display:flex; align-items:center; gap:.4rem; }
+  .ntf-dismiss {
+    width:22px; height:22px; border-radius:50%; border:none; background:var(--surface-2);
+    color:var(--text-3); font-size:.62rem; cursor:pointer; display:flex; align-items:center; justify-content:center;
+    flex-shrink:0; transition:background .1s,color .1s;
+  }
+  .ntf-dismiss:hover { background:var(--danger-bg); color:var(--danger-text); }
+
+  .dash-empty { text-align:center; padding:2.25rem 1.5rem; }
+  .dash-empty-icon { width:42px; height:42px; border-radius:12px; background:var(--surface-2); color:var(--text-3); display:flex; align-items:center; justify-content:center; font-size:1.05rem; margin:0 auto .7rem; }
+  .dash-empty h3 { font-size:.85rem; font-weight:700; color:var(--text-2); margin-bottom:.25rem; }
+  .dash-empty p  { font-size:.74rem; color:var(--text-3); margin:0; }
+
+  /* Settings */
+  .s-sec { margin-bottom:1rem; }
+  .s-sec:last-child { margin-bottom:0; }
+  .s-lbl { font-size:.65rem; font-weight:700; text-transform:uppercase; letter-spacing:.07em; color:var(--text-3); margin-bottom:.45rem; display:flex; align-items:center; gap:.3rem; }
+  .theme-pills { display:flex; gap:.35rem; flex-wrap:wrap; }
+  .theme-pill {
+    display:flex; align-items:center; gap:.35rem;
+    padding:.32rem .65rem; border-radius:20px;
+    border:1px solid var(--border); background:var(--surface-2);
+    font-size:.72rem; font-weight:600; color:var(--text-2);
+    cursor:pointer; transition:all .1s; font-family:inherit;
+  }
+  .theme-pill:hover { border-color:var(--accent); color:var(--accent); }
+  .theme-pill.active { border-color:var(--accent); background:var(--accent-subtle); color:var(--accent); }
+  .theme-dot { width:8px; height:8px; border-radius:50%; flex-shrink:0; }
+  .info-box {
+    background:var(--surface-2); border:1px solid var(--border);
+    border-radius:var(--radius); padding:.65rem .85rem;
+    font-size:.78rem; line-height:1.9;
+  }
+  .info-box .lbl { color:var(--text-3); font-weight:600; }
+  .info-box .val { color:var(--text-1); margin-left:.35rem; }
+  .dz-row {
+    background:var(--danger-bg); border:1px solid var(--danger-border);
+    border-radius:var(--radius); padding:.7rem .85rem;
+    display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:.5rem;
+  }
+  .dz-title { font-size:.8rem; font-weight:700; color:var(--text-1); }
+  .dz-desc  { font-size:.7rem; color:var(--text-3); }
+
+  /* Delete modal */
+  .del-warn { background:var(--danger-bg); border:1px solid var(--danger-border); border-radius:var(--radius); padding:.8rem .9rem; margin-bottom:.85rem; }
+  .del-warn-t { font-size:.8rem; font-weight:700; color:var(--danger-text); margin-bottom:.35rem; display:flex; align-items:center; gap:.35rem; }
+  .del-warn ul { margin:0; padding-left:1rem; font-size:.76rem; color:var(--text-2); line-height:1.9; }
+  .conf-inp {
+    width:100%; background:var(--bg); border:1px solid var(--border);
+    color:var(--text-1); border-radius:var(--radius);
+    padding:.48rem .7rem; font-size:.82rem; font-family:inherit; outline:none;
+  }
+  .conf-inp:focus { border-color:var(--danger); box-shadow:0 0 0 3px var(--danger-bg); }
+
+  /* Shared small btns */
+  .sbtn { display:inline-flex; align-items:center; gap:.3rem; padding:.38rem .8rem; border-radius:var(--radius); font-size:.75rem; font-weight:600; font-family:inherit; border:none; cursor:pointer; transition:background .1s; }
+  .sbtn-ghost { background:var(--surface-2); color:var(--text-2); border:1px solid var(--border); }
+  .sbtn-ghost:hover { border-color:var(--accent); color:var(--accent); }
+  .sbtn-danger { background:var(--danger); color:#fff; }
+  .sbtn-danger:hover { opacity:.88; }
+  .sbtn-danger:disabled { opacity:.4; cursor:not-allowed; }
+  .sbtn-danger-ol { background:var(--danger-bg); color:var(--danger-text); border:1px solid var(--danger-border); }
+  .sbtn-danger-ol:hover { background:var(--danger); color:#fff; }
+
+  /* Flash */
+  .flash-bar { padding:.4rem 1rem; }
+  .flash-item {
+    display:flex; align-items:center; gap:.5rem;
+    padding:.55rem .85rem; border-radius:var(--radius);
+    border:1px solid; font-size:.8rem; font-weight:500; margin-bottom:.35rem;
+  }
+  .flash-item.success { background:var(--success-bg);border-color:var(--success-border);color:var(--success-text); }
+  .flash-item.warning { background:var(--warning-bg);border-color:var(--warning-border);color:var(--warning-text); }
+  .flash-item.danger,.flash-item.error { background:var(--danger-bg);border-color:var(--danger-border);color:var(--danger-text); }
+  .flash-item.info { background:var(--info-bg);border-color:var(--info-border);color:var(--info-text); }
+  .flash-x { margin-left:auto;background:none;border:none;color:inherit;opacity:.5;cursor:pointer;font-size:.85rem; }
+  .flash-x:hover { opacity:1; }
+
+  /* Mobile sidebar overlay */
+  .sb-overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,.45); z-index:99; }
+
+  @media(max-width:768px){
+    .sb { position:fixed; top:48px; left:-220px; height:calc(100vh - 48px); height:calc(100dvh - 48px); transition:left .2s ease,width .2s ease; z-index:100; }
+    .sb.mobile-open { left:0; width:220px !important; }
+    .sb.mobile-open .sb-brand-txt,.sb.mobile-open .sb-lbl,.sb.mobile-open .sb-sec,.sb.mobile-open .sb-badge { opacity:1 !important; width:auto !important; overflow:visible !important; padding:revert; height:auto !important; }
+    .sb-overlay.open { display:block; }
+    .mob-toggle { display:flex !important; }
+  }
+
+  /* Small screens (a phone, or a phone held sideways): the WHOLE rail scrolls, not only the middle list. Before, the header
+     and the footer (plan, Profile, Logout) were pinned and only the list between them scrolled, so on a short screen that
+     list shrank to almost nothing and the bottom items could not be reached. Now the list takes its natural height and the
+     rail itself scrolls; the header stays on top. */
+  @media(max-width:768px), (max-height:520px){
+    .sb { overflow-y:auto; overflow-x:hidden; overscroll-behavior:contain; -webkit-overflow-scrolling:touch; scrollbar-width:none; padding-bottom:env(safe-area-inset-bottom); }
+    .sb::-webkit-scrollbar { display:none; }
+    .sb-hdr { position:sticky; top:0; z-index:2; background:var(--surface); }
+    .sb-nav { flex:1 0 auto; overflow:visible; }
+  }
+
+  .mob-toggle {
+    display:none; width:32px; height:32px;
+    align-items:center; justify-content:center;
+    background:none; border:none; color:var(--text-2);
+    cursor:pointer; font-size:.85rem; border-radius:var(--radius);
+    transition:background .12s;
+  }
+  .mob-toggle:hover { background:var(--surface-2); }
+
+  /* ══ AUTH PAGES ══ */
+  .auth-page{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:2rem 1rem;background:var(--bg);}
+  .auth-card{background:var(--surface);border:1px solid var(--border);border-radius:calc(var(--radius)+4px);padding:2rem 2.25rem;width:100%;max-width:440px;box-shadow:var(--shadow-lg);position:relative;overflow:hidden;}
+  .auth-card::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,transparent,var(--accent),transparent);}
+  .auth-wide{max-width:680px;}
+  .auth-logo{text-align:center;margin-bottom:1.25rem;}
+  .auth-title{font-size:1.15rem;font-weight:700;color:var(--text-1);margin-bottom:.25rem;text-align:center;}
+  .auth-sub{font-size:.8rem;color:var(--text-3);text-align:center;margin-bottom:1.1rem;}
+  .auth-field{margin-bottom:.85rem;}
+  .auth-field label{display:block;font-size:.72rem;font-weight:600;color:var(--text-2);margin-bottom:.35rem;}
+  .auth-iw{position:relative;display:flex;align-items:center;}
+  .auth-iw .il,.auth-iw .ir{position:absolute;color:var(--text-3);font-size:.75rem;}
+  .auth-iw .il{left:.85rem;pointer-events:none;}
+  .auth-iw .ir{right:.85rem;cursor:pointer;}
+  .auth-iw:focus-within .il{color:var(--accent);}
+  .auth-inp{width:100%;padding:.6rem .9rem .6rem 2.3rem;background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);color:var(--text-1);font-family:inherit;font-size:.875rem;outline:none;transition:border-color .15s,box-shadow .15s;}
+  .auth-inp.pr{padding-right:2.3rem;}
+  .auth-inp::placeholder{color:var(--text-3);}
+  .auth-inp:focus{border-color:var(--border-focus);box-shadow:0 0 0 3px var(--accent-subtle);}
+  .auth-select,.auth-textarea{width:100%;padding:.55rem .75rem;background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);color:var(--text-1);font-family:inherit;font-size:.83rem;outline:none;transition:border-color .15s;}
+  .auth-select:focus,.auth-textarea:focus{border-color:var(--border-focus);}
+  .auth-textarea{resize:vertical;min-height:80px;}
+  .auth-note{font-size:.7rem;color:var(--text-3);margin-top:.3rem;}
+  .auth-btn{width:100%;padding:.65rem;background:var(--accent);color:var(--accent-on);border:none;border-radius:var(--radius);font-size:.875rem;font-weight:700;font-family:inherit;cursor:pointer;transition:background .15s,transform .1s;display:flex;align-items:center;justify-content:center;gap:.45rem;margin-top:.25rem;}
+  .auth-btn:hover{background:var(--accent-hover);transform:translateY(-1px);}
+  .auth-btn:disabled{opacity:.5;cursor:not-allowed;transform:none;}
+  .auth-btn-ghost{background:var(--surface-2);color:var(--text-2);border:1px solid var(--border);}
+  .auth-btn-ghost:hover{border-color:var(--accent);color:var(--accent);background:var(--surface-2);transform:none;}
+  .auth-back{display:flex;align-items:center;justify-content:center;gap:.4rem;margin-top:1rem;font-size:.78rem;color:var(--text-3);text-decoration:none;transition:color .15s;}
+  .auth-back:hover{color:var(--text-1);}
+  .auth-top{position:fixed;top:1.25rem;right:1.25rem;z-index:50;display:flex;gap:.4rem;}
+  .auth-top-btn{display:inline-flex;align-items:center;gap:.35rem;padding:.38rem .75rem;border-radius:var(--radius);background:var(--surface);border:1px solid var(--border);color:var(--text-2);font-size:.75rem;font-weight:600;text-decoration:none;transition:all .12s;}
+  .auth-top-btn:hover{border-color:var(--accent);color:var(--accent);}
+  .pwd-reqs{display:flex;flex-direction:column;gap:.18rem;margin-top:.4rem;}
+  .pwd-req{font-size:.7rem;color:var(--text-3);display:flex;align-items:center;gap:.3rem;transition:color .12s;}
+  .pwd-req::before{content:'\f111';font-family:'Font Awesome 6 Free';font-weight:900;font-size:.4rem;color:var(--border);}
+  .pwd-req.ok{color:var(--success-text);}
+  .pwd-req.ok::before{content:'\f058';font-size:.6rem;color:var(--success-text);}
+  .info-box-auth{background:var(--surface-2);border:1px solid var(--border);border-radius:var(--radius);padding:.7rem .9rem;margin-top:.85rem;}
+  .info-box-auth .ibt{font-size:.7rem;font-weight:700;color:var(--text-2);margin-bottom:.45rem;display:flex;align-items:center;gap:.35rem;}
+  .info-box-auth .ibt i{color:var(--accent);}
+  .info-box-auth .ibi{font-size:.72rem;color:var(--text-3);margin-bottom:.25rem;line-height:1.5;}
+  .info-box-auth .ibi strong{color:var(--text-2);}
+  .auth-alert{display:flex;align-items:flex-start;gap:.5rem;padding:.6rem .85rem;border-radius:var(--radius);border:1px solid;font-size:.8rem;font-weight:500;margin-bottom:.7rem;}
+  .auth-alert.success{background:var(--success-bg);border-color:var(--success-border);color:var(--success-text);}
+  .auth-alert.danger{background:var(--danger-bg);border-color:var(--danger-border);color:var(--danger-text);}
+  .auth-alert.warning{background:var(--warning-bg);border-color:var(--warning-border);color:var(--warning-text);}
+  .auth-alert.info{background:var(--info-bg);border-color:var(--info-border);color:var(--info-text);}
+  .auth-ax{margin-left:auto;background:none;border:none;color:inherit;opacity:.5;cursor:pointer;font-size:.9rem;}
+  .auth-ax:hover{opacity:1;}
+  .auth-divider{display:flex;align-items:center;gap:.75rem;margin:.85rem 0;}
+  .auth-divider-line{flex:1;height:1px;background:var(--border);}
+  .auth-divider-txt{font-size:.68rem;color:var(--text-3);}
+  .success-steps{display:flex;flex-direction:column;gap:.6rem;margin:1rem 0;}
+  .sst{display:flex;align-items:flex-start;gap:.7rem;}
+  .sst-num{width:22px;height:22px;border-radius:50%;background:var(--accent);color:var(--accent-on);display:flex;align-items:center;justify-content:center;font-size:.65rem;font-weight:700;flex-shrink:0;margin-top:.05rem;}
+  .sst-info strong{display:block;font-size:.82rem;font-weight:700;color:var(--text-1);margin-bottom:.1rem;}
+  .sst-info span{font-size:.72rem;color:var(--text-3);}
+  .email-pill{display:inline-flex;align-items:center;gap:.4rem;background:var(--accent-subtle);border:1px solid var(--accent-border);color:var(--accent);border-radius:20px;padding:.25rem .75rem;font-size:.75rem;font-weight:600;margin:.4rem auto 0;}
+  .auth-tbl{width:100%;border-collapse:collapse;font-size:.78rem;}
+  .auth-tbl th{background:var(--surface-2);padding:.52rem .75rem;text-align:left;font-size:.65rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text-3);border-bottom:1px solid var(--border);}
+  .auth-tbl td{padding:.58rem .75rem;border-bottom:1px solid var(--border);color:var(--text-2);vertical-align:middle;}
+  .auth-tbl tr:last-child td{border-bottom:none;}
+  .auth-tbl tr:hover td{background:var(--surface-2);}
+  .abadge{display:inline-flex;align-items:center;padding:.18rem .55rem;border-radius:20px;font-size:.67rem;font-weight:700;border:1px solid;}
+  .ab-user{background:var(--info-bg);color:var(--info-text);border-color:var(--info-border);}
+  .ab-admin{background:var(--accent-subtle);color:var(--accent);border-color:var(--accent-border);}
+  .ab-both{background:var(--success-bg);color:var(--success-text);border-color:var(--success-border);}
+  .ab-pending{background:var(--warning-bg);color:var(--warning-text);border-color:var(--warning-border);}
+  .ab-denied{background:var(--danger-bg);color:var(--danger-text);border-color:var(--danger-border);}
+
+  /* ══ GLOBAL APP TOAST — themed replacement for alert() ══ */
+  #appToastContainer { position:fixed; bottom:1.5rem; right:1.5rem; z-index:9999; display:flex; flex-direction:column; gap:.4rem; pointer-events:none; }
+  .app-toast { display:flex; align-items:flex-start; gap:.6rem; padding:.65rem 1rem; background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); box-shadow:var(--shadow-lg); pointer-events:auto; animation:app-tin .2s ease-out; min-width:220px; max-width:340px; }
+  @keyframes app-tin { from{opacity:0;transform:translateY(6px)} to{opacity:1;transform:translateY(0)} }
+  .app-toast-icon { font-size:.9rem; flex-shrink:0; margin-top:.05rem; }
+  .app-toast.success .app-toast-icon { color:var(--success-text); }
+  .app-toast.danger  .app-toast-icon { color:var(--danger-text); }
+  .app-toast.warning .app-toast-icon { color:var(--warning-text); }
+  .app-toast-msg { font-size:.82rem; font-weight:600; color:var(--text-1); }
+  .app-toast-sub { font-size:.72rem; color:var(--text-3); margin-top:.08rem; }
+
+  /* ══ APP FOOTER (user portal) ══ */
+  .app-footer { background:var(--surface); border-top:1px solid var(--border); padding:.75rem 1.5rem; display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:.6rem 1.25rem; font-size:.73rem; }
+  .app-footer-brand { display:flex; align-items:center; gap:.45rem; font-weight:700; color:var(--text-1); }
+  .app-footer-links { display:flex; gap:1.1rem; flex-wrap:wrap; row-gap:.35rem; }
+  .app-footer-link { color:var(--text-3); text-decoration:none; transition:color .12s; }
+  .app-footer-link:hover { color:var(--accent); }
+  .app-footer-copy { color:var(--text-3); }
+  @media(max-width:640px){ .app-footer{ justify-content:center; text-align:center; } }
+  </style>
+</head>
+<body class="{% block body_class %}{% endblock %}">
+
+{# ════════════════════════════════════════════════════════════
+   TOP NAV — always shown when logged in (except exam pages)
+════════════════════════════════════════════════════════════ #}
+{% set is_exam_page = (
+  request.endpoint in ['exam_page','submit_exam','take_exam']
+  or request.path.startswith('/exam/')
+  or request.path.startswith('/submit-exam')
+) %}
+{% set standalone = standalone|default(false) %}
+
+{% if session.get('user_id') and not is_exam_page and not standalone %}
+<nav class="t-nav">
+  {# Mobile sidebar toggle #}
+  {% if session.get('user_id') and not session.get('admin_id') %}
+  <button class="mob-toggle" id="mobToggle" aria-label="Menu">
+    <i class="fas fa-bars"></i>
+  </button>
+  {% endif %}
+
+  <a class="t-nav-brand" href="{{ url_for('dashboard.dashboard') if not session.get('admin_id') else url_for('admin.dashboard') }}">
+    <video src="{{ url_for('static', filename='logo.mp4') }}" autoplay loop muted playsinline style="height:28px;width:auto"></video>
+  </a>
+
+  <div class="t-nav-spacer"></div>
+
+  {% if session.get('admin_id') %}
+  <a href="{{ url_for('admin.dashboard') }}" style="font-size:.78rem;font-weight:600;color:var(--text-2);text-decoration:none;margin-right:.5rem">
+    <i class="fas fa-home"></i> Dashboard
+  </a>
+  <a href="{{ url_for('admin.logout') }}" style="font-size:.78rem;font-weight:600;color:var(--danger-text);text-decoration:none">
+    <i class="fas fa-sign-out-alt"></i> Logout
+  </a>
+
+  {% elif session.get('user_id') %}
+  <button class="updates-bell" id="updatesBellBtn" onclick="openUpdatesPopup()" aria-label="Notifications">
+    <i class="fas fa-bell"></i>
+    <span class="updates-badge" id="updatesBadge" style="display:none">0</span>
+  </button>
+  <div style="position:relative">
+    <button class="prof-chip" id="profBtn" onclick="toggleProf()">
+      {% if NAV_AVATAR_URL %}
+      <img class="prof-av" src="{{ NAV_AVATAR_URL }}" alt="" style="object-fit:cover">
+      {% else %}
+      <div class="prof-av">{{ session.get('full_name','U')[0].upper() }}</div>
+      {% endif %}
+      <span class="prof-name">{{ session.get('full_name','').split()[0] }}</span>
+      <i class="fas fa-chevron-down prof-chev"></i>
+    </button>
+    <div class="prof-dd" id="profDd">
+      <div class="dd-hd">
+        <div class="dd-hd-name">{{ session.get('full_name','User') }}</div>
+        <div class="dd-hd-role">Student</div>
+      </div>
+      <a class="dd-lnk" href="{{ url_for('profile.my_profile') }}"><i class="fas fa-user-circle"></i> Profile &amp; Account</a>
+      <div class="dd-sep"></div>
+      <button class="dd-lnk danger" onclick="closeProfDd();openLogoutModal()"><i class="fas fa-sign-out-alt"></i> Logout</button>
+    </div>
+  </div>
+  {% endif %}
+</nav>
+{% endif %}
+
+{# ════════════════════════════════════════════════════════════
+   APP SHELL — sidebar + page content
+   Sidebar only shown for user portal (not admin, not exam pages)
+   Pages set:  {% set active_nav = 'dashboard' %}  before extending
+════════════════════════════════════════════════════════════ #}
+<div class="app-shell">
+
+{% if session.get('user_id') and not session.get('admin_id') and not is_exam_page and not standalone %}
+{# ── USER SIDEBAR ─────────────────────────────────────────── #}
+<aside class="sb" id="mainSb">
+
+  <div class="sb-hdr">
+    <div class="sb-brand-txt">Navigation</div>
+    <button class="sb-toggle" id="sbToggle" aria-label="Toggle sidebar">
+      <i class="fas fa-chevron-left" id="sbChev"></i>
+    </button>
+  </div>
+
+  <nav class="sb-nav">
+
+    <span class="sb-sec">Main</span>
+
+    <a class="sb-item {{ 'active' if active_nav == 'categories' else '' }}"
+       href="{{ url_for('categories.select_category') }}" data-tip="Categories">
+      <span class="sb-ic"><i class="fas fa-layer-group"></i></span>
+      <span class="sb-lbl">Categories</span>
+    </a>
+
+    <a class="sb-item {{ 'active' if active_nav == 'dashboard' else '' }}"
+       href="{{ url_for('dashboard.dashboard') }}" data-tip="Dashboard">
+      <span class="sb-ic"><i class="fas fa-home"></i></span>
+      <span class="sb-lbl">Dashboard</span>
+    </a>
+
+    <span class="sb-sec">Performance</span>
+
+    <a class="sb-item {{ 'active' if active_nav == 'results' else '' }}{{ ' locked' if not user_can('result_history') }}"
+       href="{{ url_for('dashboard.results_history') }}" data-tip="Results History">
+      <span class="sb-ic"><i class="fas fa-history"></i></span>
+      <span class="sb-lbl">Results History</span>{% if not user_can('result_history') %}<i class="fas fa-lock sb-lock"></i>{% endif %}
+    </a>
+
+    <a class="sb-item {{ 'active' if active_nav == 'analytics' else '' }}{{ ' locked' if not user_can('analytics') }}"
+       href="{{ url_for('dashboard.student_analytics') }}" data-tip="Analytics">
+      <span class="sb-ic"><i class="fas fa-chart-line"></i></span>
+      <span class="sb-lbl">Analytics</span>{% if not user_can('analytics') %}<i class="fas fa-lock sb-lock"></i>{% endif %}
+    </a>
+
+    <span class="sb-sec">Tools</span>
+
+    <a class="sb-item {{ 'active' if active_nav == 'ai' else '' }}{{ ' locked' if not user_can('ai_assistant') }}"
+       href="{{ url_for('ai.ai_assistant') }}" data-tip="AI Assistant">
+      <span class="sb-ic"><i class="fas fa-robot"></i></span>
+      <span class="sb-lbl">AI Assistant</span>{% if not user_can('ai_assistant') %}<i class="fas fa-lock sb-lock"></i>{% endif %}
+    </a>
+
+    <a class="sb-item {{ 'active' if active_nav == 'chat' else '' }}{{ ' locked' if not user_can('chat') }}"
+       href="{{ url_for('chat.chat_page') }}" data-tip="Chat">
+      <span class="sb-ic">
+        <i class="fas fa-comment-dots"></i>
+        <span class="sb-badge" id="sbChatBadge" style="display:none">0</span>
+      </span>
+      <span class="sb-lbl">Chat</span>{% if not user_can('chat') %}<i class="fas fa-lock sb-lock"></i>{% endif %}
+    </a>
+
+    <a class="sb-item {{ 'active' if active_nav == 'notes' else '' }}{{ ' locked' if not user_can('notebook') }}"
+       href="{{ url_for('notes.my_notes') }}" data-tip="My Notes">
+      <span class="sb-ic"><i class="fas fa-book-open"></i></span>
+      <span class="sb-lbl">My Notes</span>{% if not user_can('notebook') %}<i class="fas fa-lock sb-lock"></i>{% endif %}
+    </a>
+
+    <a class="sb-item {{ 'active' if active_nav == 'notes_library' else '' }}{{ ' locked' if not user_can('notebook') }}"
+       href="{{ url_for('notes.public_library_page') }}" data-tip="Public Notes Library">
+      <span class="sb-ic"><i class="fas fa-globe"></i></span>
+      <span class="sb-lbl">Public Notes</span>{% if not user_can('notebook') %}<i class="fas fa-lock sb-lock"></i>{% endif %}
+    </a>
+
+    {# ── ADD NEW NAV ITEMS HERE — no other files need changing ── #}
+
+  </nav>
+
+  <div class="sb-foot">
+    {% from 'partials/_plan_badge.html' import plan_badge %}
+    {% set _plan = user_plan() %}
+    {% if _plan %}
+    {% set _ex = _plan.expiry %}
+    <a class="sb-plan" href="{{ url_for('profile.my_profile') }}#plan" aria-label="Your plan: {{ _plan.plan_label }}"
+       data-tip="{{ _plan.plan_label }} plan"
+       data-tip-sub="{% if _ex.state == 'expired' %}{{ _ex.expired_plan_label }} plan expired {{ _ex.expires_display }}{% elif _ex.state == 'active' %}Expires: {{ _ex.expires_display }}{% else %}No expiry{% endif %}"
+       data-tip-hint="View what your plan includes">
+      {{ plan_badge(_plan.plan_label, _plan.tone, _plan.icon, 'md') }}
+    </a>
+    {% endif %}
+    <a class="sb-item {{ 'active' if active_nav == 'profile' else '' }}" href="{{ url_for('profile.my_profile') }}" data-tip="Profile &amp; Account">
+      <span class="sb-ic"><i class="fas fa-user-circle"></i></span>
+      <span class="sb-lbl">Profile &amp; Account</span>
+    </a>
+<button class="sb-item logout" onclick="openLogoutModal()">
+      <span class="sb-ic"><i class="fas fa-sign-out-alt"></i></span>
+      <span class="sb-lbl">Logout</span>
+      <span class="sb-tip">Logout</span>
+    </button>
+  </div>
+</aside>
+
+{# Mobile overlay #}
+<div class="sb-overlay" id="sbOverlay" onclick="closeMobileSb()"></div>
+{% endif %}
+
+{# ── PAGE CONTENT ─────────────────────────────────────────── #}
+<div class="page-main">
+
+  {# Flash messages #}
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+    <div class="flash-bar">
+      {% for cat, msg in messages %}
+      <div class="flash-item {{ 'danger' if cat == 'error' else cat }}">
+        <i class="fas fa-{{ 'check-circle' if cat=='success' else 'exclamation-triangle' if cat in ('error','warning') else 'info-circle' }}" style="flex-shrink:0;font-size:.72rem"></i>
+        <span>{{ msg }}</span>
+        <button class="flash-x" onclick="this.parentElement.remove()">&times;</button>
+      </div>
+      {% endfor %}
+    </div>
+    {% endif %}
+  {% endwith %}
+
+  {% block content %}{% endblock %}
+
+  <div style="flex:1"></div>
+
+  {# Footer — hidden on exam/result/response pages #}
+  {% if not (request.path.startswith('/exam/') or request.path.startswith('/submit-exam') or request.path == '/result' or request.path.startswith('/response')) %}
+  <footer class="app-footer">
+    <div class="app-footer-brand">
+      <video src="{{ url_for('static', filename='logo.mp4') }}" autoplay loop muted playsinline style="height:18px;width:auto"></video>
+      SmartAIExam
+    </div>
+    <div class="app-footer-links">
+      {% for n,e in [('Privacy','misc.privacy_policy'),('Terms','misc.terms_of_service'),('Data Deletion','misc.account_deletion_policy'),('Support','misc.support'),('Contact','misc.contact'),('About','misc.about')] %}
+      <a href="{{ url_for(e) }}" class="app-footer-link">{{ n }}</a>
+      {% endfor %}
+    </div>
+    <span class="app-footer-copy">&copy; {{ CURRENT_YEAR }} SmartAIExam</span>
+  </footer>
+  {% endif %}
+
+</div>{# /page-main #}
+</div>{# /app-shell #}
+
+{# ════════════════════════════════════════════════════════════
+   DELETE-ACCOUNT MODAL (user portal only) — triggered from the
+   Profile & Account page's Danger Zone (templates/profile.html)
+════════════════════════════════════════════════════════════ #}
+{% if session.get('user_id') and not session.get('admin_id') %}
+<div class="modal-bd" id="delModal">
+  <div class="modal-box">
+    <div class="modal-hdr" style="background:var(--danger-bg)">
+      <h5 style="color:var(--danger-text)"><i class="fas fa-exclamation-triangle"></i> Delete Account</h5>
+      <button class="modal-x" onclick="closeDel()"><i class="fas fa-times"></i></button>
+    </div>
+    <div class="modal-bdy">
+      <div class="del-warn">
+        <div class="del-warn-t"><i class="fas fa-exclamation-triangle"></i> This is IRREVERSIBLE</div>
+        <ul>
+          <li>Your account, login, and profile information are permanently deleted</li>
+          <li>Your exam attempts, results, and answers are permanently deleted</li>
+          <li>Your private notebooks and private AI conversations are permanently deleted</li>
+          <li>Your account cannot be recovered after this</li>
+        </ul>
+      </div>
+      <div style="font-size:.76rem;color:var(--text-3);margin-bottom:.85rem;line-height:1.5">
+        <i class="fas fa-info-circle"></i> Public Notebooks and comments you've shared may remain available to other
+        students, since they may still be useful to them — but they will no longer be linked to your account and
+        will be shown as posted by a <strong>Deleted User</strong>.
+        <a href="{{ url_for('misc.account_deletion_policy') }}" target="_blank" style="color:var(--accent)">Read the full policy</a>.
+      </div>
+      <label style="display:flex;align-items:flex-start;gap:.5rem;font-size:.78rem;color:var(--text-2);margin-bottom:.85rem;cursor:pointer;line-height:1.5">
+        <input type="checkbox" id="delPolicyChk" oninput="checkDel()" style="margin-top:.2rem;accent-color:var(--danger)">
+        <span>I have read and understand the <a href="{{ url_for('misc.account_deletion_policy') }}" target="_blank" style="color:var(--accent)">Account Deletion Policy</a>.</span>
+      </label>
+      <div style="font-size:.78rem;color:var(--text-2);font-weight:600;margin-bottom:.4rem">
+        Type <span style="color:var(--danger-text);font-family:monospace">DELETE</span> to confirm:
+      </div>
+      <input class="conf-inp" id="delInp" placeholder='Type "DELETE" here…' oninput="checkDel()">
+    </div>
+    <div class="modal-ftr">
+      <button class="sbtn sbtn-ghost" onclick="closeDel()">Cancel</button>
+      <button class="sbtn sbtn-danger" id="delBtn" disabled onclick="doDelete()">
+        <i class="fas fa-trash-alt"></i> Delete My Account
+      </button>
+    </div>
+  </div>
+</div>
+{% endif %}
+{# ── LOGOUT CONFIRM MODAL ── #}
+{% if session.get('user_id') and not session.get('admin_id') %}
+<div class="modal-bd" id="logoutModal">
+  <div class="modal-box" style="max-width:380px">
+    <div class="modal-hdr">
+      <h5>
+        <span style="width:28px;height:28px;border-radius:8px;background:var(--danger-bg);color:var(--danger-text);display:inline-flex;align-items:center;justify-content:center;font-size:.78rem;flex-shrink:0;">
+          <i class="fas fa-sign-out-alt"></i>
+        </span>
+        Confirm Logout
+      </h5>
+      <button class="modal-x" onclick="closeLogoutModal()"><i class="fas fa-times"></i></button>
+    </div>
+    <div class="modal-bdy">
+      <p style="font-size:.85rem;color:var(--text-2);margin:0 0 .5rem;line-height:1.6;">
+        Are you sure you want to log out of your account?
+      </p>
+      <p style="font-size:.78rem;color:var(--text-3);margin:0;">
+        You will need to sign in again to access your dashboard.
+      </p>
+    </div>
+    <div class="modal-ftr">
+      <button class="sbtn sbtn-ghost" onclick="closeLogoutModal()">
+        <i class="fas fa-times"></i> Cancel
+      </button>
+      <a class="sbtn sbtn-danger" href="{{ url_for('auth.logout') }}" onclick="userLogoutStart(this)" style="text-decoration:none;display:inline-flex;align-items:center;gap:.3rem;">
+        <i class="fas fa-sign-out-alt"></i> Yes, Logout
+      </a>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+{# ══ "Your Updates" popup — same component for auto-open-on-entry and the notifications bell ══ #}
+{% if session.get('user_id') and not session.get('admin_id') and not is_exam_page and not standalone %}
+<div class="modal-bd" id="updatesModal">
+  <div class="modal-box">
+    <div class="modal-hdr" style="align-items:flex-start;">
+      <div style="display:flex;align-items:center;gap:.6rem;min-width:0;">
+        <span style="width:30px;height:30px;border-radius:8px;background:var(--accent-subtle);color:var(--accent);display:flex;align-items:center;justify-content:center;font-size:.8rem;flex-shrink:0;margin-top:.1rem;">
+          <i class="fas fa-bell"></i>
+        </span>
+        <div style="min-width:0;">
+          <h5 id="updatesGreetingTitle" style="margin:0;">Your Updates</h5>
+          <div id="updatesGreetingSub" style="font-size:.68rem;font-weight:500;color:var(--text-3);margin-top:.05rem;"></div>
+        </div>
+      </div>
+      <button class="modal-x" onclick="closeUpdatesModal()"><i class="fas fa-times"></i></button>
+    </div>
+    <div class="modal-bdy" id="updatesModalBody">
+      <div class="dash-empty">
+        <div class="dash-empty-icon"><i class="fas fa-spinner fa-spin"></i></div>
+        <p>Loading…</p>
+      </div>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.min.js"></script>
+<script>
+/* ── THEME ── */
+(function(){
+  var K='landingTheme', h=document.documentElement;
+  function ap(lt){
+    h.setAttribute('data-theme',lt==='paper'?'light':(lt||'sunset'));
+    localStorage.setItem(K,lt);
+    document.querySelectorAll('.theme-pill').forEach(function(p){ p.classList.toggle('active',p.getAttribute('data-lt')===lt); });
+  }
+  ap(localStorage.getItem(K)||'sunset');
+  document.addEventListener('click',function(e){ var p=e.target.closest('.theme-pill'); if(p) ap(p.getAttribute('data-lt')); });
+  window.addEventListener('storage',function(e){ if(e.key===K&&e.newValue) ap(e.newValue); });
+})();
+
+/* ── PROFILE DROPDOWN ── */
+function toggleProf(){
+  var d=document.getElementById('profDd'), b=document.getElementById('profBtn');
+  var o=!d.classList.contains('open');
+  d.classList.toggle('open',o); b.classList.toggle('open',o);
+}
+function closeProfDd(){
+  var d=document.getElementById('profDd'), b=document.getElementById('profBtn');
+  if(d) d.classList.remove('open'); if(b) b.classList.remove('open');
+}
+document.addEventListener('click',function(e){
+  if(!e.target.closest('#profBtn')&&!e.target.closest('#profDd')) closeProfDd();
+});
+
+/* ── SIDEBAR COLLAPSE ── */
+(function(){
+  var sb=document.getElementById('mainSb');
+  var tog=document.getElementById('sbToggle');
+  var chev=document.getElementById('sbChev');
+  if(!sb||!tog) return;
+
+  var collapsed = localStorage.getItem('sbCollapsed')==='1';
+
+  function apply(c, save){
+    collapsed=c;
+    sb.classList.toggle('collapsed',c);
+    if(chev){ chev.className='fas fa-chevron-'+(c?'right':'left'); }
+    if(save) localStorage.setItem('sbCollapsed',c?'1':'0');
+    document.documentElement.setAttribute('data-sb', c?'collapsed':'');
+  }
+
+  /* SSR state already applied — just sync class */
+  apply(collapsed, false);
+
+  tog.addEventListener('click',function(){ if(window.innerWidth<=768){ closeMobileSb(); } else { apply(!collapsed, true); } });
+
+  /* ── Tooltip via fixed positioning (no overflow clip issues) ── */
+  var tip = document.createElement('div');
+  tip.id = 'sb-tooltip';
+  document.body.appendChild(tip);
+  var tipTimer;
+  function showTip(el){
+    var isPlan = el.classList.contains('sb-plan'), locked = el.classList.contains('locked');
+    // An expanded sidebar already shows every label; the plan badge and a locked item still have something to say.
+    if(!collapsed && !isPlan && !locked) return;
+    tip.textContent = '';
+    function line(cls, text){ if(!text) return; var d = document.createElement('div'); d.className = cls; d.textContent = text; tip.appendChild(d); }
+    line('tip-title', el.getAttribute('data-tip'));
+    line('tip-sub', locked ? 'Not in your plan' : el.getAttribute('data-tip-sub'));
+    line('tip-hint', el.getAttribute('data-tip-hint'));
+    tip.classList.toggle('rich', isPlan || locked);
+    var r = el.getBoundingClientRect();
+    tip.style.left = Math.round(r.right + 10) + 'px';
+    tip.style.transform = 'none';
+    var h = tip.offsetHeight;                                   // keep it on screen: the plan badge sits at the bottom of the sidebar
+    tip.style.top = Math.round(Math.max(8, Math.min(r.top + r.height/2 - h/2, window.innerHeight - h - 8))) + 'px';
+    clearTimeout(tipTimer);
+    tip.classList.add('show');
+  }
+  function hideTip(){ tipTimer = setTimeout(function(){ tip.classList.remove('show'); }, 80); }
+  sb.querySelectorAll('.sb-item[data-tip], .sb-plan[data-tip]').forEach(function(el){
+    el.addEventListener('mouseenter', function(){ showTip(el); });
+    el.addEventListener('mouseleave', hideTip);
+    el.addEventListener('focus', function(){ showTip(el); });
+    el.addEventListener('blur', hideTip);
+  });
+})();
+
+/* ── MOBILE SIDEBAR ── */
+function openMobileSb(){
+  var sb=document.getElementById('mainSb');
+  var ov=document.getElementById('sbOverlay');
+  // Desktop's collapsed (icon-only) state is a separate, persisted
+  // preference — its centered/no-gap/icon-boxed styling must not leak
+  // into the mobile drawer, which always shows the full expanded layout.
+  if(sb){ sb.classList.remove('collapsed'); sb.classList.add('mobile-open'); }
+  if(ov) ov.classList.add('open');
+  document.body.style.overflow='hidden';
+}
+function closeMobileSb(){
+  var sb=document.getElementById('mainSb');
+  var ov=document.getElementById('sbOverlay');
+  if(sb){
+    sb.classList.remove('mobile-open');
+    if(localStorage.getItem('sbCollapsed')==='1') sb.classList.add('collapsed');
+  }
+  if(ov) ov.classList.remove('open');
+  document.body.style.overflow='';
+}
+var mt=document.getElementById('mobToggle');
+if(mt) mt.addEventListener('click', function(){ var sb=document.getElementById('mainSb'); if(sb&&sb.classList.contains('mobile-open')) closeMobileSb(); else openMobileSb(); });
+
+/* ── LOGOUT MODAL ── */
+function openLogoutModal(){ var m=document.getElementById('logoutModal'); if(m) m.classList.add('open'); }
+function closeLogoutModal(){ var m=document.getElementById('logoutModal'); if(m) m.classList.remove('open'); }
+function userLogoutStart(el){
+  el.style.pointerEvents='none';
+  el.style.opacity='.7';
+  el.innerHTML='<i class="fas fa-spinner fa-spin"></i> Logging out…';
+}
+var lm=document.getElementById('logoutModal');
+if(lm) lm.addEventListener('click',function(e){ if(e.target===this) closeLogoutModal(); });
+
+/* ── DELETE ── */
+function openDel(){
+  var i=document.getElementById('delInp'), b=document.getElementById('delBtn'), c=document.getElementById('delPolicyChk');
+  if(i) i.value=''; if(c) c.checked=false; if(b) b.disabled=true;
+  var m=document.getElementById('delModal'); if(m) m.classList.add('open');
+}
+function closeDel(){ var m=document.getElementById('delModal'); if(m) m.classList.remove('open'); }
+var dm=document.getElementById('delModal');
+if(dm) dm.addEventListener('click',function(e){ if(e.target===this) closeDel(); });
+function checkDel(){
+  var v=(document.getElementById('delInp')||{}).value||'';
+  var c=(document.getElementById('delPolicyChk')||{}).checked;
+  var b=document.getElementById('delBtn');
+  if(b) b.disabled=(v!=='DELETE'||!c);
+}
+function doDelete(){
+  var b=document.getElementById('delBtn');
+  b.disabled=true; b.innerHTML='<i class="fas fa-spinner fa-spin"></i> Deleting…';
+  fetch('/api/v01/auth/me',{method:'DELETE',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify({confirm:'DELETE'})})
+  .then(function(r){return r.json();}).then(function(d){
+    if(d.success){
+      // Show a professional confirmation in place of the confirm dialog before
+      // navigating away — this is the only reliable place to show it, since the
+      // page we redirect to (the logged-out landing page) has no flash-message UI.
+      var box=document.querySelector('#delModal .modal-box');
+      if(box) box.innerHTML=
+        '<div class="modal-hdr" style="background:var(--success-bg)">'+
+          '<h5 style="color:var(--success-text)"><i class="fas fa-check-circle"></i> Account Deleted</h5>'+
+        '</div>'+
+        '<div class="modal-bdy">'+
+          '<p style="color:var(--text-2);font-size:.85rem;line-height:1.7;margin:0">'+
+            'Your account has been permanently deleted. Private account data associated with your '+
+            'account has been removed. Public contributions that remain available on the platform are '+
+            'no longer associated with an active account.'+
+          '</p>'+
+        '</div>';
+      setTimeout(function(){window.location.href='/';},3200);
+    }
+    else{b.disabled=false;b.innerHTML='<i class="fas fa-trash-alt"></i> Delete My Account';alert(d.message||'Error.');}
+  }).catch(function(){b.disabled=false;b.innerHTML='<i class="fas fa-trash-alt"></i> Delete My Account';alert('Network error.');});
+}
+
+/* ── ESC ── */
+document.addEventListener('keydown',function(e){
+  if(e.key==='Escape'){closeProfDd();closeDel();closeLogoutModal();}
+});
+
+/* ── AUTO-DISMISS FLASH ── */
+document.addEventListener('DOMContentLoaded',function(){
+  setTimeout(function(){
+    document.querySelectorAll('.flash-item').forEach(function(el){
+      el.style.transition='opacity .3s'; el.style.opacity='0';
+      setTimeout(function(){el.remove();},300);
+    });
+  },5000);
+});
+</script>
+
+{% if session.get('user_id') %}
+<script>
+(function(){
+  function ping(){
+    fetch('/api/v01/ping',{method:'POST',credentials:'same-origin'}).then(function(r){
+      if(r.status===401) r.json().then(function(j){ window.location.href=(j&&j.reason==='other_device')?'/login?reason=other_device':'/login'; }).catch(function(){window.location.href='/login';});
+    }).catch(function(){});
+  }
+  setInterval(ping,30000);
+})();
+</script>
+{% endif %}
+
+{% if session.get('user_id') and not session.get('admin_id') and user_can('chat') %}
+<script>
+(function(){
+  function poll(){
+    fetch('/api/v01/chat/unread-count').then(function(r){return r.json();}).then(function(d){
+      var n=(d.unread||0)+(d.requests||0);
+      var el=document.getElementById('sbChatBadge');
+      if(el){el.textContent=n>99?'99+':n;el.style.display=n?'flex':'none';}
+    }).catch(function(){});
+  }
+  poll(); setInterval(poll,20000);
+})();
+</script>
+{% endif %}
+
+{% if session.get('user_id') and not session.get('admin_id') and not is_exam_page and not standalone %}
+<script>
+/* ── "Your Updates" popup: one fetch per page load powers the badge, the
+   auto-popup on the portal home page, and the manual bell-icon open — no
+   interval polling (unlike chat, updates don't need near-real-time freshness).
+   Excluded from exam pages: the bell/modal aren't rendered there anyway, and
+   an in-progress exam shouldn't be fetching notification data at all. ── */
+(function(){
+  var cache = null, inFlight = null;
+
+  function fetchUpdates(cb){
+    if (cache) { cb(cache); return; }
+    if (inFlight) { inFlight.then(cb); return; }
+    inFlight = fetch('/api/v01/student/updates').then(function(r){ return r.json(); }).then(function(d){
+      cache = d; inFlight = null; return d;
+    }).catch(function(){ inFlight = null; return {success:false, html:'', count:0}; });
+    inFlight.then(cb);
+  }
+  window.__updatesFetch = fetchUpdates;
+
+  /* Fires once the countdown to an "upcoming" row's scheduled start time
+     hits zero — but that's only "the scheduled time arrived", not "the
+     exam is open": a Scheduled Exam's window opens purely by time, but a
+     Manual Exam only opens once the admin explicitly sets it Ongoing (see
+     is_exam_window_open() in exam_service.py), so reaching this moment
+     for one can mean nothing at all happened yet. The row's can-start/
+     active-attempt facts were fetched whenever the popup was last opened
+     — for a Scheduled Exam that can be minutes-to-hours stale by the time
+     the countdown reaches zero. Re-fetch fresh state right at zero rather
+     than trusting either the stale snapshot or the countdown itself, and
+     keep polling every 15s for as long as the exam still isn't actually
+     open — that's the normal, expected state for a Manual Exam sitting
+     past its scheduled time with the admin not having started it yet, not
+     a one-off transition to catch. Falls back to the stale snapshot only
+     if a fetch itself fails, so the row still resolves to something
+     rather than hanging. */
+  function promoteRowToLive(row){
+    var href = row.dataset.startHref;
+    var action = row.querySelector('.ntf-action');
+    var examId = row.dataset.examId;
+
+    // Reaching the scheduled start time does NOT mean the exam is
+    // actually open — a Manual Exam only opens once the admin explicitly
+    // sets it to Ongoing (see is_exam_window_open() in exam_service.py);
+    // a Scheduled Exam opens purely by time, so windowOpen tracks that
+    // automatically. Only flip the row to the "Live" look when the
+    // server confirms the window is genuinely open (or there's already
+    // an active attempt to resume) — otherwise leave it looking like an
+    // upcoming exam that's simply still waiting on the admin, matching
+    // the dashboard's own "Not started yet" state for this case.
+    function render(active, canStart, windowOpen){
+      var isLive = active || windowOpen;
+      if (isLive) {
+        if (!row.querySelector('.ntf-live')) {
+          row.querySelector('.ntf-icon').className = 'ntf-icon ntf-icon-success';
+          row.querySelector('.ntf-icon i').className = 'fas fa-play';
+          var liveTag = document.createElement('span');
+          liveTag.className = 'ntf-live';
+          liveTag.innerHTML = '<span class="ntf-live-dot"></span>Live';
+          row.querySelector('.ntf-title').appendChild(liveTag);
+          var meta = row.querySelector('.ntf-meta');
+          var cd = meta.querySelector('.countdown');
+          if (cd && cd.parentNode === meta) { /* strip the "· Starts in …" tail */
+            meta.innerHTML = meta.innerHTML.split('&middot;')[0].split('·')[0];
+          }
+        }
+      } else {
+        // The countdown stopped ticking (it hit zero and handed off here)
+        // but the exam still isn't open — leaving "Starts in 0m 0s" frozen
+        // on screen would be as misleading as the wrong "Live" badge this
+        // whole fix is for, so replace it with an honest waiting label.
+        var metaEl = row.querySelector('.ntf-meta');
+        var cdEl = metaEl && metaEl.querySelector('.countdown');
+        if (cdEl && cdEl.parentNode === metaEl) {
+          metaEl.innerHTML = metaEl.innerHTML.split('&middot;')[0].split('·')[0] + '&middot; Awaiting admin start';
+        }
+      }
+      if (active) {
+        action.innerHTML = '<a href="'+href+'" class="ntf-btn success">Resume</a>';
+      } else if (canStart) {
+        action.innerHTML = '<a href="'+href+'" class="ntf-btn success">Start</a>';
+      } else if (windowOpen) {
+        action.innerHTML = '<span class="ntf-btn ghost">Exhausted</span>';
+      } else {
+        action.innerHTML = '<span class="ntf-btn ghost">Not started yet</span>';
+      }
+      return isLive;
+    }
+
+    if (!examId) {
+      render(row.dataset.activeAttempt === 'true', row.dataset.canStart === 'true', row.dataset.canStart === 'true');
+      return;
+    }
+
+    // Re-poll while still waiting on the admin, so the row picks up the
+    // real Live state on its own once they act — without this, a student
+    // who leaves the popup open would be stuck reading "Not started yet"
+    // even after the admin starts the exam, until they reopen the popup.
+    function poll(){
+      fetch('/api/v01/exams/' + examId + '/attempt-status', { cache: 'no-store' })
+        .then(function(r){ return r.json(); })
+        .then(function(d){
+          var isLive = render(!!d.has_active_attempt, !!d.can_start_new, !!d.window_open);
+          if (!isLive && document.body.contains(row)) {
+            setTimeout(poll, 15000);
+          }
+        })
+        .catch(function(){
+          render(row.dataset.activeAttempt === 'true', row.dataset.canStart === 'true', row.dataset.canStart === 'true');
+        });
+    }
+    poll();
+  }
+
+  // Swaps a still-waiting row's ghost "Upcoming" action into a real
+  // "Prepare" link the instant the exam's preparation window opens, and
+  // re-arms the countdown toward the official start (phase 'live') —
+  // purely time-based (is_prep_window_open never depends on attempts/
+  // eligibility the way starting does), so no re-fetch is needed here
+  // the way promoteRowToLive() needs one.
+  function promoteRowToPrepAvailable(row){
+    var href = row.dataset.startHref;
+    var action = row.querySelector('.ntf-action');
+    if (action) action.innerHTML = '<a href="'+href+'" class="ntf-btn success">Prepare</a>';
+    var meta = row.querySelector('.ntf-meta');
+    if (meta) meta.innerHTML = meta.innerHTML.replace('Prepare in', 'Starts in');
+    armCountdown(row, 'live');
+  }
+
+  // One absolute-target countdown, re-armed for the next phase (prep ->
+  // live) instead of assuming "prep ending" means "now live" — a
+  // Scheduled Exam's row starts in phase 'prep' (data-prep-target) if its
+  // preparation window hasn't opened yet, or straight into phase 'live'
+  // (data-live-target) once it has (or for a Manual Exam, which has no
+  // prep phase at all — data-phase is always 'live' for it, see
+  // partials/updates_panel.html).
+  function armCountdown(row, phase){
+    var targetIso = phase === 'prep' ? row.dataset.prepTarget : row.dataset.liveTarget;
+    if (!targetIso) { if (phase === 'live') promoteRowToLive(row); return; }
+    var target = new Date(targetIso).getTime();
+    var el = row.querySelector('.countdown');
+    if (isNaN(target)) return;
+    (function tick(){
+      // Always recomputed from the absolute target vs. the current real
+      // clock — never a stored/decremented counter — so this stays
+      // accurate no matter when it runs: on open, on refresh, or on any
+      // later reopen from a cached fetch.
+      var remaining = Math.round((target - Date.now()) / 1000);
+      if (remaining <= 0) {
+        if (phase === 'prep') promoteRowToPrepAvailable(row); else promoteRowToLive(row);
+        return;
+      }
+      if (el) {
+        var h = Math.floor(remaining/3600), mi = Math.floor((remaining%3600)/60), s = remaining%60;
+        el.textContent = (h>0 ? h+'h ' : '') + (h>0 && mi<10 ? '0' : '') + mi + 'm ' + (s<10?'0':'') + s + 's';
+      }
+      setTimeout(tick, 1000);
+    })();
+  }
+
+  function startCountdowns(body){
+    body.querySelectorAll('[data-exam-row]').forEach(function(row){
+      armCountdown(row, row.dataset.phase || 'live');
+    });
+  }
+
+  window.openUpdatesPopup = function(){
+    var m = document.getElementById('updatesModal');
+    if (!m) return;
+    m.classList.add('open');
+    fetchUpdates(function(d){
+      var title = document.getElementById('updatesGreetingTitle');
+      var sub = document.getElementById('updatesGreetingSub');
+      if (title && d.greeting_title) title.textContent = d.greeting_title;
+      if (sub && d.greeting_sub) sub.textContent = d.greeting_sub;
+      var body = document.getElementById('updatesModalBody');
+      if (body) {
+        body.innerHTML = d.html || '<div class="dash-empty"><div class="dash-empty-icon"><i class="fas fa-check-circle"></i></div><h3>You\'re all caught up</h3><p>Nothing new right now.</p></div>';
+        startCountdowns(body);
+      }
+    });
+  };
+  window.closeUpdatesModal = function(){
+    // Dismissing the popup is purely visual — it never marks anything seen.
+    var m = document.getElementById('updatesModal');
+    if (m) m.classList.remove('open');
+  };
+  var um = document.getElementById('updatesModal');
+  if (um) um.addEventListener('click', function(e){ if (e.target === this) closeUpdatesModal(); });
+
+  /* Explicit dismiss for items with no natural "view" page (e.g. a
+     declined connection request never opens a conversation) — this IS a
+     deliberate mark-seen action, unlike closing the popup itself. Removes
+     the row locally (and the section label if it was the last one) so the
+     user gets instant feedback without a full re-fetch; the badge count
+     from the cached response is also decremented to match. */
+  document.getElementById('updatesModalBody').addEventListener('click', function(e){
+    // "Open"-style links that resolve a one-time event (e.g. an accepted
+    // connection request) mark it seen too, not just the explicit dismiss
+    // button — fire-and-forget with keepalive so the request survives the
+    // page navigation the click is about to trigger.
+    var onClickLink = e.target.closest('.ntf-dismiss-on-click');
+    if (onClickLink) {
+      fetch('/api/v01/student/updates/dismiss', {
+        method: 'POST', keepalive: true,
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({event_type: onClickLink.dataset.dismissType, event_key: onClickLink.dataset.dismissKey})
+      }).catch(function(){});
+      return;
+    }
+    var btn = e.target.closest('.ntf-dismiss');
+    if (!btn) return;
+    var row = btn.closest('.ntf-row');
+    var type = row.dataset.dismissType, key = row.dataset.dismissKey;
+    if (!type || !key) return;
+    btn.disabled = true;
+    fetch('/api/v01/student/updates/dismiss', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({event_type: type, event_key: key})
+    }).then(function(){
+      var label = row.previousElementSibling;
+      var isOnlyRowInSection = label && label.classList.contains('ntf-section-label')
+        && (!row.nextElementSibling || row.nextElementSibling.classList.contains('ntf-section-label'));
+      if (isOnlyRowInSection) label.remove();
+      row.remove();
+      var badge = document.getElementById('updatesBadge');
+      if (badge && badge.textContent) {
+        var n = Math.max(0, (parseInt(badge.textContent, 10) || 1) - 1);
+        badge.textContent = n; badge.style.display = n ? 'inline' : 'none';
+      }
+      // Unlike every other mark-seen path (which navigates to a whole new
+      // page, naturally discarding this page's JS state), dismiss acts via
+      // AJAX while staying put — so the cached response's .html would still
+      // contain this now-dismissed row if reused. Drop the cache entirely;
+      // the next open (or badge refresh) just fetches fresh.
+      cache = null;
+    }).catch(function(){ btn.disabled = false; });
+  });
+
+  fetchUpdates(function(d){
+    var badge = document.getElementById('updatesBadge');
+    if (badge) { badge.textContent = d.count || 0; badge.style.display = d.count ? 'inline' : 'none'; }
+    if (window.__autoShowUpdates && d.count > 0) {
+      setTimeout(function(){ openUpdatesPopup(); }, 300);
+    }
+  });
+})();
+</script>
+{% endif %}
+
+{# ══ GLOBAL APP TOAST — themed replacement for alert() ══ #}
+<div id="appToastContainer"></div>
+<script>
+window.appToast = function(msg, type, sub) {
+  type = type || 'success';
+  var icons = { success: 'fa-check-circle', danger: 'fa-times-circle', warning: 'fa-exclamation-circle' };
+  var el = document.createElement('div');
+  el.className = 'app-toast ' + type;
+  el.innerHTML =
+    '<i class="fas ' + (icons[type] || 'fa-info-circle') + ' app-toast-icon"></i>' +
+    '<div><div class="app-toast-msg"></div>' +
+      (sub ? '<div class="app-toast-sub"></div>' : '') +
+    '</div>';
+  el.querySelector('.app-toast-msg').textContent = msg;
+  if (sub) el.querySelector('.app-toast-sub').textContent = sub;
+  var c = document.getElementById('appToastContainer');
+  if (!c) return;
+  c.appendChild(el);
+  setTimeout(function() { el.style.transition = 'opacity .3s'; el.style.opacity = '0'; }, 3200);
+  setTimeout(function() { el.remove(); }, 3500);
+};
+</script>
+
+{# ══ NEW-WINDOW LOADING SCREEN ═══════════════════════════
+   See templates/admin_base.html for the full rationale (same pattern,
+   kept in sync deliberately) — opens the window immediately and paints a
+   self-contained loading screen into it before navigating to the real
+   (potentially slow) URL, so the window is never blank/white. ══ #}
+<script>
+window.openLoadingWindow = function(url, name, features, opts) {
+  opts = opts || {};
+  var win;
+  try { win = window.open('about:blank', name || '_blank', features); } catch(e) { win = null; }
+  if (!win) { window.location.href = url; return null; }
+  try {
+    win.document.open();
+    win.document.write(
+      '<!doctype html><html><head><meta charset="utf-8">' +
+      '<title>' + (opts.title || 'Loading…') + '</title><style>' +
+      'html,body{margin:0;height:100%;background:#f7f4ee;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif}' +
+      '@media (prefers-color-scheme:dark){html,body{background:#1c1917}}' +
+      '.wrap{max-width:760px;margin:0 auto;padding:2.25rem 1.75rem}' +
+      '.hdr{display:flex;align-items:center;gap:.65rem;margin-bottom:1.6rem}' +
+      '.spin{width:20px;height:20px;border-radius:50%;border:2.5px solid rgba(120,100,80,.22);border-top-color:#c1602b;animation:spin .8s linear infinite;flex-shrink:0}' +
+      '@keyframes spin{to{transform:rotate(360deg)}}' +
+      '.htxt{font-size:.95rem;font-weight:600;color:#3a332b}' +
+      '@media (prefers-color-scheme:dark){.htxt{color:#f1ece3}}' +
+      '.sk{border-radius:10px;background:linear-gradient(90deg,rgba(120,100,80,.10) 25%,rgba(120,100,80,.18) 37%,rgba(120,100,80,.10) 63%);background-size:400% 100%;animation:shim 1.4s ease infinite}' +
+      '@keyframes shim{0%{background-position:100% 0}100%{background-position:0 0}}' +
+      '.bar{height:14px;margin-bottom:.6rem}.w60{width:60%}.w40{width:40%}.card{height:88px;margin-bottom:.85rem}' +
+      '</style></head><body><div class="wrap">' +
+      '<div class="hdr"><div class="spin"></div><div class="htxt">' + (opts.message || 'Loading…') + '</div></div>' +
+      '<div class="sk bar w60"></div><div class="sk bar w40" style="margin-bottom:1.4rem"></div>' +
+      '<div class="sk card"></div><div class="sk card"></div><div class="sk card"></div>' +
+      '</div></body></html>'
+    );
+    win.document.close();
+  } catch(e) {}
+  win.location.href = url;
+  return win;
+};
+</script>
+
+{% block scripts %}{% endblock %}
+</body>
+</html>

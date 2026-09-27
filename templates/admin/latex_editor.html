@@ -1,0 +1,1089 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>LaTeX Editor - SmartAIExam</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+
+  <!-- Theme init — must be first to avoid flash -->
+  <script>
+  (function(){
+    var lt = localStorage.getItem('landingTheme') || 'dark';
+    var t  = (lt === 'paper') ? 'light' : lt;
+    document.documentElement.setAttribute('data-theme', t);
+  })();
+  </script>
+
+  <!-- Centralized theme variables -->
+  <link href="/static/theme.css" rel="stylesheet">
+
+  <!-- KaTeX -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
+
+  <!-- Font Awesome -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"/>
+
+  <!-- Fonts -->
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+
+  <style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html, body {
+    height: 100%;
+    font-family: 'DM Sans', sans-serif;
+    background: var(--bg);
+    color: var(--text-1);
+    overflow: hidden;
+  }
+
+  /* ══ LAYOUT ══════════════════════════════════════════════ */
+  .app {
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+  }
+
+  /* ══ TOOLBAR ═════════════════════════════════════════════ */
+  .toolbar {
+    display: flex;
+    align-items: center;
+    gap: .25rem;
+    padding: .5rem .75rem;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+    flex-wrap: wrap;
+    min-height: 48px;
+  }
+
+  .toolbar-brand {
+    display: flex; align-items: center; gap: .5rem;
+    font-size: .82rem; font-weight: 700; color: var(--text-1);
+    padding-right: .75rem;
+    border-right: 1px solid var(--border);
+    margin-right: .25rem;
+  }
+  .toolbar-brand i { color: var(--accent); font-size: .9rem; }
+
+  .toolbar-sep {
+    width: 1px; height: 20px;
+    background: var(--border);
+    margin: 0 .25rem; flex-shrink: 0;
+  }
+
+  .tb-btn {
+    display: inline-flex; align-items: center; gap: .35rem;
+    padding: .35rem .7rem;
+    background: none; border: 1px solid transparent;
+    border-radius: var(--radius);
+    font-size: .78rem; font-weight: 600; font-family: inherit;
+    color: var(--text-2); cursor: pointer;
+    transition: background .12s, color .12s, border-color .12s;
+    white-space: nowrap;
+  }
+  .tb-btn:hover { background: var(--surface-2); border-color: var(--border); color: var(--text-1); }
+  .tb-btn:disabled { opacity: .4; cursor: not-allowed; }
+  .tb-btn.primary {
+    background: var(--accent); color: var(--accent-on);
+    border-color: var(--accent);
+  }
+  .tb-btn.primary:hover { background: var(--accent-hover); border-color: var(--accent-hover); }
+  .tb-btn.icon-only { padding: .35rem .5rem; }
+
+  /* ══ BODY (sidebar + workspace) ══════════════════════════ */
+  .app-body {
+    display: flex;
+    flex: 1;
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  /* ══ SIDEBAR ═════════════════════════════════════════════ */
+  .sidebar {
+    width: 220px;
+    min-width: 220px;
+    background: var(--surface);
+    border-right: 1px solid var(--border);
+    overflow-y: auto;
+    overflow-x: hidden;
+    flex-shrink: 0;
+    transition: width .2s, min-width .2s;
+    scrollbar-width: thin;
+    scrollbar-color: var(--border) transparent;
+  }
+  .sidebar.collapsed { width: 0; min-width: 0; }
+  .sidebar::-webkit-scrollbar { width: 4px; }
+  .sidebar::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+
+  .sidebar-head {
+    padding: .65rem .9rem;
+    border-bottom: 1px solid var(--border);
+    font-size: .65rem; font-weight: 700;
+    text-transform: uppercase; letter-spacing: .1em;
+    color: var(--text-3);
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    background: var(--surface);
+  }
+
+  .sidebar-body {
+    padding: .5rem 0 2rem;
+  }
+
+  .sym-section { padding: .25rem 0; }
+
+  .sym-section-title {
+    font-size: .6rem; font-weight: 700;
+    text-transform: uppercase; letter-spacing: .09em;
+    color: var(--text-3);
+    padding: .5rem .9rem .3rem;
+  }
+
+  .sym-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 2px;
+    padding: 0 .5rem;
+  }
+
+  .sym-btn {
+    position: relative;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    padding: .45rem .2rem;
+    background: none; border: 1px solid transparent;
+    border-radius: calc(var(--radius) - 2px);
+    cursor: pointer;
+    transition: background .12s, border-color .12s;
+    font-size: .85rem; color: var(--text-1);
+    font-family: 'JetBrains Mono', monospace;
+    min-height: 36px;
+  }
+  .sym-btn:hover {
+    background: var(--accent-subtle);
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+  .sym-btn .sym-tip {
+    display: none;
+    position: absolute;
+    left: calc(100% + 6px); top: 50%;
+    transform: translateY(-50%);
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    color: var(--text-1);
+    font-size: .65rem; font-family: 'JetBrains Mono', monospace;
+    padding: .25rem .5rem;
+    border-radius: 6px;
+    white-space: nowrap;
+    z-index: 100;
+    box-shadow: var(--shadow-md);
+    pointer-events: none;
+  }
+  .sym-btn:hover .sym-tip { display: block; }
+
+  /* ══ WORKSPACE ═══════════════════════════════════════════ */
+  .workspace {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  .panes {
+    flex: 1;
+    display: flex;
+    overflow: hidden;
+  }
+
+  /* ══ EDITOR PANE ══════════════════════════════════════════ */
+  .editor-pane {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    border-right: 1px solid var(--border);
+  }
+
+  .pane-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: .5rem .9rem;
+    background: var(--surface-2);
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+  .pane-title {
+    font-size: .72rem; font-weight: 700;
+    text-transform: uppercase; letter-spacing: .08em;
+    color: var(--text-3);
+    display: flex; align-items: center; gap: .4rem;
+  }
+  .pane-title i { color: var(--accent); }
+
+  .editor-stats {
+    font-size: .68rem; color: var(--text-3);
+    display: flex; gap: .75rem;
+  }
+  .editor-stats span { color: var(--text-2); font-weight: 600; }
+
+  #latex-editor {
+    flex: 1;
+    width: 100%;
+    padding: 1rem;
+    background: var(--bg);
+    color: var(--text-1);
+    border: none; outline: none; resize: none;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: .82rem;
+    line-height: 1.7;
+    tab-size: 2;
+    overflow-y: auto;
+    scrollbar-width: thin;
+    scrollbar-color: var(--border) transparent;
+  }
+  #latex-editor::-webkit-scrollbar { width: 6px; }
+  #latex-editor::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+  #latex-editor::placeholder { color: var(--text-3); }
+
+  /* ══ PREVIEW PANE ════════════════════════════════════════ */
+  .preview-pane {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    transition: flex .2s;
+  }
+  .preview-pane.collapsed { flex: 0; overflow: hidden; border: none; }
+
+  .zoom-controls {
+    display: flex; align-items: center; gap: .2rem;
+  }
+  .zoom-btn {
+    width: 24px; height: 24px;
+    display: flex; align-items: center; justify-content: center;
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 6px; cursor: pointer; color: var(--text-2);
+    font-size: .68rem; transition: background .12s, color .12s;
+  }
+  .zoom-btn:hover { background: var(--accent-subtle); color: var(--accent); border-color: var(--accent); }
+  .zoom-level {
+    font-size: .7rem; font-weight: 600; color: var(--text-2);
+    padding: 0 .4rem; min-width: 38px; text-align: center;
+  }
+
+  .preview-scroll {
+    flex: 1;
+    overflow: auto;
+    background: var(--bg);
+    scrollbar-width: thin;
+    scrollbar-color: var(--border) transparent;
+  }
+  .preview-scroll::-webkit-scrollbar { width: 6px; }
+  .preview-scroll::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+
+  #preview-content {
+    padding: 1.5rem 2rem;
+    min-height: 100%;
+    transform-origin: top left;
+    color: var(--text-1);
+    line-height: 1.8;
+    font-size: .9rem;
+  }
+
+  .preview-empty {
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    height: 100%; min-height: 200px;
+    color: var(--text-3);
+    gap: .5rem; font-size: .85rem; font-style: italic;
+    padding: 2rem;
+    text-align: center;
+  }
+  .preview-empty i { font-size: 2rem; opacity: .3; }
+
+  .render-error {
+    background: var(--danger-bg);
+    border: 1px solid var(--danger-border);
+    color: var(--danger-text);
+    padding: .75rem 1rem;
+    border-radius: var(--radius);
+    margin: 1rem;
+    font-size: .8rem;
+    font-family: 'JetBrains Mono', monospace;
+  }
+
+  /* KaTeX preview text colors */
+  #preview-content .katex { color: var(--text-1); }
+  #preview-content p { color: var(--text-2); margin: .75rem 0; }
+  #preview-content h1, #preview-content h2, #preview-content h3 { color: var(--text-1); margin: 1.25rem 0 .5rem; }
+
+  /* ══ STATUS BAR ══════════════════════════════════════════ */
+  .status-bar {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: .3rem .9rem;
+    background: var(--surface);
+    border-top: 1px solid var(--border);
+    flex-shrink: 0;
+    gap: 1rem;
+    flex-wrap: wrap;
+  }
+
+  .status-left, .status-right {
+    display: flex; align-items: center; gap: .75rem;
+  }
+
+  .status-pill {
+    display: inline-flex; align-items: center; gap: .3rem;
+    font-size: .68rem; font-weight: 600;
+    color: var(--text-3);
+  }
+  .status-dot {
+    width: 6px; height: 6px; border-radius: 50%;
+    background: var(--text-3);
+    flex-shrink: 0;
+  }
+  .status-pill.success .status-dot { background: var(--success-text); }
+  .status-pill.success span { color: var(--success-text); }
+  .status-pill.warning .status-dot { background: var(--warning-text); }
+  .status-pill.warning span { color: var(--warning-text); }
+  .status-pill.error .status-dot { background: var(--danger-text); }
+  .status-pill.error span { color: var(--danger-text); }
+
+  .status-sep { width: 1px; height: 12px; background: var(--border); }
+
+  /* ══ SPINNER ════════════════════════════════════════════ */
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .spin { animation: spin .8s linear infinite; }
+
+  /* ══ MOBILE OVERLAY ════════════════════════════════════ */
+  .sidebar-overlay {
+    display: none;
+    position: fixed; inset: 0; z-index: 50;
+    background: rgba(0,0,0,.5);
+  }
+  @media (max-width: 900px) {
+    .sidebar {
+      position: fixed; left: 0; top: 0; bottom: 0;
+      z-index: 51; transform: translateX(-100%);
+      transition: transform .22s;
+      width: 220px !important; min-width: 220px !important;
+    }
+    .sidebar.mobile-open {
+      transform: translateX(0);
+      box-shadow: var(--shadow-lg);
+    }
+    .sidebar-overlay.active { display: block; }
+    #mobile-sb-btn { display: inline-flex !important; }
+    .toolbar-brand .brand-text { display: none; }
+  }
+  </style>
+</head>
+<body>
+
+<div class="app">
+
+  <!-- ══ TOOLBAR ════════════════════════════════════════════ -->
+  <div class="toolbar">
+
+    <div class="toolbar-brand">
+      <i class="fas fa-square-root-alt"></i>
+      <span class="brand-text">LaTeX Editor</span>
+    </div>
+
+    <!-- Mobile sidebar toggle -->
+    <button class="tb-btn icon-only" id="mobile-sb-btn" style="display:none" title="Symbols">
+      <i class="fas fa-bars"></i>
+    </button>
+
+    <!-- Sidebar toggle -->
+    <button class="tb-btn icon-only" id="sb-toggle-btn" title="Toggle Symbol Palette">
+      <i class="fas fa-columns"></i>
+    </button>
+
+    <div class="toolbar-sep"></div>
+
+    <button class="tb-btn" id="new-doc" title="New Document">
+      <i class="fas fa-file"></i> New
+    </button>
+    <button class="tb-btn" id="save-doc" title="Save / Download (.tex)">
+      <i class="fas fa-download"></i> Save
+    </button>
+    <button class="tb-btn" id="load-doc" title="Load .tex file">
+      <i class="fas fa-folder-open"></i> Load
+    </button>
+
+    <div class="toolbar-sep"></div>
+
+    <button class="tb-btn icon-only" id="undo" title="Undo (Ctrl+Z)" disabled>
+      <i class="fas fa-undo"></i>
+    </button>
+    <button class="tb-btn icon-only" id="redo" title="Redo (Ctrl+Y)" disabled>
+      <i class="fas fa-redo"></i>
+    </button>
+
+    <div class="toolbar-sep"></div>
+
+    <button class="tb-btn" id="toggle-preview" title="Toggle Preview">
+      <i class="fas fa-eye"></i> Preview
+    </button>
+    <button class="tb-btn icon-only" id="fullscreen" title="Fullscreen">
+      <i class="fas fa-expand"></i>
+    </button>
+
+    <div class="toolbar-sep"></div>
+
+    <button class="tb-btn" id="copy-latex" title="Copy LaTeX to clipboard">
+      <i class="fas fa-copy"></i> Copy
+    </button>
+    <button class="tb-btn primary" id="insert-latex" title="Send LaTeX to editor (Ctrl+Enter)">
+      <i class="fas fa-paper-plane"></i> Insert to Editor
+    </button>
+
+    <!-- Status pill pushed right -->
+    <div style="margin-left:auto">
+      <div class="status-pill" id="render-status">
+        <div class="status-dot"></div>
+        <span>Ready</span>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ══ BODY ═══════════════════════════════════════════════ -->
+  <div class="app-body">
+
+    <!-- Sidebar overlay (mobile) -->
+    <div class="sidebar-overlay" id="sb-overlay"></div>
+
+    <!-- ── Symbol Sidebar ── -->
+    <div class="sidebar" id="sidebar">
+      <div class="sidebar-head">Symbol Palette</div>
+      <div class="sidebar-body">
+
+        <div class="sym-section">
+          <div class="sym-section-title">Basic Math</div>
+          <div class="sym-grid">
+            <button class="sym-btn" data-latex="\frac{a}{b}"><span>½</span><div class="sym-tip">\frac{a}{b}</div></button>
+            <button class="sym-btn" data-latex="\sqrt{x}"><span>√</span><div class="sym-tip">\sqrt{x}</div></button>
+            <button class="sym-btn" data-latex="x^{n}"><span>xⁿ</span><div class="sym-tip">x^{n}</div></button>
+            <button class="sym-btn" data-latex="x_{n}"><span>xₙ</span><div class="sym-tip">x_{n}</div></button>
+            <button class="sym-btn" data-latex="\sum_{i=1}^{n}"><span>Σ</span><div class="sym-tip">\sum_{i=1}^{n}</div></button>
+            <button class="sym-btn" data-latex="\prod_{i=1}^{n}"><span>∏</span><div class="sym-tip">\prod_{i=1}^{n}</div></button>
+            <button class="sym-btn" data-latex="\int_{a}^{b}"><span>∫</span><div class="sym-tip">\int_{a}^{b}</div></button>
+            <button class="sym-btn" data-latex="\lim_{x \to a}"><span title="lim">lim</span><div class="sym-tip">\lim_{x\to a}</div></button>
+            <button class="sym-btn" data-latex="\infty"><span>∞</span><div class="sym-tip">\infty</div></button>
+            <button class="sym-btn" data-latex="\partial"><span>∂</span><div class="sym-tip">\partial</div></button>
+            <button class="sym-btn" data-latex="\nabla"><span>∇</span><div class="sym-tip">\nabla</div></button>
+            <button class="sym-btn" data-latex="\log"><span>log</span><div class="sym-tip">\log</div></button>
+          </div>
+        </div>
+
+        <div class="sym-section">
+          <div class="sym-section-title">Greek Letters</div>
+          <div class="sym-grid">
+            <button class="sym-btn" data-latex="\alpha"><span>α</span><div class="sym-tip">\alpha</div></button>
+            <button class="sym-btn" data-latex="\beta"><span>β</span><div class="sym-tip">\beta</div></button>
+            <button class="sym-btn" data-latex="\gamma"><span>γ</span><div class="sym-tip">\gamma</div></button>
+            <button class="sym-btn" data-latex="\delta"><span>δ</span><div class="sym-tip">\delta</div></button>
+            <button class="sym-btn" data-latex="\epsilon"><span>ε</span><div class="sym-tip">\epsilon</div></button>
+            <button class="sym-btn" data-latex="\theta"><span>θ</span><div class="sym-tip">\theta</div></button>
+            <button class="sym-btn" data-latex="\lambda"><span>λ</span><div class="sym-tip">\lambda</div></button>
+            <button class="sym-btn" data-latex="\mu"><span>μ</span><div class="sym-tip">\mu</div></button>
+            <button class="sym-btn" data-latex="\pi"><span>π</span><div class="sym-tip">\pi</div></button>
+            <button class="sym-btn" data-latex="\sigma"><span>σ</span><div class="sym-tip">\sigma</div></button>
+            <button class="sym-btn" data-latex="\phi"><span>φ</span><div class="sym-tip">\phi</div></button>
+            <button class="sym-btn" data-latex="\omega"><span>ω</span><div class="sym-tip">\omega</div></button>
+            <button class="sym-btn" data-latex="\Gamma"><span>Γ</span><div class="sym-tip">\Gamma</div></button>
+            <button class="sym-btn" data-latex="\Delta"><span>Δ</span><div class="sym-tip">\Delta</div></button>
+            <button class="sym-btn" data-latex="\Lambda"><span>Λ</span><div class="sym-tip">\Lambda</div></button>
+            <button class="sym-btn" data-latex="\Omega"><span>Ω</span><div class="sym-tip">\Omega</div></button>
+          </div>
+        </div>
+
+        <div class="sym-section">
+          <div class="sym-section-title">Operators</div>
+          <div class="sym-grid">
+            <button class="sym-btn" data-latex="\pm"><span>±</span><div class="sym-tip">\pm</div></button>
+            <button class="sym-btn" data-latex="\mp"><span>∓</span><div class="sym-tip">\mp</div></button>
+            <button class="sym-btn" data-latex="\times"><span>×</span><div class="sym-tip">\times</div></button>
+            <button class="sym-btn" data-latex="\div"><span>÷</span><div class="sym-tip">\div</div></button>
+            <button class="sym-btn" data-latex="\neq"><span>≠</span><div class="sym-tip">\neq</div></button>
+            <button class="sym-btn" data-latex="\leq"><span>≤</span><div class="sym-tip">\leq</div></button>
+            <button class="sym-btn" data-latex="\geq"><span>≥</span><div class="sym-tip">\geq</div></button>
+            <button class="sym-btn" data-latex="\approx"><span>≈</span><div class="sym-tip">\approx</div></button>
+            <button class="sym-btn" data-latex="\equiv"><span>≡</span><div class="sym-tip">\equiv</div></button>
+            <button class="sym-btn" data-latex="\sim"><span>~</span><div class="sym-tip">\sim</div></button>
+            <button class="sym-btn" data-latex="\propto"><span>∝</span><div class="sym-tip">\propto</div></button>
+            <button class="sym-btn" data-latex="\cdot"><span>·</span><div class="sym-tip">\cdot</div></button>
+          </div>
+        </div>
+
+        <div class="sym-section">
+          <div class="sym-section-title">Arrows</div>
+          <div class="sym-grid">
+            <button class="sym-btn" data-latex="\to"><span>→</span><div class="sym-tip">\to</div></button>
+            <button class="sym-btn" data-latex="\leftarrow"><span>←</span><div class="sym-tip">\leftarrow</div></button>
+            <button class="sym-btn" data-latex="\leftrightarrow"><span>↔</span><div class="sym-tip">\leftrightarrow</div></button>
+            <button class="sym-btn" data-latex="\Rightarrow"><span>⇒</span><div class="sym-tip">\Rightarrow</div></button>
+            <button class="sym-btn" data-latex="\Leftarrow"><span>⇐</span><div class="sym-tip">\Leftarrow</div></button>
+            <button class="sym-btn" data-latex="\Leftrightarrow"><span>⇔</span><div class="sym-tip">\Leftrightarrow</div></button>
+            <button class="sym-btn" data-latex="\uparrow"><span>↑</span><div class="sym-tip">\uparrow</div></button>
+            <button class="sym-btn" data-latex="\downarrow"><span>↓</span><div class="sym-tip">\downarrow</div></button>
+          </div>
+        </div>
+
+        <div class="sym-section">
+          <div class="sym-section-title">Matrices</div>
+          <div class="sym-grid">
+            <button class="sym-btn" data-latex="\begin{pmatrix} a & b \\ c & d \end{pmatrix}"><span>( )</span><div class="sym-tip">pmatrix</div></button>
+            <button class="sym-btn" data-latex="\begin{bmatrix} a & b \\ c & d \end{bmatrix}"><span>[ ]</span><div class="sym-tip">bmatrix</div></button>
+            <button class="sym-btn" data-latex="\begin{vmatrix} a & b \\ c & d \end{vmatrix}"><span>| |</span><div class="sym-tip">vmatrix</div></button>
+            <button class="sym-btn" data-latex="\begin{cases} x & \text{if } x > 0 \\ -x & \text{if } x \leq 0 \end{cases}"><span>{ }</span><div class="sym-tip">cases</div></button>
+          </div>
+        </div>
+
+        <div class="sym-section">
+          <div class="sym-section-title">Chemistry</div>
+          <div class="sym-grid">
+            <button class="sym-btn" data-latex="\ce{H2O}"><span>H₂O</span><div class="sym-tip">\ce{H2O}</div></button>
+            <button class="sym-btn" data-latex="\ce{Ca^2+}"><span>Ca²⁺</span><div class="sym-tip">\ce{Ca^2+}</div></button>
+            <button class="sym-btn" data-latex="\ce{A -> B}"><span>→</span><div class="sym-tip">\ce{A->B}</div></button>
+            <button class="sym-btn" data-latex="\ce{A <=> B}"><span>⇌</span><div class="sym-tip">\ce{A<=>B}</div></button>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- ── Workspace ── -->
+    <div class="workspace">
+      <div class="panes">
+
+        <!-- Editor Pane -->
+        <div class="editor-pane">
+          <div class="pane-header">
+            <div class="pane-title"><i class="fas fa-code"></i> LaTeX Source</div>
+            <div class="editor-stats">
+              Ln <span id="line-count">1</span> &nbsp;|&nbsp;
+              Col <span id="col-count">1</span> &nbsp;|&nbsp;
+              <span id="char-count">0</span> chars
+            </div>
+          </div>
+          <textarea id="latex-editor" spellcheck="false" placeholder="% Start typing LaTeX here...
+% Example: Quadratic Formula
+The quadratic formula: $$x = \frac{-b \pm \sqrt{b^2 - 4ac}}{2a}$$
+
+% Example: Matrix
+$$A = \begin{pmatrix} 1 & 2 \\ 3 & 4 \end{pmatrix}$$
+
+% Example: Chemistry
+$$\ce{2H2 + O2 -> 2H2O}$$"></textarea>
+        </div>
+
+        <!-- Preview Pane -->
+        <div class="preview-pane" id="preview-panel">
+          <div class="pane-header">
+            <div class="pane-title"><i class="fas fa-eye"></i> Live Preview</div>
+            <div class="zoom-controls">
+              <button class="zoom-btn" id="zoom-out" title="Zoom Out"><i class="fas fa-minus"></i></button>
+              <div class="zoom-level" id="zoom-level">100%</div>
+              <button class="zoom-btn" id="zoom-in" title="Zoom In"><i class="fas fa-plus"></i></button>
+              <button class="zoom-btn" id="zoom-reset" title="Reset"><i class="fas fa-compress-arrows-alt"></i></button>
+            </div>
+          </div>
+          <div class="preview-scroll">
+            <div id="preview-content">
+              <div class="preview-empty">
+                <i class="fas fa-atom"></i>
+                Start typing LaTeX to see preview…
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Status Bar -->
+      <div class="status-bar">
+        <div class="status-left">
+          <div class="status-pill" id="autosave-status">
+            <div class="status-dot"></div>
+            <span>Autosave: On</span>
+          </div>
+          <div class="status-sep"></div>
+          <div class="status-pill" style="color:var(--text-3); font-size:.68rem">
+            <i class="fas fa-keyboard" style="margin-right:.3rem"></i>
+            Ctrl+Enter: Insert &nbsp;|&nbsp; Ctrl+Z: Undo &nbsp;|&nbsp; Ctrl+S: Save
+          </div>
+        </div>
+        <div class="status-right">
+          <span style="font-size:.68rem; color:var(--text-3)">KaTeX + mhchem</span>
+          <div class="status-sep"></div>
+          <span style="font-size:.68rem; color:var(--text-3)" id="cursor-position">Ln 1, Col 1</span>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- Libraries -->
+<script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/mhchem.min.js"></script>
+
+<script>
+(function() {
+  'use strict';
+
+  /* ── Theme sync from parent ── */
+  window.addEventListener('message', function(ev) {
+    try {
+      if (ev.origin !== window.location.origin) return;
+      var d = ev.data || {};
+      if (d.type === 'adminThemeChange' && d.theme) {
+        document.documentElement.setAttribute('data-theme', d.theme);
+      }
+    } catch(e) {}
+  });
+
+  /* Also sync on storage change (same tab group) */
+  window.addEventListener('storage', function(e) {
+    if (e.key === 'landingTheme' && e.newValue) {
+      var t = (e.newValue === 'paper') ? 'light' : e.newValue;
+      document.documentElement.setAttribute('data-theme', t);
+    }
+  });
+
+  /* ── State ── */
+  const state = {
+    zoomLevel: 1,
+    previewVisible: true,
+    sidebarCollapsed: false,
+    renderTimeout: null,
+    undoStack: [],
+    redoStack: [],
+    maxUndoSteps: 50,
+    autosaveEnabled: true,
+    isInitialized: false
+  };
+
+  /* ── Wait for KaTeX ── */
+  function waitForLibraries(cb) {
+    let attempts = 0;
+    (function check() {
+      if (window.katex && window.katex.render) return cb();
+      if (++attempts >= 50) return showStatus(elements.renderStatus, 'error', 'KaTeX failed to load', 0);
+      setTimeout(check, 100);
+    })();
+  }
+
+  /* ── DOM refs ── */
+  const elements = {
+    sidebar:             document.getElementById('sidebar'),
+    sbOverlay:           document.getElementById('sb-overlay'),
+    sbToggleBtn:         document.getElementById('sb-toggle-btn'),
+    mobileSbBtn:         document.getElementById('mobile-sb-btn'),
+    editor:              document.getElementById('latex-editor'),
+    previewPanel:        document.getElementById('preview-panel'),
+    previewContent:      document.getElementById('preview-content'),
+    togglePreview:       document.getElementById('toggle-preview'),
+    zoomIn:              document.getElementById('zoom-in'),
+    zoomOut:             document.getElementById('zoom-out'),
+    zoomReset:           document.getElementById('zoom-reset'),
+    zoomLevel:           document.getElementById('zoom-level'),
+    undoBtn:             document.getElementById('undo'),
+    redoBtn:             document.getElementById('redo'),
+    newDoc:              document.getElementById('new-doc'),
+    saveDoc:             document.getElementById('save-doc'),
+    loadDoc:             document.getElementById('load-doc'),
+    insertLatex:         document.getElementById('insert-latex'),
+    copyLatex:           document.getElementById('copy-latex'),
+    fullscreen:          document.getElementById('fullscreen'),
+    renderStatus:        document.getElementById('render-status'),
+    autosaveStatus:      document.getElementById('autosave-status'),
+    lineCount:           document.getElementById('line-count'),
+    colCount:            document.getElementById('col-count'),
+    charCount:           document.getElementById('char-count'),
+    cursorPos:           document.getElementById('cursor-position')
+  };
+
+  /* ── Utilities ── */
+  function debounce(fn, delay) {
+    let t;
+    return function(...args) { clearTimeout(t); t = setTimeout(() => fn.apply(this, args), delay); };
+  }
+
+  function showStatus(el, type, msg, duration = 3000) {
+    if (!el) return;
+    el.className = 'status-pill ' + type;
+    const sp = el.querySelector('span');
+    if (sp) sp.textContent = msg;
+    if (duration > 0) {
+      setTimeout(() => {
+        el.className = 'status-pill';
+        if (sp) sp.textContent = 'Ready';
+      }, duration);
+    }
+  }
+
+  function insertAtCursor(text) {
+    const ed = elements.editor;
+    const s = ed.selectionStart, e = ed.selectionEnd;
+    ed.value = ed.value.substring(0, s) + text + ed.value.substring(e);
+    ed.selectionStart = ed.selectionEnd = s + text.length;
+    ed.focus();
+    saveToUndoStack();
+    updateStats();
+    updateCursorPosition();
+    renderPreview();
+  }
+
+  /* ── Undo / Redo ── */
+  function saveToUndoStack() {
+    const v = elements.editor.value;
+    if (!state.undoStack.length || state.undoStack[state.undoStack.length - 1] !== v) {
+      state.undoStack.push(v);
+      if (state.undoStack.length > state.maxUndoSteps) state.undoStack.shift();
+      state.redoStack = [];
+      updateUndoRedoButtons();
+    }
+  }
+
+  function undo() {
+    if (state.undoStack.length > 1) {
+      state.redoStack.push(state.undoStack.pop());
+      elements.editor.value = state.undoStack[state.undoStack.length - 1];
+      updateUndoRedoButtons(); updateStats(); updateCursorPosition(); renderPreview();
+    }
+  }
+
+  function redo() {
+    if (state.redoStack.length) {
+      const v = state.redoStack.pop();
+      state.undoStack.push(v);
+      elements.editor.value = v;
+      updateUndoRedoButtons(); updateStats(); updateCursorPosition(); renderPreview();
+    }
+  }
+
+  function updateUndoRedoButtons() {
+    if (elements.undoBtn) elements.undoBtn.disabled = state.undoStack.length <= 1;
+    if (elements.redoBtn) elements.redoBtn.disabled = !state.redoStack.length;
+  }
+
+  /* ── Stats ── */
+  function updateStats() {
+    const v = elements.editor.value;
+    if (elements.charCount) elements.charCount.textContent = v.length;
+    if (elements.lineCount) elements.lineCount.textContent = v.split('\n').length;
+  }
+
+  function updateCursorPosition() {
+    const ed = elements.editor;
+    const before = ed.value.substring(0, ed.selectionStart).split('\n');
+    const ln = before.length, col = before[before.length - 1].length + 1;
+    if (elements.cursorPos) elements.cursorPos.textContent = `Ln ${ln}, Col ${col}`;
+    if (elements.lineCount) elements.lineCount.textContent = ln;
+    if (elements.colCount)  elements.colCount.textContent  = col;
+  }
+
+  /* ── Render preview ── */
+  function renderPreview() {
+    if (!state.previewVisible || !window.katex) return;
+    clearTimeout(state.renderTimeout);
+    state.renderTimeout = setTimeout(() => {
+      try {
+        showStatus(elements.renderStatus, 'warning', 'Rendering…', 0);
+
+        const content = elements.editor.value;
+        if (!content.trim()) {
+          elements.previewContent.innerHTML = `<div class="preview-empty"><i class="fas fa-atom"></i>Start typing LaTeX to see preview…</div>`;
+          showStatus(elements.renderStatus, 'success', 'Ready');
+          return;
+        }
+
+        const displayDollarRe = /\$\$[\s\S]*?\$\$/;
+        const envRe = /\\begin\{(equation|align|gather|multline|split|aligned|gathered|pmatrix|bmatrix|vmatrix|Vmatrix|matrix|cases)(\*?)\}[\s\S]*?\\end\{\1\2\}/;
+        const inlineDollarRe = /\$[^$\n][\s\S]*?[^$\n]\$/;
+
+        const parts = [];
+        let cursor = 0;
+        while (cursor < content.length) {
+          const rest = content.slice(cursor);
+          const dM = rest.match(displayDollarRe);
+          const eM = rest.match(envRe);
+          const iM = rest.match(inlineDollarRe);
+          const dP = dM ? cursor + rest.indexOf(dM[0]) : -1;
+          const eP = eM ? cursor + rest.indexOf(eM[0]) : -1;
+          const iP = iM ? cursor + rest.indexOf(iM[0]) : -1;
+          let nextPos = -1, kind = null, matchText = null;
+          if (dP >= 0 && (nextPos === -1 || dP < nextPos)) { nextPos = dP; kind = 'display';  matchText = dM[0]; }
+          if (eP >= 0 && (nextPos === -1 || eP < nextPos)) { nextPos = eP; kind = 'env';      matchText = eM[0]; }
+          if (iP >= 0 && (nextPos === -1 || iP < nextPos)) { nextPos = iP; kind = 'inline';   matchText = iM[0]; }
+          if (nextPos === -1) { parts.push({ type: 'text', content: content.slice(cursor) }); break; }
+          if (nextPos > cursor) parts.push({ type: 'text', content: content.slice(cursor, nextPos) });
+          parts.push({ type: kind, content: matchText });
+          cursor = nextPos + matchText.length;
+        }
+
+        let html = '';
+        parts.forEach(part => {
+          if (!part.content || !part.content.trim()) return;
+          try {
+            if (part.type === 'display') {
+              const inner = part.content.slice(2, -2).trim();
+              if (inner) html += `<div style="text-align:center;margin:1.25rem 0">${katex.renderToString(inner, { displayMode: true, throwOnError: false, trust: true, strict: false })}</div>`;
+            } else if (part.type === 'inline') {
+              const inner = part.content.slice(1, -1).trim();
+              if (inner) html += `<span>${katex.renderToString(inner, { displayMode: false, throwOnError: false, trust: true, strict: false })}</span>`;
+            } else if (part.type === 'env') {
+              html += `<div style="text-align:center;margin:1.25rem 0">${katex.renderToString(part.content.trim(), { displayMode: true, throwOnError: false, trust: true, strict: false })}</div>`;
+            } else {
+              let t = part.content
+                .replace(/\\textbf\{([^}]+)\}/g, '<strong>$1</strong>')
+                .replace(/\\textit\{([^}]+)\}/g, '<em>$1</em>')
+                .replace(/\\title\{([^}]+)\}/g, '<h1>$1</h1>')
+                .replace(/\\section\{([^}]+)\}/g, '<h2>$1</h2>')
+                .replace(/\\subsection\{([^}]+)\}/g, '<h3>$1</h3>')
+                .replace(/\\maketitle/g, '')
+                .replace(/\\newline|\\\\(?!\w)/g, '<br>')
+                .replace(/%(.*?)$/gm, '<span style="color:var(--text-3);font-style:italic">% $1</span>')
+                .replace(/\n\s*\n/g, '</p><p>')
+                .replace(/\n/g, ' ');
+              if (t.trim() && !t.match(/^\\(documentclass|usepackage|begin\{document\}|end\{document\})/))
+                html += `<p>${t}</p>`;
+            }
+          } catch(err) {
+            html += `<div class="render-error"><strong>Error:</strong> ${err && err.message ? err.message : 'Unknown'}</div>`;
+          }
+        });
+
+        if (!html.trim()) {
+          html = `<div class="preview-empty"><i class="fas fa-atom"></i>No renderable content. Try: <code style="font-family:monospace;font-size:.8rem">$$x = \\frac{-b \\pm \\sqrt{b^2-4ac}}{2a}$$</code></div>`;
+        }
+
+        elements.previewContent.innerHTML = html;
+        elements.previewContent.style.transform = `scale(${state.zoomLevel})`;
+        showStatus(elements.renderStatus, 'success', 'Rendered ✓', 2000);
+
+      } catch(err) {
+        elements.previewContent.innerHTML = `<div class="render-error"><strong>Render Error:</strong> ${err && err.message ? err.message : String(err)}<br><small>Check your LaTeX syntax.</small></div>`;
+        showStatus(elements.renderStatus, 'error', 'Error', 0);
+      }
+    }, 300);
+  }
+
+  /* ── Zoom ── */
+  function setZoom(v) {
+    state.zoomLevel = Math.max(0.25, Math.min(3, v));
+    if (elements.zoomLevel) elements.zoomLevel.textContent = Math.round(state.zoomLevel * 100) + '%';
+    if (elements.previewContent) elements.previewContent.style.transform = `scale(${state.zoomLevel})`;
+  }
+
+  /* ── File ops ── */
+  function newDocument() {
+    if (!confirm('Create new document? Unsaved changes will be lost.')) return;
+    elements.editor.value = `% New LaTeX document\nThe quadratic formula: $$x = \\frac{-b \\pm \\sqrt{b^2 - 4ac}}{2a}$$\n`;
+    state.undoStack = [elements.editor.value]; state.redoStack = [];
+    updateUndoRedoButtons(); updateStats(); updateCursorPosition(); renderPreview();
+  }
+
+  function saveDocument() {
+    try {
+      const blob = new Blob([elements.editor.value], { type: 'text/plain;charset=utf-8' });
+      const url  = URL.createObjectURL(blob);
+      const a    = Object.assign(document.createElement('a'), {
+        href: url,
+        download: `latex_${new Date().toISOString().slice(0,19).replace(/:/g,'-')}.tex`,
+        style: 'display:none'
+      });
+      document.body.appendChild(a); a.click(); document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+      showStatus(elements.autosaveStatus, 'success', 'Saved ✓', 2000);
+    } catch(e) { showStatus(elements.autosaveStatus, 'error', 'Save failed', 3000); }
+  }
+
+  function loadDocument() {
+    const inp = Object.assign(document.createElement('input'), { type: 'file', accept: '.tex,.txt,.latex', style: 'display:none' });
+    inp.onchange = e => {
+      const f = e.target.files[0]; if (!f) return;
+      const reader = new FileReader();
+      reader.onload = ev => {
+        elements.editor.value = ev.target.result;
+        state.undoStack = [elements.editor.value]; state.redoStack = [];
+        updateUndoRedoButtons(); updateStats(); updateCursorPosition(); renderPreview();
+        showStatus(elements.autosaveStatus, 'success', 'Loaded ✓', 2000);
+      };
+      reader.readAsText(f);
+    };
+    document.body.appendChild(inp); inp.click(); document.body.removeChild(inp);
+  }
+
+  /* ── Autosave ── */
+  const autosave = debounce(function() {
+    if (!state.autosaveEnabled) return;
+    try {
+      localStorage.setItem('latex_editor_autosave', elements.editor.value);
+      localStorage.setItem('latex_editor_timestamp', Date.now().toString());
+    } catch(e) {}
+  }, 1000);
+
+  function loadAutosave() {
+    try {
+      const saved = localStorage.getItem('latex_editor_autosave');
+      const ts    = localStorage.getItem('latex_editor_timestamp');
+      if (saved && ts && (Date.now() - parseInt(ts)) < 86400000 && saved.trim()) {
+        if (confirm('Found autosaved content from ' + new Date(parseInt(ts)).toLocaleString() + '. Load it?')) {
+          elements.editor.value = saved;
+          state.undoStack = [saved];
+          updateStats(); updateCursorPosition();
+        }
+      }
+    } catch(e) {}
+  }
+
+  /* ── Event listeners ── */
+  function setupEventListeners() {
+
+    /* Sidebar toggle (desktop) */
+    elements.sbToggleBtn?.addEventListener('click', () => {
+      state.sidebarCollapsed = !state.sidebarCollapsed;
+      elements.sidebar.classList.toggle('collapsed', state.sidebarCollapsed);
+    });
+
+    /* Sidebar toggle (mobile) */
+    elements.mobileSbBtn?.addEventListener('click', () => {
+      elements.sidebar.classList.add('mobile-open');
+      elements.sbOverlay.classList.add('active');
+    });
+    elements.sbOverlay?.addEventListener('click', () => {
+      elements.sidebar.classList.remove('mobile-open');
+      elements.sbOverlay.classList.remove('active');
+    });
+
+    /* Symbol buttons */
+    document.querySelectorAll('.sym-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const latex = btn.dataset.latex;
+        if (latex) { insertAtCursor(latex); showStatus(elements.renderStatus, 'success', 'Inserted ✓', 1000); }
+      });
+    });
+
+    /* Editor input */
+    const onInput = debounce(() => {
+      if (!state.isInitialized) return;
+      saveToUndoStack(); updateStats(); updateCursorPosition(); renderPreview(); autosave();
+    }, 200);
+    elements.editor.addEventListener('input', onInput);
+    elements.editor.addEventListener('keyup', updateCursorPosition);
+    elements.editor.addEventListener('click', updateCursorPosition);
+
+    /* Keyboard shortcuts */
+    elements.editor.addEventListener('keydown', e => {
+      if (e.ctrlKey || e.metaKey) {
+        if (e.key === 'z')     { e.preventDefault(); e.shiftKey ? redo() : undo(); }
+        if (e.key === 'y')     { e.preventDefault(); redo(); }
+        if (e.key === 's')     { e.preventDefault(); saveDocument(); }
+        if (e.key === 'Enter') { e.preventDefault(); elements.insertLatex?.click(); }
+      }
+      if (e.key === 'Tab') { e.preventDefault(); insertAtCursor('  '); }
+    });
+
+    /* Toolbar buttons */
+    elements.undoBtn?.addEventListener('click', undo);
+    elements.redoBtn?.addEventListener('click', redo);
+    elements.newDoc?.addEventListener('click', newDocument);
+    elements.saveDoc?.addEventListener('click', saveDocument);
+    elements.loadDoc?.addEventListener('click', loadDocument);
+
+    elements.togglePreview?.addEventListener('click', () => {
+      state.previewVisible = !state.previewVisible;
+      elements.previewPanel.classList.toggle('collapsed', !state.previewVisible);
+      const icon = elements.togglePreview.querySelector('i');
+      if (icon) icon.className = state.previewVisible ? 'fas fa-eye' : 'fas fa-eye-slash';
+      elements.togglePreview.childNodes[1].textContent = state.previewVisible ? ' Preview' : ' Preview';
+      if (state.previewVisible) renderPreview();
+    });
+
+    elements.zoomIn?.addEventListener('click',    () => setZoom(state.zoomLevel + 0.1));
+    elements.zoomOut?.addEventListener('click',   () => setZoom(state.zoomLevel - 0.1));
+    elements.zoomReset?.addEventListener('click', () => setZoom(1));
+
+    elements.copyLatex?.addEventListener('click', async () => {
+      try {
+        await navigator.clipboard.writeText(elements.editor.value);
+        showStatus(elements.renderStatus, 'success', 'Copied ✓', 1500);
+      } catch {
+        elements.editor.select(); document.execCommand('copy');
+        showStatus(elements.renderStatus, 'warning', 'Copied ✓', 1500);
+      }
+    });
+
+    elements.fullscreen?.addEventListener('click', () => {
+      if (!document.fullscreenElement) {
+        document.documentElement.requestFullscreen().then(() => {
+          elements.fullscreen.innerHTML = '<i class="fas fa-compress"></i>';
+        });
+      } else {
+        document.exitFullscreen().then(() => {
+          elements.fullscreen.innerHTML = '<i class="fas fa-expand"></i>';
+        });
+      }
+    });
+
+    elements.insertLatex?.addEventListener('click', () => {
+      const latex = elements.editor.value;
+      try {
+        if (window.opener && !window.opener.closed) {
+          window.opener.postMessage({ type: 'latex-selected', latex }, window.location.origin);
+          showStatus(elements.renderStatus, 'success', 'Sent ✓', 2000);
+          setTimeout(() => { if (confirm('LaTeX sent! Close this window?')) window.close(); }, 1000);
+        } else {
+          navigator.clipboard.writeText(latex).then(() => {
+            showStatus(elements.renderStatus, 'warning', 'Copied to clipboard', 3000);
+          });
+        }
+      } catch(e) {
+        alert('Failed to send. Copy manually:\n\n' + latex.substring(0, 500));
+      }
+    });
+
+    /* Responsive */
+    function handleResize() {
+      const mobile = window.innerWidth <= 900;
+      if (elements.mobileSbBtn) elements.mobileSbBtn.style.display = mobile ? 'inline-flex' : 'none';
+    }
+    window.addEventListener('resize', debounce(handleResize, 200));
+    handleResize();
+
+    window.addEventListener('beforeunload', e => {
+      if (elements.editor.value.trim()) { e.preventDefault(); e.returnValue = ''; }
+    });
+  }
+
+  /* ── Init ── */
+  function init() {
+    waitForLibraries(() => {
+      loadAutosave();
+      setupEventListeners();
+      updateStats();
+      updateCursorPosition();
+      updateUndoRedoButtons();
+      state.undoStack = [elements.editor.value];
+      state.isInitialized = true;
+      elements.editor.focus();
+      setTimeout(() => { renderPreview(); showStatus(elements.renderStatus, 'success', 'Ready ✓'); }, 100);
+    });
+  }
+
+  document.readyState === 'loading'
+    ? document.addEventListener('DOMContentLoaded', init)
+    : init();
+
+})();
+</script>
+
+</body>
+</html>

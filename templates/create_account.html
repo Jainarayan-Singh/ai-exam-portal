@@ -1,0 +1,85 @@
+{% extends "base.html" %}
+{% block title %}Create Account - SmartAIExam{% endblock %}
+{% block content %}
+<div class="auth-top">
+  <a href="{{ url_for('misc.home') }}" class="auth-top-btn"><i class="fas fa-home"></i> Home</a>
+  <a href="{{ url_for('auth.login') }}" class="auth-top-btn"><i class="fas fa-sign-in-alt"></i> Login</a>
+</div>
+
+<div class="auth-page">
+<div class="auth-card">
+
+  <div class="auth-logo">
+    <video src="{{ url_for('static', filename='logo.mp4') }}" autoplay loop muted playsinline style="height:40px;width:auto"></video>
+  </div>
+
+  {% if success %}
+    <div class="auth-title">Registration Successful</div>
+    <div class="auth-sub">A setup link has been sent to your email</div>
+    <div class="success-steps">
+      <div class="sst"><span class="sst-num">1</span><div class="sst-info"><strong>Check your email</strong><span>Look in inbox and spam folder</span></div></div>
+      <div class="sst"><span class="sst-num">2</span><div class="sst-info"><strong>Click the setup link</strong><span>Opens secure password creation form</span></div></div>
+      <div class="sst"><span class="sst-num">3</span><div class="sst-info"><strong>Create your password</strong><span>Choose a strong, secure password</span></div></div>
+      <div class="sst"><span class="sst-num">4</span><div class="sst-info"><strong>Sign in</strong><span>Use your credentials to login</span></div></div>
+    </div>
+    <a href="{{ url_for('auth.login') }}" class="auth-btn" style="margin-top:1rem;text-decoration:none">
+      <i class="fas fa-sign-in-alt"></i> Go to Login
+    </a>
+
+  {% else %}
+    <div class="auth-title">Create Account</div>
+    <div class="auth-sub">Register for your exam portal account</div>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}{% for cat, msg in messages %}
+      <div class="auth-alert {{ 'danger' if cat == 'error' else cat }}">
+        <i class="fas fa-{{ 'exclamation-triangle' if cat in ('error','warning') else 'check-circle' if cat=='success' else 'info-circle' }}" style="flex-shrink:0;margin-top:.1rem;font-size:.75rem"></i>
+        <span>{{ msg }}</span><button class="auth-ax" onclick="this.parentElement.remove()">&times;</button>
+      </div>
+      {% endfor %}{% endif %}
+    {% endwith %}
+
+    <form method="POST" id="regForm">
+      <div class="auth-field">
+        <label>First Name</label>
+        <div class="auth-iw"><i class="fas fa-user il"></i>
+          <input class="auth-inp" type="text" name="first_name" value="{{ first_name or '' }}" placeholder="Enter first name" required>
+        </div>
+      </div>
+      <div class="auth-field">
+        <label>Last Name</label>
+        <div class="auth-iw"><i class="fas fa-user il"></i>
+          <input class="auth-inp" type="text" name="last_name" value="{{ last_name or '' }}" placeholder="Enter last name" required>
+        </div>
+      </div>
+      <div class="auth-field">
+        <label>Email Address</label>
+        <div class="auth-iw"><i class="fas fa-envelope il"></i>
+          <input class="auth-inp" type="email" name="email" value="{{ email or '' }}" placeholder="you@example.com" required>
+        </div>
+        <div class="auth-note">Setup credentials will be sent to this email</div>
+      </div>
+      <button class="auth-btn" type="submit" id="regBtn">
+        <i class="fas fa-user-plus"></i> Create Account
+      </button>
+    </form>
+
+    <div class="info-box-auth" style="margin-top:1rem">
+      <div class="ibt"><i class="fas fa-info-circle"></i> How It Works</div>
+      <div class="ibi"><strong>New User:</strong> Enter details &rarr; Account created &rarr; Password link sent to email</div>
+      <div class="ibi"><strong>Existing User:</strong> Use the login page instead</div>
+    </div>
+
+    <a href="{{ url_for('auth.login') }}" class="auth-back"><i class="fas fa-arrow-left" style="font-size:.65rem"></i> Back to Login</a>
+  {% endif %}
+
+</div>
+</div>
+
+<script>
+document.getElementById('regForm')&&document.getElementById('regForm').addEventListener('submit',function(){
+  var b=document.getElementById('regBtn');
+  b.disabled=true;b.innerHTML='<i class="fas fa-spinner fa-spin"></i> Creating…';
+});
+</script>
+{% endblock %}

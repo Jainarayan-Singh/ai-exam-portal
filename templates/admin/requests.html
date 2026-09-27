@@ -1,0 +1,1743 @@
+{% extends "admin_base.html" %}
+{% block title %}Requests & User Management{% endblock %}
+
+{% block content %}
+
+<link rel="stylesheet" href="{{ url_for('static', filename='shared/date-picker.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='admin/select-enhance.css') }}">
+<script src="{{ url_for('static', filename='admin/select-enhance.js') }}"></script>
+<style>
+/* ── Page Header ── */
+.page-top {
+  display: flex; align-items: flex-start;
+  justify-content: space-between; flex-wrap: wrap;
+  gap: 1rem; margin-bottom: 1.75rem;
+}
+.page-top h1 {
+  font-size: 1.25rem; font-weight: 700; color: var(--text-1);
+  margin: 0 0 .25rem; display: flex; align-items: center; gap: .55rem;
+}
+.page-top p { font-size: .82rem; color: var(--text-3); margin: 0; }
+
+/* ── Header stat chips — same DNA as the dashboard's .dash-stat cards
+   (top accent border + icon square + number/label) scaled down for a
+   header strip, instead of the old icon+number pill. ── */
+.req-stats { display: flex; align-items: stretch; gap: .6rem; flex-wrap: wrap; }
+.req-stat {
+  display: flex; align-items: center; gap: .6rem;
+  background: var(--surface); border: 1px solid var(--border);
+  border-top: 2px solid var(--stat-c, var(--border));
+  border-radius: var(--radius); padding: .5rem .9rem;
+  min-width: 112px;
+}
+.req-stat-icon {
+  width: 30px; height: 30px; border-radius: 8px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--stat-bg, var(--surface-2)); color: var(--stat-c, var(--text-3));
+  font-size: .78rem;
+}
+.req-stat-num { font-size: 1.05rem; font-weight: 800; color: var(--text-1); line-height: 1.15; }
+.req-stat-label { font-size: .68rem; font-weight: 600; color: var(--text-3); margin-top: .1rem; }
+
+/* ── Tabs Card ── */
+.tabs-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: calc(var(--radius) + 4px);
+  overflow: hidden;
+  box-shadow: var(--shadow-md);
+}
+/* Pill-style tabs — same pattern as templates/admin/users_analytics.html's
+   .tabs-nav/.tab-btn, reused here instead of the old underline style so
+   the two pages read as one design language. */
+.tabs-nav {
+  display: flex; align-items: center; gap: .3rem;
+  background: var(--surface-2);
+  border-bottom: 1px solid var(--border);
+  padding: .55rem .75rem;
+  overflow-x: auto;
+}
+.tab-btn {
+  display: inline-flex; align-items: center; gap: .45rem;
+  padding: .42rem .95rem;
+  background: transparent; border: 1px solid transparent; border-radius: var(--radius);
+  font-size: .82rem; font-weight: 600; color: var(--text-3);
+  cursor: pointer; white-space: nowrap; flex-shrink: 0;
+  transition: background .12s, color .12s, border-color .12s;
+}
+.tab-btn:hover  { background: var(--surface); color: var(--text-1); }
+.tab-btn.active { background: var(--accent); color: var(--accent-on); border-color: var(--accent); }
+.tab-cnt {
+  background: var(--danger); color: #fff;
+  font-size: .65rem; font-weight: 700;
+  padding: .1rem .4rem; border-radius: 999px; line-height: 1.4;
+}
+.tab-pane { display: none; }
+.tab-pane.active { display: block; }
+
+/* Narrow phones — tighten so all three tabs fit on one line with no
+   scrolling needed ("User Management" must never look clipped). */
+@media (max-width: 420px) {
+  .tabs-nav { padding: .5rem .5rem; gap: .2rem; }
+  .tab-btn { padding: .4rem .55rem; font-size: .74rem; gap: 0; }
+  .tab-btn i { display: none; }
+}
+
+/* ── Table ── */
+.table { width: 100%; border-collapse: collapse; }
+.table thead th {
+  background: var(--surface-2);
+  padding: .65rem 1rem;
+  text-align: left; font-size: .67rem; font-weight: 700;
+  text-transform: uppercase; letter-spacing: .07em;
+  color: var(--text-3); border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+.table tbody td {
+  padding: .7rem 1rem;
+  border-bottom: 1px solid var(--border);
+  vertical-align: middle; color: var(--text-2);
+  font-size: .83rem; background: var(--surface);
+}
+.table tbody tr:last-child td { border-bottom: none; }
+.table tbody tr:hover td { background: var(--surface-2); transition: background .1s; }
+.table tbody tr.selected td { background: var(--accent-subtle); }
+
+/* ── Avatar Chip ── */
+.avatar-chip {
+  width: 30px; height: 30px; border-radius: 50%;
+  background: var(--accent-subtle); border: 1px solid var(--border);
+  color: var(--accent); font-size: .72rem;
+  display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+  position: relative; overflow: hidden; /* anchors the fading-in <img> (see avatarChip()) to this circle */
+}
+
+/* ── Access Badges ── */
+.access-badge {
+  display: inline-flex; align-items: center;
+  padding: .2rem .6rem; border-radius: 999px;
+  font-size: .72rem; font-weight: 700;
+  border: 1px solid var(--border);
+  background: var(--surface-2); color: var(--text-2);
+}
+.access-badge.access-user,  .access-badge.ab-user  { background: var(--info-bg);    color: var(--info-text);    border-color: var(--info-border); }
+.access-badge.access-admin, .access-badge.ab-admin { background: var(--danger-bg);  color: var(--danger-text);  border-color: var(--danger-border); }
+.access-badge.access-both,  .access-badge.ab-both  { background: var(--accent-subtle); color: var(--accent); border-color: var(--border); }
+
+/* ── Plan, admin role and special access (Users tab). The plan look is static/shared/plan-badge.css ── */
+.cell-none { color:var(--text-3); font-size:.74rem; }
+#usersTable .access-badge { white-space:nowrap; }
+.admin-chip { display:inline-flex; align-items:center; gap:.3rem; padding:.16rem .55rem; border-radius:999px; border:1px solid var(--info-border); background:var(--info-bg); color:var(--info-text); font:inherit; font-size:.68rem; font-weight:700; white-space:nowrap; }
+.admin-chip.none { background:var(--warning-bg); color:var(--warning-text); border-color:var(--warning-border); }
+button.admin-chip, button.custom-chip { cursor:pointer; }
+span.custom-chip, span.admin-chip { cursor:default; }
+.ap-lim { padding:.06rem .4rem; border-radius:6px; background:var(--surface-2); border:1px solid var(--border); font-size:.66rem; color:var(--text-2); }
+.ap-limits { display:flex; flex-direction:column; gap:.4rem; }
+.ap-limits:empty { display:none; }
+.ap-lock { margin-top:.5rem; padding:.5rem .65rem; border-radius:var(--radius); background:var(--warning-bg); color:var(--warning-text); font-size:.72rem; line-height:1.45; }
+.access-note { display:flex; gap:.5rem; align-items:center; margin:.2rem 0 .8rem; padding:.5rem .75rem; border-radius:var(--radius); background:var(--info-bg); border:1px solid var(--info-border); color:var(--info-text); font-size:.76rem; line-height:1.4; }
+.no-manage #usersTbody .sel-enh, .no-manage #usersTbody .update-btn, .no-manage #bulkRoleSelect + .sel-enh, .no-manage #applyBulkBtn { opacity:.45; pointer-events:none; }
+.custom-chip { display:inline-flex; align-items:center; gap:.3rem; padding:.16rem .55rem; border-radius:999px; border:1px dashed var(--accent); background:var(--accent-subtle); color:var(--accent); font:inherit; font-size:.68rem; font-weight:700; cursor:pointer; white-space:nowrap; }
+.custom-chip:hover { filter:brightness(.97); border-style:solid; }
+.access-pop { width:min(390px, calc(100vw - 16px)); padding:.85rem .95rem; font-size:.78rem; }
+.ap-title { font-size:.88rem; font-weight:800; }
+.ap-sub { color:var(--text-3); font-size:.7rem; margin-bottom:.55rem; }
+.ap-row { display:flex; align-items:flex-start; gap:.6rem; padding:.55rem 0; border-top:1px solid var(--border); }
+.ap-key { width:84px; flex-shrink:0; padding-top:.15rem; color:var(--text-3); font-size:.66rem; font-weight:700; text-transform:uppercase; letter-spacing:.05em; }
+.ap-val { flex:1; min-width:0; display:flex; flex-direction:column; gap:.35rem; }
+.ap-val > .plan-badge { align-self:flex-start; }
+.ap-note { color:var(--text-3); font-size:.7rem; line-height:1.4; }
+.ap-ov { display:flex; align-items:center; flex-wrap:wrap; gap:.2rem .45rem; }
+.ap-ov.expired { opacity:.55; }
+.ap-tag { padding:.08rem .45rem; border-radius:6px; border:1px solid var(--border); font-size:.66rem; font-weight:700; }
+.ap-tag.grant { background:var(--success-bg); color:var(--success-text); border-color:var(--success-border); }
+.ap-tag.deny  { background:var(--danger-bg);  color:var(--danger-text);  border-color:var(--danger-border); }
+.ap-x { margin-left:auto; padding:0 .25rem; border:none; background:none; color:var(--text-3); font-size:1rem; line-height:1; cursor:pointer; }
+.ap-x:hover { color:var(--danger-text); }
+.ap-form { display:flex; flex-direction:column; gap:.4rem; }
+.ap-form input { flex:1; min-width:0; padding:.35rem .55rem; border:1px solid var(--border); border-radius:9px; background:var(--bg); color:var(--text-1); font:inherit; font-size:.76rem; }
+.ap-form input:focus { outline:none; border-color:var(--border-focus, var(--accent)); }
+.ap-edit { display:flex; gap:.4rem; align-items:center; }
+.ap-edit .sel-enh.sel-enh-block { flex:1 1 0; width:auto; min-width:0; }
+.ap-edit.ap-pick { flex-direction:column; align-items:stretch; }
+.access-pop .sel-enh-trigger { padding:.35rem .55rem; font-size:.76rem; }
+.plans-note { margin-top:1rem; border:1px solid var(--border); border-radius:var(--radius); background:var(--surface); }
+.plans-note > summary { display:flex; align-items:center; gap:.5rem; padding:.65rem .9rem; cursor:pointer; font-size:.8rem; font-weight:700; color:var(--text-1); list-style:none; }
+.plans-note > summary::-webkit-details-marker { display:none; }
+.plans-note > summary i { color:var(--accent); }
+.plans-note .pn-hint { margin-left:.2rem; color:var(--text-3); font-size:.72rem; font-weight:500; }
+.plans-grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(210px, 1fr)); gap:.7rem; padding:0 .9rem .8rem; }
+.plan-card { background:var(--surface-2); border:1px solid var(--border); border-radius:var(--radius); padding:.7rem .8rem; }
+.plan-card .pc-head { display:flex; align-items:center; gap:.4rem; margin-bottom:.35rem; }
+.plan-card .pc-default { color:var(--text-3); font-size:.66rem; font-weight:600; }
+.plan-card .pc-sub { color:var(--text-3); font-size:.7rem; margin-bottom:.25rem; }
+.plan-card ul { margin:0; padding-left:1.05rem; font-size:.76rem; color:var(--text-2); }
+.plan-card .pc-limit { color:var(--text-3); font-size:.7rem; }
+.pn-text { margin:0; padding:0 .9rem .85rem; font-size:.74rem; line-height:1.6; color:var(--text-2); }
+.pn-text strong { color:var(--text-1); }
+
+/* ── Status Badges — text-only pill + subtle dot, same convention as
+   templates/admin/exams.html's .status-badge (upcoming/ongoing/completed):
+   no clock/tick/cross icon, just color + uppercase label communicating
+   state at a glance. ── */
+.status-badge {
+  display: inline-flex; align-items: center; gap: .4rem;
+  padding: .22rem .65rem; border-radius: 20px;
+  font-size: .68rem; font-weight: 700;
+  text-transform: uppercase; letter-spacing: .04em;
+  border: 1px solid;
+}
+.status-badge::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: currentColor; flex-shrink: 0; }
+.status-badge.sb-pending   { background: var(--warning-bg);  color: var(--warning-text);  border-color: var(--warning-border); }
+.status-badge.sb-completed { background: var(--success-bg);  color: var(--success-text);  border-color: var(--success-border); }
+.status-badge.sb-denied    { background: var(--danger-bg);   color: var(--danger-text);   border-color: var(--danger-border); }
+
+/* ── Reason Text — clamps long/multi-line audit trails instead of
+   letting them stretch the row; "Show more" reveals the rest. ── */
+.reason-cell { max-width: 220px; font-size: .79rem; color: var(--text-2); word-break: break-word; white-space: pre-wrap; }
+.reason-cell.clamped { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+/* User's justification (plain) vs admin's response (visually set apart, own line) — see
+   reasonCell() below; the two were previously one concatenated string with no visual split. */
+.reason-admin { display: flex; align-items: flex-start; gap: .3rem; margin-top: .4rem; padding: .35rem .5rem; background: var(--surface-2); border-radius: 6px; font-size: .74rem; color: var(--text-2); }
+.reason-admin i { flex-shrink: 0; margin-top: .15rem; color: var(--accent); font-size: .68rem; }
+.reason-toggle {
+  display: inline-block; margin-top: .25rem;
+  background: none; border: none; padding: 0; font-family: inherit;
+  font-size: .7rem; font-weight: 700; color: var(--accent); cursor: pointer;
+}
+.reason-toggle:hover { text-decoration: underline; }
+
+/* ── Action Buttons ── */
+.icon-btn {
+  width: 32px; height: 32px; border-radius: 8px;
+  background: var(--surface-2); border: 1px solid var(--border);
+  color: var(--text-2); display: inline-flex; align-items: center; justify-content: center;
+  cursor: pointer; transition: background .12s, color .12s, border-color .12s;
+  font-size: .78rem;
+}
+.icon-btn.approve:hover { background: var(--success-bg); color: var(--success-text); border-color: var(--success-border); }
+.icon-btn.deny:hover,
+.icon-btn.delete:hover  { background: var(--danger-bg);  color: var(--danger-text);  border-color: var(--danger-border); }
+
+/* ── Pending age hint ── */
+.pending-age { font-size: .68rem; color: var(--text-3); margin-top: .3rem; white-space: nowrap; }
+
+/* ── Filter toolbar — same pattern as templates/admin/users_analytics.html's
+   .filter-bar/.f-select/.f-date: labeled controls in a row, all the same
+   36px height, wrapping cleanly on narrow screens. The date fields use the
+   shared themed calendar (static/shared/date-picker.js) instead of the
+   browser's native <input type=date> popup. ── */
+.filter-bar {
+  display: flex; flex-wrap: wrap; align-items: flex-end; gap: .75rem;
+  padding: .9rem 1rem; border-bottom: 1px solid var(--border);
+  background: var(--surface-2);
+}
+.filter-item { flex: 1 1 140px; min-width: 130px; }
+.filter-item.search-item { flex: 1 1 220px; min-width: 180px; }
+.filter-item.action-item { flex: 0 0 auto; min-width: 0; }
+.filter-bar label {
+  display: block; font-size: .72rem; font-weight: 600;
+  color: var(--text-3); margin-bottom: .3rem;
+}
+.f-select, .f-date {
+  width: 100%;
+  background: var(--bg) !important; border: 1px solid var(--border) !important;
+  border-radius: var(--radius) !important; color: var(--text-1) !important;
+  font-family: inherit; font-size: .83rem; padding: .4rem .65rem; min-height: 36px;
+  transition: border-color .12s;
+}
+.f-select:focus, .f-date:focus { border-color: var(--accent) !important; outline: none; box-shadow: 0 0 0 3px var(--accent-subtle); }
+.f-select option { background: var(--surface); color: var(--text-1); }
+.filter-bar .search-wrap { width: 100%; margin-left: 0; min-height: 36px; box-sizing: border-box; }
+.filter-bar .search-wrap input { width: 100%; }
+
+/* ── Table error state — replaces a plain line of red text with a proper
+   component (icon + message + retry), matching .empty-state's visual
+   weight so loading/error/empty all feel like the same family. ── */
+.table-error-state { text-align: center; padding: 2.5rem 1rem; }
+.table-error-state i { font-size: 1.7rem; color: var(--danger-text); opacity: .75; display: block; margin-bottom: .6rem; }
+.table-error-state p { margin: 0 0 .9rem; font-size: .85rem; }
+.table-error-state p strong { display: block; color: var(--text-1); font-size: .9rem; margin-bottom: .15rem; }
+.table-error-state p span { color: var(--text-3); font-size: .78rem; }
+
+/* ── Buttons ── */
+.btn-flat {
+  display: inline-flex; align-items: center; gap: .4rem;
+  padding: .4rem .9rem; border-radius: var(--radius);
+  font-size: .8rem; font-weight: 600; font-family: inherit;
+  cursor: pointer; border: none;
+  transition: background .12s, color .12s;
+  white-space: nowrap;
+}
+.btn-flat:disabled { opacity: .5; cursor: not-allowed; }
+.btn-flat.primary   { background: var(--accent);    color: var(--accent-on); }
+.btn-flat.primary:hover:not(:disabled) { background: var(--accent-hover); }
+.btn-flat.secondary { background: var(--surface-2); color: var(--text-2); border: 1px solid var(--border); }
+.btn-flat.secondary:hover { border-color: var(--accent); color: var(--accent); }
+.btn-flat.success   { background: var(--success-bg); color: var(--success-text); border: 1px solid var(--success-border); }
+.btn-flat.success:hover { background: var(--success); color: #fff; }
+.btn-flat.danger    { background: var(--danger-bg);  color: var(--danger-text);  border: 1px solid var(--danger-border); }
+.btn-flat.danger:hover  { background: var(--danger);  color: #fff; }
+
+/* ── User Stats Bar ── */
+.user-stats {
+  display: flex; align-items: center; gap: 1.25rem;
+  padding: .75rem 1rem;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface-2); flex-wrap: wrap;
+}
+.ustat { font-size: .8rem; color: var(--text-2); display: flex; align-items: center; gap: .35rem; }
+.ustat strong { color: var(--text-1); }
+
+/* ── UM Controls ── */
+.um-controls {
+  display: flex; align-items: center; gap: .6rem;
+  padding: .75rem 1rem; flex-wrap: wrap;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+}
+.um-label { font-size: .75rem; font-weight: 600; color: var(--text-3); }
+.um-select {
+  background: var(--bg) !important;
+  border: 1px solid var(--border) !important;
+  border-radius: var(--radius) !important;
+  color: var(--text-1) !important;
+  font-size: .8rem; font-family: inherit;
+  padding: .35rem .6rem; cursor: pointer;
+}
+.um-select:focus { border-color: var(--accent) !important; outline: none; }
+.um-select option { background: var(--surface); color: var(--text-1); }
+.search-wrap {
+  display: flex; align-items: center; gap: .4rem;
+  background: var(--bg); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: .35rem .7rem;
+  margin-left: auto;
+}
+.search-wrap i { color: var(--text-3); font-size: .8rem; }
+.search-wrap input {
+  background: none; border: none; outline: none;
+  color: var(--text-1); font-size: .8rem; font-family: inherit;
+  width: 180px;
+}
+.search-wrap input::placeholder { color: var(--text-3); }
+
+/* ── Checkbox ── */
+.e-checkbox { accent-color: var(--accent); width: 15px; height: 15px; cursor: pointer; }
+
+/* ── Skeleton ── */
+.skeleton {
+  height: 14px; border-radius: 6px; width: 100%;
+  background: linear-gradient(90deg, var(--surface-2) 25%, var(--surface-hover, var(--border)) 50%, var(--surface-2) 75%);
+  background-size: 200% 100%;
+  animation: sk-shimmer 1.4s infinite;
+}
+@keyframes sk-shimmer { to { background-position: -200% 0; } }
+
+/* ── Paginator ── */
+.paginator-wrap {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: .6rem 1rem; border-top: 1px solid var(--border);
+  background: var(--surface-2); flex-wrap: wrap; gap: .5rem;
+  font-size: .78rem; color: var(--text-3);
+}
+
+/* ── Empty State ── */
+.empty-state { text-align: center; padding: 3rem 1rem; }
+.empty-state i { font-size: 2rem; color: var(--text-3); opacity: .35; display: block; margin-bottom: .75rem; }
+.empty-state p { margin: 0; color: var(--text-3); font-size: .88rem; }
+
+/* ── Modal ── */
+.modal-content {
+  background: var(--surface) !important;
+  border: 1px solid var(--border) !important;
+  border-radius: calc(var(--radius) + 4px) !important;
+}
+.modal-header { background: var(--surface-2) !important; border-bottom: 1px solid var(--border) !important; }
+.modal-title  { color: var(--text-1) !important; font-size: .95rem; font-weight: 700; }
+.modal-body   { background: var(--surface) !important; color: var(--text-2) !important; }
+.modal-footer { background: var(--surface) !important; border-top: 1px solid var(--border) !important; }
+.form-label   { font-size: .78rem; font-weight: 600; color: var(--text-2); margin-bottom: .35rem; display: block; }
+.form-select, .form-control {
+  background: var(--bg) !important; border: 1px solid var(--border) !important;
+  border-radius: var(--radius) !important; color: var(--text-1) !important;
+  font-size: .855rem; font-family: inherit;
+}
+.form-select:focus, .form-control:focus {
+  border-color: var(--accent) !important;
+  box-shadow: 0 0 0 3px var(--accent-subtle) !important;
+}
+.form-control::placeholder { color: var(--text-3) !important; }
+
+/* ── Bulk Modal ── */
+.bulk-modal-overlay {
+  display: none; position: fixed; inset: 0; z-index: 9999;
+  background: rgba(0,0,0,.55); backdrop-filter: blur(4px);
+  align-items: center; justify-content: center;
+}
+.bulk-modal-box {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: calc(var(--radius) + 6px);
+  padding: 2rem; max-width: 420px; width: 90%;
+  box-shadow: var(--shadow-lg);
+  animation: bulkModalIn .22s cubic-bezier(.34,1.56,.64,1);
+}
+@keyframes bulkModalIn {
+  from { opacity: 0; transform: scale(.92) translateY(8px); }
+  to   { opacity: 1; transform: scale(1) translateY(0); }
+}
+.bulk-modal-icon {
+  width: 52px; height: 52px; border-radius: 50%;
+  background: var(--accent-subtle); border: 1px solid var(--border);
+  display: flex; align-items: center; justify-content: center;
+  margin: 0 auto 1rem; font-size: 1.4rem; color: var(--accent);
+}
+.bulk-modal-title { text-align: center; font-size: 1.05rem; font-weight: 700; color: var(--text-1); margin: 0 0 .5rem; }
+.bulk-modal-msg   { text-align: center; font-size: .85rem; color: var(--text-2); line-height: 1.6; margin: 0 0 1.25rem; }
+.bulk-modal-footer { display: flex; gap: .75rem; }
+
+/* ── User Row Update Button ── */
+.update-btn {
+  display: inline-flex; align-items: center; gap: .35rem;
+  padding: .35rem .8rem; border-radius: var(--radius);
+  font-size: .78rem; font-weight: 600; font-family: inherit;
+  background: var(--surface-2); border: 1px solid var(--border);
+  color: var(--text-3); cursor: not-allowed;
+  transition: background .12s, color .12s, border-color .12s;
+  white-space: nowrap;
+}
+.update-btn.changed {
+  background: var(--accent-subtle); border-color: var(--accent);
+  color: var(--accent); cursor: pointer;
+}
+.update-btn.changed:hover {
+  background: var(--accent); color: var(--accent-on);
+}
+.update-btn:disabled { opacity: .6; }
+
+/* ── Toast (mirrors templates/admin/users_manage.html's — this page had
+   toast()/adminToast() calls with no implementation anywhere, so every
+   approve/deny/role-update success handler was throwing a ReferenceError
+   on its very first line and never reaching the modal-close/list-refresh
+   code after it, which is what made Approve/Deny look like they weren't
+   doing anything) ── */
+/* ── Last Updated column — compact 2-line date/time instead of one long
+   inline string (was visually an oversized rectangle among short cells).
+   Stays visible on mobile too — just shrinks further — since the table
+   already scrolls horizontally within its own .table-responsive wrapper
+   (see admin_base.html's 768px breakpoint for that established pattern),
+   so hiding the column isn't necessary to keep the row compact. ── */
+.col-updated { white-space: nowrap; }
+.ts-date { font-size: .75rem; color: var(--text-2); font-weight: 500; line-height: 1.3; }
+.ts-time { font-size: .68rem; color: var(--text-3); line-height: 1.3; }
+@media (max-width: 768px) {
+  .col-updated { padding-left: .6rem !important; padding-right: .6rem !important; }
+  .col-updated .ts-date, .col-updated .ts-time { font-size: .68rem; }
+  .col-updated .ts-time { font-size: .62rem; }
+}
+
+#toastContainer { position:fixed;bottom:1.5rem;right:1.5rem;z-index:10000;display:flex;flex-direction:column;gap:0.5rem;pointer-events:none; }
+.toast-item { display:flex;align-items:center;gap:0.65rem;padding:0.75rem 1.1rem;border-radius:12px;font-size:0.83rem;font-weight:600;color:#fff;box-shadow:0 6px 24px rgba(0,0,0,0.35);min-width:240px;max-width:340px;pointer-events:all;animation:toastIn 0.25s cubic-bezier(.34,1.56,.64,1); }
+@keyframes toastIn { from{opacity:0;transform:translateX(40px)} to{opacity:1;transform:translateX(0)} }
+.toast-item.removing { animation:toastOut 0.22s ease forwards; }
+@keyframes toastOut { to{opacity:0;transform:translateX(40px)} }
+.toast-success { background:linear-gradient(135deg,#059669,#10b981); }
+.toast-danger  { background:linear-gradient(135deg,#dc2626,#ef4444); }
+.toast-warning { background:linear-gradient(135deg,#d97706,#f59e0b); }
+.toast-close { margin-left:auto;background:none;border:none;color:#fff;opacity:0.7;cursor:pointer;font-size:0.85rem;padding:0;flex-shrink:0; }
+.toast-close:hover { opacity:1; }
+</style>
+
+<div id="toastContainer"></div>
+
+<!-- Bulk Confirm Modal -->
+<div id="bulkModal" class="bulk-modal-overlay" onclick="if(event.target===this)this.style.display='none'">
+  <div class="bulk-modal-box">
+    <div class="bulk-modal-icon"><i class="fas fa-users-cog"></i></div>
+    <h3 class="bulk-modal-title">Confirm Bulk Role Update</h3>
+    <p id="bulkModalMsg" class="bulk-modal-msg"></p>
+    <div class="bulk-modal-footer">
+      <button class="btn-flat secondary" style="flex:1;justify-content:center" onclick="document.getElementById('bulkModal').style.display='none'">
+        <i class="fas fa-times me-1"></i>Cancel
+      </button>
+      <button class="btn-flat primary" style="flex:1;justify-content:center" onclick="executeBulkUpdate()">
+        <i class="fas fa-check me-1"></i>Yes, Update
+      </button>
+    </div>
+  </div>
+</div>
+
+<div class="page-top">
+  <div>
+    <h1><i class="fas fa-user-plus me-2" style="color:var(--accent)"></i>Requests &amp; User Management</h1>
+    <p>Manage access requests and update user roles.</p>
+  </div>
+  <div class="req-stats">
+    <div class="req-stat" style="--stat-c:var(--warning-text);--stat-bg:var(--warning-bg)">
+      <div class="req-stat-icon"><i class="fas fa-hourglass-half"></i></div>
+      <div><div class="req-stat-num" id="hdrPending">—</div><div class="req-stat-label">Pending</div></div>
+    </div>
+    <div class="req-stat" style="--stat-c:var(--success-text);--stat-bg:var(--success-bg)">
+      <div class="req-stat-icon"><i class="fas fa-check"></i></div>
+      <div><div class="req-stat-num" id="hdrApproved">—</div><div class="req-stat-label">Approved</div></div>
+    </div>
+    <div class="req-stat" style="--stat-c:var(--danger-text);--stat-bg:var(--danger-bg)">
+      <div class="req-stat-icon"><i class="fas fa-ban"></i></div>
+      <div><div class="req-stat-num" id="hdrDenied">—</div><div class="req-stat-label">Denied</div></div>
+    </div>
+  </div>
+</div>
+
+<div class="tabs-card">
+  <div class="tabs-nav">
+    <button class="tab-btn active" id="tabBtnNew" onclick="switchTab('new',this)">
+      <i class="fas fa-bell"></i>New Requests
+      <span class="tab-cnt" id="pendingTabCnt" style="display:none">0</span>
+    </button>
+    <button class="tab-btn" id="tabBtnHistory" onclick="switchTab('history',this)">
+      <i class="fas fa-history"></i>History
+    </button>
+    <button class="tab-btn" id="tabBtnUsers" onclick="switchTab('users',this)">
+      <i class="fas fa-users-cog"></i>User Management
+    </button>
+  </div>
+
+  {# ── TAB 1: New Requests (AJAX) ── #}
+  <div id="pane-new" class="tab-pane active">
+    <div class="table-responsive">
+      <table class="table mb-0">
+        <thead>
+          <tr>
+            <th>#</th><th>User</th><th>Email</th><th>Current</th><th>Requested</th>
+            <th>Date</th><th>Reason</th><th>Status</th><th>Actions</th>
+          </tr>
+        </thead>
+        <tbody id="pendingTbody">
+          <tr><td colspan="9" style="text-align:center;padding:2rem;color:var(--text-muted)">
+            <i class="fas fa-spinner fa-spin me-2"></i>Loading…
+          </td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="paginator-wrap" id="pendingPaginator"></div>
+  </div>
+
+  {# ── TAB 2: History (AJAX) ── #}
+  <div id="pane-history" class="tab-pane">
+    <div class="filter-bar">
+      <div class="filter-item">
+        <label for="histStatus">Status</label>
+        <select class="f-select" id="histStatus" onchange="histFetch(1)">
+          <option value="processed" selected>All Processed</option>
+          <option value="all">All (incl. Pending)</option>
+          <option value="pending">Pending Only</option>
+          <option value="completed">Approved Only</option>
+          <option value="denied">Denied Only</option>
+        </select>
+      </div>
+      <div class="filter-item">
+        <label for="histCurRole">Current Role</label>
+        <select class="f-select" id="histCurRole" onchange="histFetch(1)">
+          <option value="">Any</option>
+          <option value="user">User</option>
+          <option value="admin">Admin</option>
+          <option value="user,admin">User &amp; Admin</option>
+        </select>
+      </div>
+      <div class="filter-item">
+        <label for="histReqRole">Requested Role</label>
+        <select class="f-select" id="histReqRole" onchange="histFetch(1)">
+          <option value="">Any</option>
+          <option value="user">User</option>
+          <option value="admin">Admin</option>
+          <option value="user,admin">User &amp; Admin</option>
+        </select>
+      </div>
+      <div class="filter-item">
+        <label for="histDateFrom">From</label>
+        <div class="dt-field">
+          <input type="text" class="f-date dt-date-input" id="histDateFrom" placeholder="Any date" readonly autocomplete="off">
+          <i class="fas fa-calendar-days dt-field-icon"></i>
+        </div>
+      </div>
+      <div class="filter-item">
+        <label for="histDateTo">To</label>
+        <div class="dt-field">
+          <input type="text" class="f-date dt-date-input" id="histDateTo" placeholder="Any date" readonly autocomplete="off">
+          <i class="fas fa-calendar-days dt-field-icon"></i>
+        </div>
+      </div>
+      <div class="filter-item search-item">
+        <label for="histSearch">Search</label>
+        <div class="search-wrap">
+          <i class="fas fa-search"></i>
+          <input type="text" id="histSearch" placeholder="Username or email…" oninput="histDebounce()">
+        </div>
+      </div>
+      <div class="filter-item action-item">
+        <label>&nbsp;</label>
+        <button class="btn-flat secondary" onclick="histClearFilters()"><i class="fas fa-filter-circle-xmark"></i>Clear</button>
+      </div>
+    </div>
+    <div class="table-responsive">
+      <table class="table mb-0">
+        <thead>
+          <tr>
+            <th>#</th><th>User</th><th>Email</th><th>Current</th><th>Requested</th>
+            <th>Date</th><th>Status</th><th>Processed By</th><th>Reason</th><th>Actions</th>
+          </tr>
+        </thead>
+        <tbody id="historyTbody">
+          <tr><td colspan="10" style="text-align:center;padding:2rem;color:var(--text-muted)">
+            <i class="fas fa-spinner fa-spin me-2"></i>Loading…
+          </td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="paginator-wrap" id="historyPaginator"></div>
+  </div>
+
+  {# ── TAB 3: User Management (FULLY AJAX — no Jinja data) ── #}
+  <div id="pane-users" class="tab-pane{{ '' if can_manage_access else ' no-manage' }}">
+
+    <div class="user-stats">
+      <span class="ustat"><i class="fas fa-users" style="color:var(--accent)"></i>Total: <strong id="umTotal">—</strong></span>
+      <span class="ustat"><i class="fas fa-user" style="color:var(--info-text)"></i>Users: <strong id="umUsers">—</strong></span>
+      <span class="ustat"><i class="fas fa-user-shield" style="color:var(--danger-text)"></i>Admins: <strong id="umAdmins">—</strong></span>
+      <span class="ustat"><i class="fas fa-user-plus" style="color:var(--accent)"></i>Both: <strong id="umBoth">—</strong></span>
+    </div>
+
+    {% if not can_manage_access %}
+    <div class="access-note"><i class="fas fa-lock"></i><span>You can see users and their plans. Changing a role, plan or admin access needs <strong>Access control management</strong>.</span></div>
+    {% endif %}
+    <div class="um-controls">
+      <span class="um-label">Filter:</span>
+      <select class="um-select" id="umRoleFilter" style="min-width:130px" onchange="umFetch(1)">
+        <option value="">All Roles</option>
+        <option value="user">User</option>
+        <option value="admin">Admin</option>
+        <option value="both">Both</option>
+      </select>
+      <span class="um-label">Bulk Role:</span>
+      <select class="um-select" id="bulkRoleSelect" style="min-width:160px" onchange="updateBulkBtn()">
+        <option value="">Select Role…</option>
+        <option value="user">User</option>
+        <option value="admin">Admin</option>
+        <option value="user,admin">User &amp; Admin</option>
+      </select>
+      <button class="btn-flat primary" id="applyBulkBtn" disabled onclick="doBulkUpdate()">
+        <i class="fas fa-users-cog"></i>Apply to Selected
+      </button>
+      <button class="btn-flat secondary" onclick="doSelectAll()"><i class="fas fa-check-square"></i>Select All</button>
+      <button class="btn-flat secondary" onclick="doClearAll()"><i class="fas fa-square"></i>Clear</button>
+      <div class="search-wrap">
+        <i class="fas fa-search"></i>
+        <input type="text" id="umSearch" placeholder="Search users…" oninput="umDebounce()">
+      </div>
+    </div>
+
+    <div class="table-responsive">
+      <table class="table mb-0" id="usersTable">
+        <thead>
+          <tr>
+            <th style="width:44px">
+              <input type="checkbox" id="selectAllChk" class="e-checkbox" onchange="handleSelectAll(this)">
+            </th>
+            <th>User</th><th>Email</th><th>Role</th><th>Plan</th><th>Admin Access</th><th>Special Access</th>
+            <th>New Role</th><th>Update</th><th class="col-updated">Last Updated</th>
+          </tr>
+        </thead>
+        <tbody id="usersTbody">
+          <tr class="skeleton-row"><td colspan="10"><div class="skeleton"></div></td></tr>
+          <tr class="skeleton-row"><td colspan="10"><div class="skeleton" style="width:80%"></div></td></tr>
+          <tr class="skeleton-row"><td colspan="10"><div class="skeleton" style="width:65%"></div></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="paginator-wrap" id="usersPaginator"></div>
+
+    {% if plans %}
+    {% from 'partials/_plan_badge.html' import plan_badge %}
+    <details class="plans-note">
+      <summary><i class="fas fa-layer-group"></i>Plans &amp; Access<span class="pn-hint">how plans, admin roles and custom access differ</span></summary>
+      <div class="plans-grid">
+        {% for p in plans.plans %}
+        <div class="plan-card">
+          <div class="pc-head">{{ plan_badge(p.label, p.tone, p.icon, 'md') }}{% if p.is_default %}<span class="pc-default">Default plan</span>{% endif %}</div>
+          <div class="pc-sub">{% if p.inherits_label %}Everything in {{ p.inherits_label }}, plus:{% else %}Includes:{% endif %}</div>
+          <ul>{% for a in p.adds %}<li>{{ a.label }}{% if a.limits %} <span class="pc-limit">({{ a.limits|join(', ') }})</span>{% endif %}</li>{% endfor %}</ul>
+        </div>
+        {% endfor %}
+      </div>
+      {% set gated = plans.student_features|selectattr('enforced')|list|length %}
+      <p class="pn-text">
+        <strong>Plan</strong> decides which student features a user gets, and the server enforces it; it never makes anyone an admin.
+        An account with no plan set is on <strong>{% for p in plans.plans if p.is_default %}{{ p.label }}{% endfor %}</strong> automatically, so nobody has to be set up for it.
+        <strong>Role</strong> is the separate Role column: an Elite student is not an admin, and an admin on Free has no paid student features.
+        <strong>Special Access</strong> marks a user with a grant or deny on top of their plan; click the plan badge to see or change it.
+        {% if gated < plans.student_features|length %}{{ plans.student_features|length - gated }} of {{ plans.student_features|length }} student features are not enforced yet (see <code>config/entitlements.json</code>).{% endif %}
+      </p>
+    </details>
+    {% endif %}
+  </div>
+</div>
+
+{# ── Approve Modal ── #}
+<div class="modal fade" id="approvalModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title"><i class="fas fa-check-circle me-2" style="color:var(--success-text)"></i>Approve Request</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <p style="font-size:.85rem;color:var(--text-secondary);margin-bottom:1rem">
+          Approving request for <strong id="approvalUname"></strong>
+        </p>
+        <label class="form-label">Grant Access Level</label>
+        <select class="form-select" id="approvedAccess">
+          <option value="">Choose…</option>
+          <option value="user">User</option>
+          <option value="admin">Admin</option>
+          <option value="user,admin">User &amp; Admin</option>
+        </select>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn-flat secondary" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" class="btn-flat success" id="confirmApproval" onclick="handleApprove()">
+          <i class="fas fa-check me-1"></i>Approve
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+{# ── Deny Modal ── #}
+<div class="modal fade" id="denialModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header" style="background:#ef4444">
+        <h5 class="modal-title" style="color:#fff"><i class="fas fa-times-circle me-2"></i>Deny Request</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" style="filter:brightness(0) invert(1)"></button>
+      </div>
+      <div class="modal-body">
+        <p style="font-size:.85rem;color:var(--text-secondary);margin-bottom:1rem">
+          Denying request for <strong id="denialUname"></strong>
+        </p>
+        <label class="form-label">Reason</label>
+        <textarea class="form-control" id="denialReason" rows="3" placeholder="Enter reason…"></textarea>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn-flat secondary" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" class="btn-flat danger" id="confirmDenial" onclick="handleDeny()">
+          <i class="fas fa-times me-1"></i>Deny
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+{# ── Delete Confirm Modal ── #}
+<div class="modal fade" id="deleteModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title"><i class="fas fa-trash me-2" style="color:var(--danger-text)"></i>Delete Request</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <p style="font-size:.85rem;color:var(--text-secondary);margin-bottom:.9rem">
+          Remove the request from <strong id="deleteUname"></strong> from this list?
+        </p>
+        <div style="display:flex;gap:.5rem;align-items:flex-start;background:var(--info-bg);border:1px solid var(--info-border);color:var(--info-text);border-radius:var(--radius);padding:.65rem .85rem;font-size:.78rem;line-height:1.55">
+          <i class="fas fa-circle-info" style="margin-top:.15rem;flex-shrink:0"></i>
+          <span id="deleteConsequence"></span>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn-flat secondary" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" class="btn-flat danger" id="confirmDelete" onclick="handleDeleteConfirm()">
+          <i class="fas fa-trash me-1"></i>Delete
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="{{ url_for('static', filename='shared/date-picker.js') }}"></script>
+<script>
+/* ═══════════════════════════════════════════════
+   STATE
+═══════════════════════════════════════════════ */
+let _reqId       = null;
+let _pendingPage = 1;
+let _historyPage = 1;
+let _umPage      = 1;
+let _umTimer     = null;
+let _selectedIds = new Set();   // persists across pages
+
+/* ═══════════════════════════════════════════════
+   TAB SWITCHING
+═══════════════════════════════════════════════ */
+function switchTab(name, btn) {
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById('pane-' + name).classList.add('active');
+
+  // Lazy-load history tab on first open
+  if (name === 'history' && !document.getElementById('historyTbody').dataset.loaded) {
+    document.getElementById('historyTbody').dataset.loaded = '1';
+    histFetch(1);
+  }
+  // Lazy-load users tab on first open
+  if (name === 'users' && !document.getElementById('usersTbody').dataset.loaded) {
+    document.getElementById('usersTbody').dataset.loaded = '1';
+    umLoadStats();
+    umFetch(1);
+  }
+}
+
+/* ═══════════════════════════════════════════════
+   REQUESTS — PENDING (TAB 1)
+═══════════════════════════════════════════════ */
+function fetchRequests(status, page) {
+  const isP   = status === 'pending';
+  const tbody = document.getElementById(isP ? 'pendingTbody' : 'historyTbody');
+  const pgDiv = document.getElementById(isP ? 'pendingPaginator' : 'historyPaginator');
+  if (isP) _pendingPage = page; else _historyPage = page;
+
+  tbody.innerHTML = skeletonRows(9);
+  pgDiv.innerHTML = '';
+
+  fetch(`/api/v01/admin/access-requests?status=${status}&page=${page}`)
+    .then(r => r.json())
+    .then(d => {
+      isP ? renderPendingRows(d.requests) : renderHistoryRows(d.requests);
+      renderPaginator(pgDiv, page, d.total_pages, d.total, 25,
+        p => fetchRequests(status, p));
+      // Update header pill counts after every pending fetch
+      if (isP) {
+        const cnt = document.getElementById('pendingTabCnt');
+        cnt.textContent = d.total;
+        cnt.style.display = d.total ? '' : 'none';
+      }
+    })
+    .catch(() => {
+      tbody.innerHTML = errRow(9, "Couldn't load requests.", `fetchRequests('${status}', ${page})`);
+    });
+}
+
+function renderPendingRows(reqs) {
+  const tbody = document.getElementById('pendingTbody');
+  if (!reqs.length) {
+    tbody.innerHTML = `<tr><td colspan="9">${emptyState('fa-inbox','No Pending Requests','All caught up!')}</td></tr>`;
+    return;
+  }
+  tbody.innerHTML = reqs.map(r => `
+    <tr>
+      <td><span style="font-size:.78rem;font-weight:700;color:var(--text-muted)">#${r.row_no ?? r.request_id}</span></td>
+      <td>${userCell(r.username, r.avatar_url)}</td>
+      <td><span style="font-size:.8rem;color:var(--text-muted)">${escHtml(r.email)}</span></td>
+      <td>${accessBadge(r.current_access)}</td>
+      <td>${accessBadge(r.requested_access)}</td>
+      <td>${_fmtTs(r.request_date)}</td>
+      <td>${reasonCell(r.user_reason, r.admin_response)}</td>
+      <td>
+        <span class="status-badge sb-pending">Pending</span>
+        <div class="pending-age">${pendingAge(r.request_date_raw)}</div>
+      </td>
+      <td>
+        <div style="display:flex;gap:.35rem">
+          <button class="icon-btn approve" title="Approve" onclick="openApprove(${r.request_id},'${esc(r.username)}')"><i class="fas fa-check"></i></button>
+          <button class="icon-btn deny"    title="Deny"    onclick="openDeny(${r.request_id},'${esc(r.username)}')"><i class="fas fa-times"></i></button>
+          <button class="icon-btn delete"  title="Delete"  onclick="openDelete(${r.request_id},'${esc(r.username)}','pending')"><i class="fas fa-trash"></i></button>
+        </div>
+      </td>
+    </tr>`).join('');
+}
+
+// "Pending for 2h" style age hint next to the Pending badge — request_date_raw
+// is a UTC ISO string (see _fmt() in the API), the display request_date is
+// locale-formatted for reading and isn't safe to re-parse for this.
+function pendingAge(iso) {
+  if (!iso) return '';
+  const ms = Date.now() - new Date(iso).getTime();
+  if (!isFinite(ms) || ms < 0) return '';
+  const mins = Math.floor(ms / 60000);
+  if (mins < 1)  return 'Just now';
+  if (mins < 60) return `Pending ${mins}m`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24)  return `Pending ${hrs}h`;
+  const days = Math.floor(hrs / 24);
+  return `Pending ${days}d`;
+}
+
+/* ═══════════════════════════════════════════════
+   REQUESTS — HISTORY (TAB 2)
+═══════════════════════════════════════════════ */
+function renderHistoryRows(reqs) {
+  const tbody = document.getElementById('historyTbody');
+  if (!reqs.length) {
+    tbody.innerHTML = `<tr><td colspan="10">${emptyState('fa-history','No Matching Records','Try adjusting or clearing the filters above.')}</td></tr>`;
+    return;
+  }
+  const STATUS_MAP = {
+    completed: ['sb-completed', 'Approved'],
+    denied:    ['sb-denied',    'Denied'],
+    pending:   ['sb-pending',   'Pending'],
+  };
+  tbody.innerHTML = reqs.map(r => {
+    const [sbC, sbL] = STATUS_MAP[r.status] || ['sb-pending', r.status || '—'];
+    return `
+    <tr>
+      <td><span style="font-size:.78rem;font-weight:700;color:var(--text-muted)">#${r.row_no ?? r.request_id}</span></td>
+      <td>${userCell(r.username, r.avatar_url)}</td>
+      <td><span style="font-size:.8rem;color:var(--text-muted)">${escHtml(r.email)}</span></td>
+      <td>${accessBadge(r.current_access)}</td>
+      <td>${accessBadge(r.requested_access)}</td>
+      <td>${_fmtTs(r.request_date)}</td>
+      <td><span class="status-badge ${sbC}">${sbL}</span></td>
+      <td>
+        ${r.processed_by ? `<div style="font-size:.82rem;font-weight:600;color:var(--text-primary)">${escHtml(r.processed_by)}</div>` : '<span style="font-size:.78rem;color:var(--text-muted)">—</span>'}
+        ${r.processed_date ? `<div style="font-size:.72rem;color:var(--text-muted);margin-top:.1rem">${r.processed_date}</div>` : ''}
+      </td>
+      <td>${reasonCell(r.user_reason, r.admin_response)}</td>
+      <td><button class="icon-btn delete" title="Delete" onclick="openDelete(${r.request_id},'${esc(r.username)}','history')"><i class="fas fa-trash"></i></button></td>
+    </tr>`}).join('');
+}
+
+// User's justification and admin's response as two visually separate lines instead of one
+// machine-tagged blob — userReason/adminResponse are already split server-side (see
+// split_request_reason in app/db/misc.py; no schema change, it just parses the one existing
+// "[USER REQUEST] ...\n[ADMIN APPROVAL/DENIAL] ..." convention every reason column already
+// follows). Long/multi-line content still clamps to 3 lines with a toggle instead of stretching
+// the row; escHtml() guards against either being attacker-controlled free text (the user's own
+// justification, or the admin's own denial-reason field).
+function reasonCell(userReason, adminResponse) {
+  if (!userReason && !adminResponse) return '<em style="color:var(--text-muted)">—</em>';
+  const id = 'rz' + Math.random().toString(36).slice(2, 9);
+  const combinedLength = (userReason || '').length + (adminResponse || '').length;
+  const isLong = combinedLength > 140 || (userReason || '').split('\n').length > 3;
+  const toggle = isLong ? `<button type="button" class="reason-toggle" onclick="toggleReason('${id}', this)">Show more</button>` : '';
+  const userPart = userReason ? `<div class="reason-user">${escHtml(userReason)}</div>` : '';
+  const adminPart = adminResponse ? `<div class="reason-admin"><i class="fas fa-user-shield"></i>${escHtml(adminResponse)}</div>` : '';
+  return `<div class="reason-cell${isLong ? ' clamped' : ''}" id="${id}">${userPart}${adminPart}</div>${toggle}`;
+}
+function toggleReason(id, btn) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  const nowClamped = el.classList.toggle('clamped');
+  btn.textContent = nowClamped ? 'Show more' : 'Show less';
+}
+function escHtml(s) {
+  return String(s ?? '').replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
+}
+
+/* ═══════════════════════════════════════════════
+   REQUESTS — HISTORY FILTERS (server-side)
+═══════════════════════════════════════════════ */
+let _histTimer = null;
+function histDebounce() { clearTimeout(_histTimer); _histTimer = setTimeout(() => histFetch(1), 400); }
+
+function histParams() {
+  return {
+    status:         document.getElementById('histStatus')?.value || 'processed',
+    q:              (document.getElementById('histSearch')?.value || '').trim(),
+    current_role:   document.getElementById('histCurRole')?.value || '',
+    requested_role: document.getElementById('histReqRole')?.value || '',
+    // .dataset.iso ("YYYY-MM-DD") is kept in sync by the themed calendar
+    // picker (static/shared/date-picker.js) — .value holds the formatted
+    // display string ("29 August 2026"), not something the backend can use.
+    date_from:      document.getElementById('histDateFrom')?.dataset.iso || '',
+    date_to:        document.getElementById('histDateTo')?.dataset.iso || '',
+  };
+}
+
+function histFetch(page) {
+  const p = histParams();
+  if (p.date_from && p.date_to && p.date_from > p.date_to) {
+    toast('"From" date must be before or equal to "To" date.', 'warning');
+    return;
+  }
+  _historyPage = page;
+  const tbody = document.getElementById('historyTbody');
+  const pgDiv = document.getElementById('historyPaginator');
+  tbody.innerHTML = skeletonRows(10);
+  pgDiv.innerHTML = '';
+
+  const params = new URLSearchParams({ ...p, page });
+  fetch(`/api/v01/admin/access-requests?${params}`)
+    .then(r => r.json())
+    .then(d => {
+      renderHistoryRows(d.requests);
+      renderPaginator(pgDiv, page, d.total_pages, d.total, 25, p => histFetch(p));
+    })
+    .catch(() => { tbody.innerHTML = errRow(10, "Couldn't load history.", "histFetch(_historyPage)"); });
+}
+
+function histClearFilters() {
+  document.getElementById('histStatus').value = 'processed';
+  document.getElementById('histCurRole').value = '';
+  document.getElementById('histReqRole').value = '';
+  const df = document.getElementById('histDateFrom'), dt = document.getElementById('histDateTo');
+  df.value = ''; df.dataset.iso = '';
+  dt.value = ''; dt.dataset.iso = '';
+  document.getElementById('histSearch').value = '';
+  histFetch(1);
+}
+
+/* ═══════════════════════════════════════════════
+   APPROVE / DENY MODALS
+═══════════════════════════════════════════════ */
+function openApprove(id, uname) {
+  _reqId = id;
+  document.getElementById('approvalUname').textContent = uname;
+  document.getElementById('approvedAccess').value = '';
+  new bootstrap.Modal(document.getElementById('approvalModal')).show();
+}
+
+function openDeny(id, uname) {
+  _reqId = id;
+  document.getElementById('denialUname').textContent = uname;
+  document.getElementById('denialReason').value = '';
+  new bootstrap.Modal(document.getElementById('denialModal')).show();
+}
+
+function handleApprove() {
+  const access = document.getElementById('approvedAccess').value;
+  if (!access) { toast('Select an access level', 'warning'); return; }
+  const btn = document.getElementById('confirmApproval');
+  setLoading(btn, true);
+  fetch(`/api/v01/admin/access-requests/${_reqId}/approve`, {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({approved_access: access})
+  }).then(r=>r.json()).then(d => {
+    if (d.success) {
+      // Modal-close + list/stats refresh run BEFORE the toast, not after — so the
+      // visible confirmation that the approval actually took effect can't be
+      // skipped by anything going wrong in the toast call itself (this ordering
+      // bug — toast() called first, throwing before any of this ran — was why
+      // Approve/Deny looked "static"/non-functional even though the request was
+      // actually being processed server-side).
+      bootstrap.Modal.getInstance(document.getElementById('approvalModal'))?.hide();
+      fetchRequests('pending', _pendingPage);
+      loadHeaderStats();
+      toast(d.message, 'success');
+    } else toast(d.message, 'danger');
+  }).catch(() => toast('Network error', 'danger'))
+  .finally(() => setLoading(btn, false));
+}
+
+function handleDeny() {
+  const reason = document.getElementById('denialReason').value.trim();
+  if (!reason) { toast('Enter a reason', 'warning'); return; }
+  const btn = document.getElementById('confirmDenial');
+  setLoading(btn, true);
+  fetch(`/api/v01/admin/access-requests/${_reqId}/deny`, {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({reason})
+  }).then(r=>r.json()).then(d => {
+    if (d.success) {
+      bootstrap.Modal.getInstance(document.getElementById('denialModal'))?.hide();
+      fetchRequests('pending', _pendingPage);
+      loadHeaderStats();
+      toast(d.message, 'success');
+    } else toast(d.message, 'danger');
+  }).catch(() => toast('Network error', 'danger'))
+  .finally(() => setLoading(btn, false));
+}
+
+/* ═══════════════════════════════════════════════
+   DELETE (soft-delete) — works from either tab
+═══════════════════════════════════════════════ */
+let _delReqId = null;
+let _delCtx   = null;   // 'pending' | 'history' — decides which list to refresh
+
+function openDelete(id, uname, ctx) {
+  _delReqId = id;
+  _delCtx   = ctx;
+  document.getElementById('deleteUname').textContent = uname;
+  document.getElementById('deleteConsequence').textContent = ctx === 'pending'
+    ? "This clears the request from the queue without approving or denying it. It will NOT grant or change any access."
+    : "This removes the record from History. It will NOT change the user's current role or access.";
+  new bootstrap.Modal(document.getElementById('deleteModal')).show();
+}
+
+function handleDeleteConfirm() {
+  if (!_delReqId) return;
+  const btn = document.getElementById('confirmDelete');
+  setLoading(btn, true);
+  fetch(`/api/v01/admin/access-requests/${_delReqId}`, { method: 'DELETE' })
+    .then(r => r.json())
+    .then(d => {
+      if (d.success) {
+        bootstrap.Modal.getInstance(document.getElementById('deleteModal'))?.hide();
+        if (_delCtx === 'pending') fetchRequests('pending', _pendingPage);
+        else histFetch(_historyPage);
+        loadHeaderStats();
+        toast(d.message, 'success');
+      } else toast(d.message, 'danger');
+    })
+    .catch(() => toast('Network error', 'danger'))
+    .finally(() => setLoading(btn, false));
+}
+
+/* ═══════════════════════════════════════════════
+   HEADER STATS (pills top-right) — AJAX
+═══════════════════════════════════════════════ */
+function loadHeaderStats() {
+  fetch('/api/v01/admin/access-requests/stats').then(r=>r.json()).then(d => {
+    document.getElementById('hdrPending').textContent  = d.pending   ?? '—';
+    document.getElementById('hdrApproved').textContent = d.completed ?? '—';
+    document.getElementById('hdrDenied').textContent   = d.denied    ?? '—';
+    const cnt = document.getElementById('pendingTabCnt');
+    cnt.textContent = d.pending;
+    cnt.style.display = d.pending ? '' : 'none';
+  }).catch(()=>{});
+}
+
+/* ═══════════════════════════════════════════════
+   USER MANAGEMENT TAB (TAB 3) — FULLY AJAX
+═══════════════════════════════════════════════ */
+function umDebounce() {
+  clearTimeout(_umTimer);
+  _umTimer = setTimeout(() => umFetch(1), 400);
+}
+
+function umFetch(page) {
+  _umPage = page;
+  const q    = (document.getElementById('umSearch')?.value||'').trim();
+  const role = document.getElementById('umRoleFilter')?.value || '';
+  const tbody = document.getElementById('usersTbody');
+
+  tbody.innerHTML = skeletonRows(10);
+
+  const params = new URLSearchParams({page, q, role});
+  fetch(`/api/v01/admin/users/search?${params}`)
+    .then(r => r.json())
+    .then(d => {
+      renderUsers(d.users || []);
+      renderPaginator(
+        document.getElementById('usersPaginator'),
+        d.page, d.total_pages, d.total, 50,
+        p => umFetch(p)
+      );
+    })
+    .catch(() => {
+      tbody.innerHTML = errRow(10, "Couldn't load users.", `umFetch(${JSON.stringify(page)})`);
+    });
+}
+
+// Compact 2-line rendering for a "DD Month YYYY HH:MM AM/PM" timestamp —
+// splits the trailing "HH:MM AM/PM" onto its own muted line instead of one
+// long inline string.
+function _fmtTs(raw) {
+  if (!raw) return '<span class="ts-date">—</span>';
+  const parts = String(raw).trim().split(' ');
+  if (parts.length >= 2) {
+    const time = parts.slice(-2).join(' ');
+    const date = parts.slice(0, -2).join(' ');
+    if (date) return `<div class="ts-date">${date}</div><div class="ts-time">${time}</div>`;
+  }
+  return `<span class="ts-date">${raw}</span>`;
+}
+
+function renderUsers(users) {
+  const tbody = document.getElementById('usersTbody');
+  if (!users.length) {
+    tbody.innerHTML = `<tr><td colspan="10">${emptyState('fa-users','No Users Found','Try a different search or filter.')}</td></tr>`;
+    return;
+  }
+  const roleMap = {
+    'user':       ['ab-user',  'fa-user',        'User'],
+    'admin':      ['ab-admin', 'fa-user-shield', 'Admin'],
+    'user,admin': ['ab-both',  'fa-user-plus',   'User &amp; Admin'],
+  };
+  tbody.innerHTML = users.map(u => {
+    const [rcls, rico, rlbl] = roleMap[u.role] || ['ab-user','fa-user', u.role||'?'];
+    const opts = ['user','admin','user,admin']
+      .filter(r => r !== u.role)
+      .map(r => `<option value="${r}">${r==='user,admin'?'User &amp; Admin': cap(r)}</option>`)
+      .join('');
+    const isSel = _selectedIds.has(String(u.id));
+    return `
+    <tr class="user-row${isSel?' selected':''}" data-user-id="${u.id}">
+      <td><input type="checkbox" class="e-checkbox user-chk" value="${u.id}" ${isSel?'checked':''} onchange="onChkChange(this)"></td>
+      <td>
+        <div style="display:flex;align-items:center;gap:.6rem">
+          ${avatarChip(u.avatar_url)}
+          <div>
+            <div style="font-size:.83rem;font-weight:600;color:var(--text-1)" class="uname">${u.username||''}</div>
+            ${u.full_name && u.full_name!==u.username?`<div style="font-size:.75rem;color:var(--text-3)">${u.full_name}</div>`:''}
+          </div>
+        </div>
+      </td>
+      <td><span style="font-size:.8rem;color:var(--text-3)" class="uemail">${u.email||''}</span></td>
+      <td><span class="access-badge ${rcls} cur-role" data-role="${u.role}"><i class="fas ${rico}"></i>${rlbl}</span></td>
+      <td class="plan-cell">${planCell(u)}</td>
+      <td>${adminAccessCell(u)}</td>
+      <td>${specialCell(u)}</td>
+      <td>
+        <select class="um-select role-sel" data-uid="${u.id}" style="min-width:150px" onchange="onRoleChange(this)" ${CAN_MANAGE_ACCESS ? '' : 'disabled'}>
+          <option value="">Keep Current</option>
+          ${opts}
+        </select>
+      </td>
+      <td>
+        <button class="update-btn" data-uid="${u.id}" disabled onclick="doUpdateRole(this)">
+          <i class="fas fa-save me-1"></i>Update
+        </button>
+      </td>
+      <td class="col-updated">${_fmtTs(u.updated_at||u.created_at)}</td>
+    </tr>`;
+  }).join('');
+  // Themed dropdown-button for every "New Role" select just inserted above —
+  // these are freshly-created elements each render, so each one needs its
+  // own enhanceSelect() call (static/admin/select-enhance.js); the original
+  // inline min-width is reapplied to the new trigger it replaces so rows
+  // still line up the same as the plain <select> did.
+  tbody.querySelectorAll('.role-sel').forEach(sel => {
+    enhanceSelect(sel, { icon: 'fas fa-user-shield' });
+    const wrap = sel.nextElementSibling;
+    if (wrap && wrap.classList.contains('sel-enh')) wrap.style.minWidth = '150px';
+  });
+  syncSelectAll();
+}
+
+/* The Users tab shows four separate things: the ROLE (User / Admin), the PLAN, the ADMIN ACCESS (which admin features an
+   administrator has been granted) and the SPECIAL ACCESS (grants or denials of user features). Only someone with Access
+   control management can open the card and change them; the server checks every change again. */
+const CAN_MANAGE_ACCESS = {{ can_manage_access|tojson }};
+
+function _hasAdminRole(u) { return String(u.role || '').includes('admin'); }
+
+function planCell(u) {
+  if (!u.plan) return '<span class="cell-none">-</span>';
+  const attrs = `class="plan-badge pb-md" data-tone="${escHtml(u.plan_tone || 'neutral')}" data-uid="${u.id}"`;
+  const inner = `<i class="fas ${escHtml(u.plan_icon || 'fa-star')}" aria-hidden="true"></i><span class="pb-text">${escHtml(u.plan_label || u.plan)}</span>`;
+  return CAN_MANAGE_ACCESS
+    ? `<button type="button" ${attrs} onclick="openAccess(this)" title="Plan and access details">${inner}</button>`
+    : `<span ${attrs}>${inner}</span>`;
+}
+
+function adminAccessCell(u) {
+  if (!_hasAdminRole(u)) return '<span class="cell-none">-</span>';
+  const n = u.admin_access || 0;
+  const cls = n ? 'admin-chip' : 'admin-chip none';
+  const label = n ? `${n} admin feature${n === 1 ? '' : 's'}` : 'No admin features';
+  const icon = n ? 'fa-user-shield' : 'fa-exclamation-triangle';
+  return CAN_MANAGE_ACCESS
+    ? `<button type="button" class="${cls}" data-uid="${u.id}" onclick="openAccess(this)" title="Admin access details"><i class="fas ${icon}"></i>${label}</button>`
+    : `<span class="${cls}"><i class="fas ${icon}"></i>${label}</span>`;
+}
+
+function specialCell(u) {
+  if (!u.plan) return '<span class="cell-none">-</span>';
+  if (!u.custom_access) return '<span class="cell-none">None</span>';
+  const inner = '<i class="fas fa-sliders-h"></i>Custom Access';
+  return CAN_MANAGE_ACCESS
+    ? `<button type="button" class="custom-chip" data-uid="${u.id}" onclick="openAccess(this)" title="This user has access beyond their plan">${inner}</button>`
+    : `<span class="custom-chip">${inner}</span>`;
+}
+
+/* ── The details card: a FloatingPanel (static/admin/select-enhance.js), filled when a badge is clicked ── */
+const PLAN_OPTIONS = {{ ((plans.plans if plans else [])|map(attribute='key')|list)|tojson }};
+const PLAN_LABELS = {{ ((plans.plans if plans else [])|map(attribute='label')|list)|tojson }};
+const STUDENT_FEATURES = [{% if plans %}{% for f in plans.student_features %}{ key: {{ f.key|tojson }}, label: {{ f.label|tojson }} },{% endfor %}{% endif %}];
+const ADMIN_FEATURES = [{% if plans %}{% for f in plans.admin_features %}{ key: {{ f.key|tojson }}, label: {{ f.label|tojson }}, privileged: {{ f.privileged|tojson }}, limits: {{ f.limits|tojson }} },{% endfor %}{% endif %}];
+let _accessPop = null;
+
+function _mk(tag, cls, text) {
+  const n = document.createElement(tag);
+  if (cls) n.className = cls;
+  if (text != null) n.textContent = text;
+  return n;
+}
+
+function _planBadge(label, tone, icon, size) {
+  const badge = _mk('span', 'plan-badge pb-' + (size || 'md'));
+  badge.dataset.tone = tone || 'neutral';
+  const ic = _mk('i', 'fas ' + (icon || 'fa-star'));
+  ic.setAttribute('aria-hidden', 'true');
+  badge.appendChild(ic);
+  badge.appendChild(_mk('span', 'pb-text', label));
+  return badge;
+}
+
+function _accessRow(key, ...children) {
+  const val = _mk('div', 'ap-val');
+  children.forEach(c => c && val.appendChild(c));
+  const row = _mk('div', 'ap-row');
+  row.appendChild(_mk('div', 'ap-key', key));
+  row.appendChild(val);
+  return row;
+}
+
+function _fmtDay(iso) {
+  const d = new Date(iso.endsWith('Z') ? iso : iso + 'Z');
+  return d.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' });
+}
+
+function _themedSelect(options, selected) {
+  const sel = _mk('select');
+  options.forEach(([value, label]) => {
+    const opt = _mk('option', null, label);
+    opt.value = value;
+    opt.selected = value === selected;
+    sel.appendChild(opt);
+  });
+  return sel;
+}
+
+function _entryLine(o, d, pop, removable) {
+  const line = _mk('div', 'ap-ov' + (o.active ? '' : ' expired'));
+  line.appendChild(_mk('span', 'ap-tag ' + o.effect, o.effect === 'grant' ? 'Granted' : 'Denied'));
+  line.appendChild(_mk('span', null, o.label));
+  (o.limit_text || []).forEach(t => line.appendChild(_mk('span', 'ap-lim', t)));
+  line.appendChild(_mk('span', 'ap-note', !o.active ? 'expired' : (o.expires_at ? 'until ' + _fmtDay(o.expires_at) : 'no expiry')));
+  if (o.reason) line.appendChild(_mk('span', 'ap-note', '- ' + o.reason));
+  if (removable) {
+    const rm = _mk('button', 'ap-x', '×');
+    rm.type = 'button';
+    rm.title = 'Remove';
+    rm.onclick = () => changeAccess(d.user_id, 'DELETE', o.feature, null, pop);
+    line.appendChild(rm);
+  }
+  return line;
+}
+
+/* a grant form: a feature (only those the viewer may hand out), the limits that feature declares, days, reason */
+function _grantForm(d, pop, features, withEffect, toEnhance) {
+  const featureSel = _themedSelect(features.map(f => [f.key, f.label + (f.privileged ? ' (privileged)' : '')]), features[0].key);
+  const effectSel = withEffect ? _themedSelect([['grant', 'Grant'], ['deny', 'Deny']], 'grant') : null;
+  const limitBox = _mk('div', 'ap-limits');
+  const syncLimits = () => {
+    limitBox.replaceChildren();
+    const f = features.find(x => x.key === featureSel.value);
+    ((f && f.limits) || []).forEach(l => {
+      const input = _mk('input');
+      input.type = 'number'; input.min = '0'; input.placeholder = l.label + ' (blank = unlimited)'; input.dataset.limit = l.key;
+      limitBox.appendChild(input);
+    });
+  };
+  featureSel.addEventListener('change', syncLimits);
+  syncLimits();
+  const days = _mk('input');
+  days.type = 'number'; days.min = '1'; days.placeholder = 'Days (blank = no expiry)';
+  const why = _mk('input');
+  why.type = 'text'; why.maxLength = 200; why.placeholder = 'Reason (optional)';
+  const add = _mk('button', 'btn-flat primary sm', 'Add');
+  add.type = 'button';
+  add.onclick = () => {
+    const limits = {};
+    limitBox.querySelectorAll('input').forEach(i => { if (i.value !== '') limits[i.dataset.limit] = Number(i.value); });
+    changeAccess(d.user_id, 'PUT', featureSel.value, {
+      effect: effectSel ? effectSel.value : 'grant', days: days.value ? Number(days.value) : null, reason: why.value,
+      limits: Object.keys(limits).length ? limits : undefined
+    }, pop);
+  };
+  const form = _mk('div', 'ap-form');
+  if (effectSel) form.appendChild(effectSel);
+  form.appendChild(featureSel);
+  form.appendChild(limitBox);
+  form.appendChild(why);
+  const when = _mk('div', 'ap-edit');
+  when.appendChild(days);
+  when.appendChild(add);
+  form.appendChild(when);
+  if (effectSel) toEnhance.push([effectSel, 'fas fa-toggle-on']);
+  toEnhance.push([featureSel, 'fas fa-puzzle-piece']);
+  return form;
+}
+
+function renderAccess(pop, d) {
+  const keep = pop.scrollTop;                                   // a change must not throw the reader back to the top
+  const caps = d.capabilities || {};
+  const toEnhance = [];
+  pop.replaceChildren();
+  pop.appendChild(_mk('div', 'ap-title', d.username));
+  pop.appendChild(_mk('div', 'ap-sub', 'Plan, role, admin access and special access are four separate things'));
+
+  // PLAN: what the user gets in the student portal
+  const planVal = [_planBadge(d.plan_label, d.tone, d.icon, 'md')];
+  if (d.plan_expires_at) planVal.push(_mk('div', 'ap-note', 'Until ' + _fmtDay(d.plan_expires_at) + ', then the default plan.'));
+  pop.appendChild(_accessRow('Plan', ...planVal));
+
+  // ROLE: only eligibility for the Admin Portal
+  pop.appendChild(_accessRow('Role', _mk('div', null, d.is_admin ? 'Admin' : 'User (not an admin)'),
+    _mk('div', 'ap-note', 'The Admin role only lets a person into the Admin Portal. It grants no admin feature and no plan.')));
+
+  // ADMIN ACCESS: which admin features this administrator has been granted (and any limits on them)
+  if (d.is_admin || d.admin_access.length) {
+    const grantable = ADMIN_FEATURES.filter(f => (caps.admin_features || []).includes(f.key));
+    const items = d.admin_access.length
+      ? d.admin_access.map(o => _entryLine(o, d, pop, (caps.admin_features || []).includes(o.feature)))
+      : [_mk('div', 'ap-note', 'None. This administrator can open the portal but no admin feature.')];
+    if (!d.is_admin) items.push(_mk('div', 'ap-note', 'Not an admin yet: these take effect once the Admin role is set.'));
+    if (grantable.length) items.push(_grantForm(d, pop, grantable, false, toEnhance));
+    pop.appendChild(_accessRow('Admin access', ...items));
+  }
+
+  // SPECIAL ACCESS: grants or denials of user features on top of the plan
+  const special = d.special.length ? d.special.map(o => _entryLine(o, d, pop, caps.special_access))
+                                   : [_mk('div', 'ap-note', 'None. This user has exactly what their plan gives.')];
+  if (caps.special_access && STUDENT_FEATURES.length) special.push(_grantForm(d, pop, STUDENT_FEATURES, true, toEnhance));
+  pop.appendChild(_accessRow('Special access', ...special));
+
+  // CHANGE PLAN
+  if (caps.plan) {
+    const planSel = _themedSelect(PLAN_OPTIONS.map((key, i) => [key, PLAN_LABELS[i]]), d.plan);
+    const save = _mk('button', 'btn-flat primary sm', 'Save');
+    save.type = 'button';
+    // The plan can be given for a number of days; blank = it does not expire. When it lapses the user is back on the default plan.
+    const days = _mk('input');
+    days.type = 'number'; days.min = '1'; days.placeholder = 'Days (blank = no expiry)';
+    save.onclick = () => saveUserPlan(d.user_id, planSel.value, days.value, save, pop);
+    const when = _mk('div', 'ap-edit');
+    when.appendChild(days);
+    when.appendChild(save);
+    const edit = _mk('div', 'ap-form');
+    edit.appendChild(planSel);
+    edit.appendChild(when);
+    pop.appendChild(_accessRow('Change plan', edit));
+    toEnhance.push([planSel, 'fas fa-layer-group']);
+  }
+  if (caps.reason) pop.appendChild(_mk('div', 'ap-lock', caps.reason));
+
+  // the project's themed dropdown, not the browser's native list (they must be in the page before they are enhanced)
+  toEnhance.forEach(([sel, icon]) => enhanceSelect(sel, { icon, block: true }));
+  pop.scrollTop = keep;
+  FloatingPanel.reposition();
+}
+
+function changeAccess(uid, method, feature, body, pop) {
+  fetch(`/api/v01/admin/access/users/${uid}/overrides/${encodeURIComponent(feature)}`, {
+    method, headers: { 'Content-Type': 'application/json' }, body: body ? JSON.stringify(body) : undefined
+  }).then(r => r.json()).then(d => {
+    if (!d.success) { toast(d.message || 'Could not change access.', 'error'); return; }
+    toast(d.message || 'Access updated.');
+    if (_accessPop === pop) renderAccess(pop, d);
+    umFetch(_umPage);
+  }).catch(() => toast('Could not change access.', 'error'));
+}
+
+function saveUserPlan(uid, plan, days, btn, pop) {
+  btn.disabled = true;
+  fetch(`/api/v01/admin/access/users/${uid}/plan`, {
+    method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ plan, days: days ? Number(days) : null })
+  }).then(r => r.json()).then(d => {
+    if (!d.success) { toast(d.message || 'Could not change the plan.', 'error'); btn.disabled = false; return; }
+    toast('Plan updated.');
+    if (_accessPop === pop) renderAccess(pop, d);
+    umFetch(_umPage);
+  }).catch(() => { toast('Could not change the plan.', 'error'); btn.disabled = false; });
+}
+
+function openAccess(anchor) {
+  if (!CAN_MANAGE_ACCESS) return;
+  const uid = anchor.dataset.uid;
+  const shown = FloatingPanel.current();
+  if (shown && shown.dataset.uid === uid) { FloatingPanel.close(); return; }        // the same badge again closes it
+  const pop = _mk('div', 'access-pop');
+  pop.dataset.uid = uid;
+  pop.appendChild(_mk('div', 'ap-note', 'Loading...'));
+  _accessPop = pop;
+  FloatingPanel.open(anchor, pop, {
+    resolve: () => document.querySelector(`td.plan-cell .plan-badge[data-uid="${uid}"]`),      // the table re-renders after every change
+    onClose: () => { if (_accessPop === pop) _accessPop = null; }
+  });
+  fetch(`/api/v01/admin/access/users/${uid}`).then(r => r.json()).then(d => {
+    if (_accessPop !== pop) return;
+    if (!d.success) { pop.replaceChildren(_mk('div', 'ap-note', d.message || "Couldn't load access details.")); FloatingPanel.reposition(); return; }
+    renderAccess(pop, d);
+  }).catch(() => { if (_accessPop === pop) { pop.replaceChildren(_mk('div', 'ap-note', "Couldn't load access details.")); FloatingPanel.reposition(); } });
+}
+
+function umLoadStats() {
+  fetch('/api/v01/admin/users/stats').then(r=>r.json()).then(d => {
+    document.getElementById('umTotal').textContent  = d.total_users ?? '—';
+    document.getElementById('umUsers').textContent  = d.user_role   ?? '—';
+    document.getElementById('umAdmins').textContent = d.admin_role  ?? '—';
+    document.getElementById('umBoth').textContent   = d.both_roles  ?? '—';
+  }).catch(()=>{});
+}
+
+/* ── Role update ── */
+function onRoleChange(sel) {
+  const btn = sel.closest('tr').querySelector('.update-btn');
+  if (sel.value) { btn.disabled=false; btn.classList.add('changed'); }
+  else           { btn.disabled=true;  btn.classList.remove('changed'); }
+}
+
+function doUpdateRole(btn) {
+  const uid = btn.dataset.uid;
+  const sel = btn.closest('tr').querySelector('.role-sel');
+  if (!sel.value) return;
+  const orig = btn.innerHTML;
+  btn.disabled=true; btn.innerHTML='<i class="fas fa-spinner fa-spin"></i>';
+  fetch('/api/v01/admin/users/update-role', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({user_id:uid, new_role:sel.value})
+  }).then(r=>r.json()).then(d => {
+    if (d.success) {
+      // List/stats refresh runs BEFORE the toast, not after — so the visible state
+      // update can't be skipped by anything going wrong in the toast call itself.
+      umLoadStats();
+      umFetch(_umPage);
+      toast(d.message, 'success');
+    } else toast(d.message, 'danger');
+  }).catch(()=>toast('Error updating role.', 'danger'))
+  .finally(()=>{ btn.innerHTML=orig; btn.disabled=true; btn.classList.remove('changed'); });
+}
+
+/* ── Select / Bulk ── */
+function handleSelectAll(chk) {
+  document.querySelectorAll('#usersTbody .user-chk').forEach(cb => {
+    cb.checked = chk.checked;
+    cb.closest('tr').classList.toggle('selected', chk.checked);
+    if (chk.checked) _selectedIds.add(cb.value);
+    else _selectedIds.delete(cb.value);
+  });
+  updateBulkBtn();
+}
+
+function onChkChange(cb) {
+  cb.closest('tr').classList.toggle('selected', cb.checked);
+  if (cb.checked) _selectedIds.add(cb.value);
+  else _selectedIds.delete(cb.value);
+  syncSelectAll(); updateBulkBtn();
+}
+
+function syncSelectAll() {
+  const all = document.querySelectorAll('#usersTbody .user-chk');
+  const chk = document.querySelectorAll('#usersTbody .user-chk:checked');
+  const sa  = document.getElementById('selectAllChk'); if (!sa) return;
+  if (!all.length)              { sa.indeterminate=false; sa.checked=false; }
+  else if (!chk.length)         { sa.indeterminate=false; sa.checked=false; }
+  else if (chk.length===all.length){ sa.indeterminate=false; sa.checked=true; }
+  else                          { sa.indeterminate=true; }
+}
+
+function doSelectAll() {
+  document.querySelectorAll('#usersTbody .user-chk').forEach(cb=>{
+    cb.checked=true; cb.closest('tr').classList.add('selected'); _selectedIds.add(cb.value);
+  });
+  const sa=document.getElementById('selectAllChk'); if(sa){sa.checked=true;sa.indeterminate=false;}
+  updateBulkBtn();
+}
+
+function doClearAll() {
+  document.querySelectorAll('#usersTbody .user-chk').forEach(cb=>{
+    cb.checked=false; cb.closest('tr').classList.remove('selected'); _selectedIds.delete(cb.value);
+  });
+  const sa=document.getElementById('selectAllChk'); if(sa){sa.checked=false;sa.indeterminate=false;}
+  updateBulkBtn();
+}
+
+function updateBulkBtn() {
+  const role = document.getElementById('bulkRoleSelect')?.value;
+  const btn  = document.getElementById('applyBulkBtn'); if(!btn) return;
+  btn.disabled = !(_selectedIds.size && role);
+  btn.innerHTML = _selectedIds.size
+    ? `<i class="fas fa-users-cog me-1"></i>Apply to ${_selectedIds.size} Selected`
+    : '<i class="fas fa-users-cog me-1"></i>Apply to Selected';
+}
+
+let _pendingBulkRole = '';
+
+function doBulkUpdate() {
+  const role = document.getElementById('bulkRoleSelect').value;
+  if (!_selectedIds.size || !role) return;
+  const safeIds = [..._selectedIds].filter(id => {
+    const row = document.querySelector(`tr[data-user-id="${id}"]`);
+    return row && !row.classList.contains('ghost-row');
+  });
+  if (!safeIds.length) { toast('No eligible users selected.','warning'); return; }
+  _pendingBulkRole = role;
+  const lbl = role==='user,admin' ? 'User & Admin' : role.charAt(0).toUpperCase()+role.slice(1);
+  document.getElementById('bulkModalMsg').innerHTML =
+    `You are about to update <strong>${safeIds.length} user(s)</strong> to role <strong style="color:var(--accent)">"${lbl}"</strong>.<br><br><small style="color:var(--text-muted)">This will take effect immediately.</small>`;
+  document.getElementById('bulkModal').style.display = 'flex';
+}
+
+function executeBulkUpdate() {
+  document.getElementById('bulkModal').style.display = 'none';
+  const role = _pendingBulkRole;
+  const safeIds = [..._selectedIds].filter(id => {
+    const row = document.querySelector(`tr[data-user-id="${id}"]`);
+    return row && !row.classList.contains('ghost-row');
+  });
+  if (!safeIds.length || !role) return;
+  const btn  = document.getElementById('applyBulkBtn');
+  const orig = btn.innerHTML; btn.disabled=true;
+  btn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Updating…';
+  fetch('/api/v01/admin/users/bulk-update-roles', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({updates: safeIds.map(id=>({user_id:id,new_role:role}))})
+  }).then(r=>r.json()).then(d=>{
+    if(d.success){
+      _selectedIds.clear();
+      document.getElementById('bulkRoleSelect').value='';
+      umLoadStats(); umFetch(_umPage);
+      toast(d.message || `${safeIds.length} user(s) updated successfully.`,'success');
+    } else toast(d.message,'danger');
+  }).catch(()=>toast('Network error.','danger'))
+  .finally(()=>{ btn.innerHTML=orig; updateBulkBtn(); });
+}
+
+/* ═══════════════════════════════════════════════
+   SHARED PAGINATOR RENDERER
+═══════════════════════════════════════════════ */
+function renderPaginator(container, page, totalPages, total, perPage, goFn) {
+  if (!container) return;
+  if (!total) { container.innerHTML=''; return; }
+  if (totalPages <= 1) {
+    container.innerHTML = `<span style="font-size:.78rem;color:var(--text-muted)">${total} records</span>`;
+    return;
+  }
+  const start = (page-1)*perPage+1, end = Math.min(page*perPage, total);
+  const bs  = `cursor:pointer;padding:3px 9px;border-radius:6px;border:1px solid var(--border);background:var(--surface);color:var(--text-2);font-size:.78rem;font-weight:600;margin:0 1px;`;
+  const bas = `cursor:pointer;padding:3px 9px;border-radius:6px;border:1px solid var(--accent);background:var(--accent);color:var(--accent-on);font-size:.78rem;font-weight:600;margin:0 1px;`;
+
+  let pages = [];
+  if (totalPages <= 7) { pages = Array.from({length:totalPages},(_,i)=>i+1); }
+  else {
+    pages = [1];
+    const s=Math.max(2,page-2), e=Math.min(totalPages-1,page+2);
+    if (s>2) pages.push('…');
+    for(let i=s;i<=e;i++) pages.push(i);
+    if (e<totalPages-1) pages.push('…');
+    pages.push(totalPages);
+  }
+
+  // Serialize goFn to string safely via a global registry
+  const fnKey = 'pgFn_' + Math.random().toString(36).slice(2);
+  window[fnKey] = goFn;
+
+  container.innerHTML = `
+    <span style="font-size:.78rem;color:var(--text-muted)">Showing ${start}–${end} of ${total}</span>
+    <div style="display:flex;gap:.2rem;flex-wrap:wrap;align-items:center;">
+      <button style="${bs}" ${page===1?'disabled':''} onclick="window['${fnKey}'](${page-1})">‹</button>
+      ${pages.map(p=>p==='…'
+        ?`<span style="color:var(--text-muted);padding:0 4px">…</span>`
+        :`<button style="${p===page?bas:bs}" onclick="window['${fnKey}'](${p})">${p}</button>`
+      ).join('')}
+      <button style="${bs}" ${page===totalPages?'disabled':''} onclick="window['${fnKey}'](${page+1})">›</button>
+    </div>`;
+}
+
+/* ═══════════════════════════════════════════════
+   HELPERS
+═══════════════════════════════════════════════ */
+function skeletonRows(cols) {
+  return Array(4).fill(0).map(()=>
+    `<tr><td colspan="${cols}"><div class="skeleton" style="width:${55+Math.random()*35|0}%"></div></td></tr>`
+  ).join('');
+}
+function errRow(cols, msg, retryCall) {
+  const retryBtn = retryCall
+    ? `<button type="button" class="btn-flat secondary" onclick="${retryCall}"><i class="fas fa-rotate-right"></i>Retry</button>`
+    : '';
+  return `<tr><td colspan="${cols}"><div class="table-error-state">
+    <i class="fas fa-triangle-exclamation"></i>
+    <p><strong>Couldn't load data</strong><span>${msg || 'Something went wrong. Please try again.'}</span></p>
+    ${retryBtn}
+  </div></td></tr>`;
+}
+function emptyState(icon, title, sub) {
+  return `<div class="empty-state"><i class="fas ${icon}"></i><p><strong>${title}</strong><br><span style="font-size:.8rem">${sub}</span></p></div>`;
+}
+// Real profile photo (avatar_url, from the admin-only /api/v01/admin/users/<id>/photo route —
+// see api_users_search/_fmt on the server) when the user has one, else the same generic-icon
+// chip as before. Shared by every row across all three tabs (New Requests, History, User
+// Management) so the fallback and sizing stay identical everywhere.
+//
+// The <i> icon is always rendered underneath as the instant placeholder (no separate skeleton
+// element needed) — the <img> sits on top of it via position:absolute, starts transparent, and
+// fades in once it actually loads; loading="lazy" defers a row that's scrolled off-screen (this
+// tab can page through many rows) until it's actually about to be visible, so those never fetch
+// at all until they need to. onerror removes the <img> entirely, permanently revealing the icon
+// underneath — a deleted/unreadable photo degrades to the same fallback as no photo at all,
+// never a broken-image icon.
+function avatarChip(url) {
+  if (!url) return `<div class="avatar-chip"><i class="fas fa-user"></i></div>`;
+  return `<div class="avatar-chip"><i class="fas fa-user"></i><img src="${url}" alt="" loading="lazy" decoding="async"
+    style="position:absolute;inset:0;width:100%;height:100%;border-radius:50%;object-fit:cover;opacity:0;transition:opacity .15s"
+    onload="this.style.opacity=1" onerror="this.remove()"></div>`;
+}
+function userCell(uname, avatarUrl) {
+  return `<div style="display:flex;align-items:center;gap:.6rem">${avatarChip(avatarUrl)}<span style="font-size:.83rem;font-weight:600;color:var(--text-primary)">${uname||'—'}</span></div>`;
+}
+function accessBadge(role) {
+  const cls = role==='user'?'ab-user':role==='admin'?'ab-admin':'ab-both';
+  const lbl = role==='user,admin'?'User &amp; Admin':cap(role||'?');
+  return `<span class="access-badge ${cls}">${lbl}</span>`;
+}
+function cap(s){ return s?s.charAt(0).toUpperCase()+s.slice(1):s; }
+function esc(s){ return (s||'').replace(/'/g,"\\'"); }
+
+function setLoading(btn, on) {
+  btn.disabled = on;
+  if (on) { btn._orig=btn.innerHTML; btn.innerHTML='<i class="fas fa-spinner fa-spin me-1"></i>Processing…'; }
+  else if (btn._orig) btn.innerHTML = btn._orig;
+}
+
+/* Same implementation as templates/admin/users_manage.html's toast() — kept
+   local to each page rather than factored into admin_base.html since that's
+   the existing convention here, but this page previously had none at all
+   (see the #toastContainer comment above). */
+function toast(msg, type='success') {
+  const icons={success:'fa-check-circle',danger:'fa-times-circle',warning:'fa-exclamation-triangle'};
+  const el=document.createElement('div');
+  el.className=`toast-item toast-${type}`;
+  el.innerHTML=`<i class="fas ${icons[type]||'fa-info-circle'}" style="flex-shrink:0"></i>
+    <span style="flex:1;line-height:1.4">${msg}</span>
+    <button class="toast-close" onclick="removeToast(this.parentElement)"><i class="fas fa-times"></i></button>`;
+  document.getElementById('toastContainer').appendChild(el);
+  setTimeout(()=>removeToast(el),4000);
+}
+function removeToast(el){
+  if(!el||el._removing)return;el._removing=true;
+  el.classList.add('removing');setTimeout(()=>el.remove(),220);
+}
+
+/* ═══════════════════════════════════════════════
+   INIT
+═══════════════════════════════════════════════ */
+document.addEventListener('DOMContentLoaded', () => {
+  // Load header stat chips
+  loadHeaderStats();
+
+  // Auto-load pending requests (Tab 1 is default active)
+  document.getElementById('pendingTbody').dataset.loaded = '1';
+  fetchRequests('pending', 1);
+
+  // History date-range filters — same themed calendar/pattern as
+  // templates/admin/exams.html and users_analytics.html
+  // (static/shared/date-picker.js), not the browser's native picker.
+  const displayFmt = {{ DISPLAY_DATE_FORMAT | tojson }};
+  ['histDateFrom', 'histDateTo'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) createDatePicker(el, { displayFormat: displayFmt, onChange: () => histFetch(1) });
+  });
+
+  // Refresh stats every 60s in background
+  setInterval(() => {
+    if (document.visibilityState === 'visible') loadHeaderStats();
+  }, 60000);
+
+  // Themed dropdown-button in place of these native <select>s — same
+  // component used elsewhere in the admin UI (static/admin/select-enhance.js).
+  // The dynamically-created per-row "New Role" select (.role-sel, built in
+  // umRenderTable() above) is enhanced there instead, right after each
+  // batch of rows is inserted.
+  enhanceSelect(document.getElementById('histStatus'), { icon: 'fas fa-filter' });
+  enhanceSelect(document.getElementById('histCurRole'), { icon: 'fas fa-user' });
+  enhanceSelect(document.getElementById('histReqRole'), { icon: 'fas fa-user-shield' });
+  enhanceSelect(document.getElementById('umRoleFilter'), { icon: 'fas fa-filter' });
+  enhanceSelect(document.getElementById('bulkRoleSelect'), { icon: 'fas fa-users-cog' });
+  enhanceSelect(document.getElementById('approvedAccess'), { icon: 'fas fa-user-shield', block: true });
+});
+</script>
+{% endblock %}

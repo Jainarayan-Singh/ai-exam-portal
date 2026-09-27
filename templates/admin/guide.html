@@ -1,0 +1,729 @@
+{% extends "admin_base.html" %}
+{% block title %}Admin Guide{% endblock %}
+
+{% block content %}
+<style>
+.gd-header {
+  margin-bottom: 1.75rem;
+  padding: 1.25rem 1.5rem;
+  border-radius: calc(var(--radius) + 4px);
+  border: 1px solid var(--border);
+  background:
+    radial-gradient(120% 180% at 0% 0%, var(--accent-subtle) 0%, transparent 55%),
+    var(--surface);
+}
+.gd-header h1 {
+  font-size: 1.4rem; font-weight: 700; color: var(--text-1);
+  letter-spacing: -.02em; margin-bottom: .3rem;
+  display: flex; align-items: center; gap: .6rem;
+}
+.gd-header h1 i {
+  color: var(--accent-on); font-size: 1rem;
+  width: 30px; height: 30px; display: flex; align-items: center; justify-content: center;
+  border-radius: 9px; background: linear-gradient(135deg, var(--accent), var(--accent-hover));
+  box-shadow: var(--shadow-sm);
+}
+.gd-header p { font-size: .83rem; color: var(--text-3); max-width: 640px; line-height: 1.55; }
+
+/* ── Connected workflow timeline (horizontal desktop / vertical mobile) ── */
+.gd-flow-wrap { margin-bottom: 2rem; }
+.gd-flow-title { font-size: .8rem; font-weight: 700; color: var(--text-1); margin-bottom: .2rem; display: flex; align-items: center; gap: .4rem; }
+.gd-flow-title i { color: var(--accent); }
+.gd-flow-sub { font-size: .74rem; color: var(--text-3); margin-bottom: .9rem; }
+.gd-flow { display: flex; align-items: stretch; gap: .4rem; }
+.gd-flow-step {
+  flex: 1; min-width: 0; background: var(--surface); border: 1px solid var(--border);
+  border-top: 3px solid var(--fc, var(--accent)); border-radius: var(--radius);
+  padding: .9rem .6rem; text-align: center; display: flex; flex-direction: column;
+  align-items: center; gap: .35rem; transition: transform .15s, box-shadow .15s;
+}
+.gd-flow-step:hover { transform: translateY(-2px); box-shadow: var(--shadow-sm); }
+.gd-flow-icon {
+  width: 36px; height: 36px; border-radius: 10px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center; font-size: .9rem;
+  background: var(--fc-bg, var(--accent-subtle)); color: var(--fc, var(--accent));
+}
+.gd-flow-label { font-size: .76rem; font-weight: 700; color: var(--text-1); }
+.gd-flow-desc { font-size: .66rem; color: var(--text-3); line-height: 1.3; }
+.gd-flow-arrow { display: flex; align-items: center; justify-content: center; color: var(--text-3); font-size: .8rem; flex-shrink: 0; width: 1rem; }
+@media (max-width: 900px) {
+  .gd-flow { flex-direction: column; }
+  .gd-flow-arrow { transform: rotate(90deg); width: auto; height: 1rem; margin: -.1rem 0; }
+}
+
+.gd-toc { display: flex; flex-wrap: wrap; gap: .5rem; margin-bottom: 2rem; }
+.gd-toc a {
+  font-size: .74rem; font-weight: 600; color: var(--text-2);
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 20px; padding: .3rem .75rem; text-decoration: none;
+  transition: border-color .12s, color .12s;
+}
+.gd-toc a:hover { border-color: var(--accent); color: var(--accent); }
+
+.gd-section { margin-bottom: .75rem; }
+.gd-section summary {
+  list-style: none; cursor: pointer; user-select: none;
+  display: flex; align-items: center; gap: .75rem;
+  padding: .95rem 1.15rem; background: var(--surface);
+  border: 1px solid var(--border); border-radius: calc(var(--radius) + 2px);
+  transition: border-color .15s;
+}
+.gd-section summary::-webkit-details-marker { display: none; }
+.gd-section[open] summary { border-bottom-left-radius: 0; border-bottom-right-radius: 0; }
+.gd-section summary:hover { border-color: var(--border-focus); }
+.gd-section-icon {
+  width: 34px; height: 34px; border-radius: 9px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--accent-subtle); color: var(--accent); font-size: .9rem;
+}
+.gd-section-title { flex: 1; font-size: .92rem; font-weight: 700; color: var(--text-1); }
+.gd-section-sub { font-size: .74rem; color: var(--text-3); margin-top: .1rem; font-weight: 500; }
+.gd-chevron { color: var(--text-3); font-size: .78rem; transition: transform .15s; flex-shrink: 0; }
+.gd-section[open] .gd-chevron { transform: rotate(180deg); }
+
+.gd-body {
+  border: 1px solid var(--border); border-top: none;
+  border-bottom-left-radius: calc(var(--radius) + 2px); border-bottom-right-radius: calc(var(--radius) + 2px);
+  padding: 1.25rem 1.4rem 1.5rem; background: var(--bg);
+  font-size: .85rem; color: var(--text-2); line-height: 1.7;
+}
+.gd-body h4 {
+  font-size: .78rem; font-weight: 700; text-transform: uppercase; letter-spacing: .06em;
+  color: var(--text-3); margin: 1.1rem 0 .5rem;
+}
+.gd-body h4:first-child { margin-top: 0; }
+.gd-body p { margin: 0 0 .6rem; }
+.gd-body ul, .gd-body ol { margin: 0 0 .75rem; padding-left: 1.2rem; }
+.gd-body li { margin-bottom: .35rem; }
+.gd-body strong { color: var(--text-1); }
+.gd-body code {
+  background: var(--surface-2); border: 1px solid var(--border); border-radius: 4px;
+  padding: .05rem .35rem; font-size: .8rem; color: var(--accent);
+}
+
+.gd-steps { counter-reset: gd-step; list-style: none; padding-left: 0; margin: 0 0 .9rem; }
+.gd-steps li { counter-increment: gd-step; position: relative; padding-left: 2.4rem; margin-bottom: .85rem; }
+.gd-steps li::before {
+  content: counter(gd-step); position: absolute; left: 0; top: -.05rem;
+  width: 1.7rem; height: 1.7rem; border-radius: 50%;
+  background: var(--accent-subtle); color: var(--accent);
+  font-size: .75rem; font-weight: 800; display: flex; align-items: center; justify-content: center;
+}
+.gd-steps li strong { display: block; color: var(--text-1); font-size: .85rem; margin-bottom: .1rem; }
+.gd-steps li span { color: var(--text-3); font-size: .8rem; }
+
+.gd-callout {
+  display: flex; gap: .65rem; padding: .75rem .95rem; border-radius: var(--radius);
+  margin: .9rem 0; font-size: .8rem; line-height: 1.6;
+}
+.gd-callout i { flex-shrink: 0; margin-top: .1rem; }
+.gd-callout.tip { background: var(--info-bg); color: var(--info-text); border: 1px solid var(--info-border); }
+.gd-callout.warn { background: var(--warning-bg); color: var(--warning-text); border: 1px solid var(--warning-border); }
+
+.gd-hier {
+  background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--radius);
+  padding: 1rem 1.25rem; font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: .82rem; color: var(--text-1); margin: .75rem 0; line-height: 2;
+  overflow-x: auto; white-space: pre;
+}
+.gd-hier .lbl { color: var(--accent); font-weight: 700; }
+
+.gd-table { width: 100%; border-collapse: collapse; font-size: .8rem; margin: .5rem 0 .9rem; }
+.gd-table th, .gd-table td { text-align: left; padding: .5rem .7rem; border-bottom: 1px solid var(--border); }
+.gd-table th { color: var(--text-3); font-size: .68rem; text-transform: uppercase; letter-spacing: .05em; font-weight: 700; }
+.gd-table td { color: var(--text-2); }
+.gd-table code { font-size: .74rem; }
+
+.gd-link-row { display: flex; align-items: center; gap: .5rem; margin-top: .75rem; flex-wrap: wrap; }
+.gd-link-row a {
+  display: inline-flex; align-items: center; gap: .4rem; font-size: .78rem; font-weight: 700;
+  color: var(--accent); text-decoration: none; background: var(--accent-subtle);
+  border: 1px solid var(--accent); border-radius: 20px; padding: .35rem .85rem;
+}
+.gd-link-row a:hover { opacity: .85; }
+
+.gd-badge-new {
+  display: inline-flex; align-items: center; gap: .25rem; margin-left: .4rem;
+  font-size: .62rem; font-weight: 800; text-transform: uppercase; letter-spacing: .04em;
+  color: var(--success-text); background: var(--success-bg); border: 1px solid var(--success-border);
+  border-radius: 20px; padding: .12rem .55rem; vertical-align: middle;
+}
+
+/* ── Question-creation paths — 4 parallel mini-flows converging ── */
+.gd-paths { display: grid; grid-template-columns: repeat(4, 1fr); gap: .75rem; margin: .75rem 0 .5rem; }
+.gd-path-card {
+  background: var(--surface); border: 1px solid var(--border);
+  border-top: 3px solid var(--pc, var(--accent)); border-radius: var(--radius);
+  padding: .9rem .8rem; display: flex; flex-direction: column; gap: .5rem;
+}
+.gd-path-hdr { display: flex; align-items: center; gap: .4rem; font-size: .8rem; font-weight: 700; color: var(--text-1); }
+.gd-path-hdr i { color: var(--pc, var(--accent)); font-size: .8rem; }
+.gd-path-chain { display: flex; flex-direction: column; gap: .3rem; }
+.gd-path-node {
+  font-size: .7rem; font-weight: 600; color: var(--text-2);
+  background: var(--surface-2); border: 1px solid var(--border); border-radius: 7px;
+  padding: .3rem .55rem;
+}
+.gd-path-node-arrow { text-align: center; color: var(--text-3); font-size: .65rem; }
+.gd-path-note { font-size: .66rem; color: var(--text-3); line-height: 1.4; margin-top: auto; }
+.gd-converge { display: flex; align-items: center; justify-content: center; gap: .5rem; margin: .5rem 0 1rem; font-size: .76rem; color: var(--text-3); }
+.gd-converge i { color: var(--accent); }
+@media (max-width: 900px) { .gd-paths { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 560px) { .gd-paths { grid-template-columns: 1fr; } }
+
+@media (max-width: 700px) {
+  .gd-header { padding: 1rem 1.1rem; }
+  .gd-body { padding: 1rem; }
+  .gd-section summary { padding: .8rem .9rem; }
+  .gd-hier { font-size: .74rem; }
+}
+</style>
+
+<div class="gd-header">
+  <h1><i class="fas fa-book-open"></i> Admin Guide</h1>
+  <p>Everything you need to run the Exam Portal — how exams are organized, how to build one from scratch, and how to manage questions, images and users. Click a section below to expand it.</p>
+</div>
+
+<!-- ══ MASTER WORKFLOW ══ -->
+<div class="gd-flow-wrap">
+  <div class="gd-flow-title"><i class="fas fa-route"></i> The Complete Content Workflow</div>
+  <div class="gd-flow-sub">Every exam you publish follows this path, top to bottom</div>
+  <div class="gd-flow">
+    <div class="gd-flow-step" style="--fc:#2d5be3"><div class="gd-flow-icon"><i class="fas fa-layer-group"></i></div><div class="gd-flow-label">Category</div><div class="gd-flow-desc">e.g. "SSC JE"</div></div>
+    <div class="gd-flow-arrow"><i class="fas fa-arrow-right"></i></div>
+    <div class="gd-flow-step" style="--fc:#0891b2"><div class="gd-flow-icon"><i class="fas fa-sitemap"></i></div><div class="gd-flow-label">Subcategory</div><div class="gd-flow-desc">e.g. "Civil"</div></div>
+    <div class="gd-flow-arrow"><i class="fas fa-arrow-right"></i></div>
+    <div class="gd-flow-step" style="--fc:#16a34a"><div class="gd-flow-icon"><i class="fas fa-file-alt"></i></div><div class="gd-flow-label">Exam</div><div class="gd-flow-desc">Name, duration, marks</div></div>
+    <div class="gd-flow-arrow"><i class="fas fa-arrow-right"></i></div>
+    <div class="gd-flow-step" style="--fc:#7c3aed"><div class="gd-flow-icon"><i class="fas fa-book"></i></div><div class="gd-flow-label">Subject</div><div class="gd-flow-desc">Image folder (if needed)</div></div>
+    <div class="gd-flow-arrow"><i class="fas fa-arrow-right"></i></div>
+    <div class="gd-flow-step" style="--fc:#f59e0b"><div class="gd-flow-icon"><i class="fas fa-question-circle"></i></div><div class="gd-flow-label">Questions</div><div class="gd-flow-desc">Manual, Bulk, CSV or AI</div></div>
+    <div class="gd-flow-arrow"><i class="fas fa-arrow-right"></i></div>
+    <div class="gd-flow-step" style="--fc:#dc2626"><div class="gd-flow-icon"><i class="fas fa-check-circle"></i></div><div class="gd-flow-label">Publish</div><div class="gd-flow-desc">Visible to students</div></div>
+  </div>
+</div>
+
+<div class="gd-toc">
+  <a href="#gd-start">Getting Started</a>
+  <a href="#gd-structure">Exam Structure</a>
+  <a href="#gd-create">Creating an Exam</a>
+  <a href="#gd-normal-availability">Normal Exam Availability</a>
+  <a href="#gd-scheduled">Scheduled Exams</a>
+  <a href="#gd-questions">Adding Questions</a>
+  <a href="#gd-ai">AI Question Generation</a>
+  <a href="#gd-images">Images</a>
+  <a href="#gd-importexport">Import / Export</a>
+  <a href="#gd-organize">Organizing Content</a>
+  <a href="#gd-users">Users &amp; Admin Management</a>
+  <a href="#gd-plans">Plans &amp; Access</a>
+</div>
+
+<!-- ══ GETTING STARTED ══ -->
+<details class="gd-section" id="gd-start" open>
+  <summary>
+    <span class="gd-section-icon"><i class="fas fa-compass"></i></span>
+    <span style="flex:1">
+      <span class="gd-section-title">Getting Started</span>
+      <span class="gd-section-sub" style="display:block">How the Admin Portal is organized</span>
+    </span>
+    <i class="fas fa-chevron-down gd-chevron"></i>
+  </summary>
+  <div class="gd-body">
+    <p>The sidebar on the left is grouped into sections, each covering one part of running the portal:</p>
+    <h4>Content</h4>
+    <p>Everything used to build an exam — <strong>Manage Categories</strong>, <strong>Manage Exams</strong>, <strong>Manage Subjects</strong>, <strong>Manage Questions</strong>, <strong>Upload Images</strong>, <strong>Image Mapping</strong>, the <strong>LaTeX Editor</strong>, <strong>Object Storage</strong>, and the <strong>AI Command Centre</strong>.</p>
+    <h4>Management</h4>
+    <p><strong>Users &amp; Requests</strong> (approving new account requests) and <strong>Manage Attempts</strong> (every exam attempt taken on the portal).</p>
+    <h4>Analytics</h4>
+    <p><strong>Users Analytics</strong> — per-student performance, results, and individual question-by-question responses.</p>
+    <h4>Account</h4>
+    <p>This guide, and your own <strong>Profile &amp; Account</strong> settings.</p>
+    <div class="gd-callout tip">
+      <i class="fas fa-lightbulb"></i>
+      <span>New here? The <strong>Complete Content Workflow</strong> diagram above shows the whole path at a glance. Read <strong>Exam Structure</strong> next for the "why", then follow <strong>Creating an Exam</strong> step by step.</span>
+    </div>
+  </div>
+</details>
+
+<!-- ══ EXAM STRUCTURE ══ -->
+<details class="gd-section" id="gd-structure">
+  <summary>
+    <span class="gd-section-icon"><i class="fas fa-sitemap"></i></span>
+    <span style="flex:1">
+      <span class="gd-section-title">Exam Structure</span>
+      <span class="gd-section-sub" style="display:block">Category, Subcategory, Exam, Subject and Questions</span>
+    </span>
+    <i class="fas fa-chevron-down gd-chevron"></i>
+  </summary>
+  <div class="gd-body">
+    <p>Exams are organized in a hierarchy so students can browse them logically instead of one long flat list:</p>
+    <div class="gd-hier"><span class="lbl">Category</span>        e.g. "SSC JE"
+  &#8595;
+<span class="lbl">Subcategory</span>     e.g. "Civil"
+  &#8595;
+<span class="lbl">Exam</span>           e.g. "SOM Test 1" — belongs to one Category + Subcategory
+  &#8595;
+<span class="lbl">Questions</span>      belong to one Exam</span>
+</div>
+    <p><strong>Category</strong> and <strong>Subcategory</strong> are managed together on the <strong>Manage Categories</strong> page — each category can have any number of subcategories underneath it. Every exam is assigned to one category and (optionally) one subcategory when it's created, which is what determines where it appears when a student browses exams.</p>
+    <p><strong>Subjects</strong> are a separate, parallel concept — not a level inside the exam hierarchy. A subject is a named folder used to organize <em>question images</em> (see <a href="#gd-images">Images</a> below). You'll typically create one subject per topic area (e.g. "Civil-SOM") and reference it in a question's Image Path as <code>SubjectName/filename.ext</code>.</p>
+    <p><strong>Questions</strong> always belong to exactly one exam (via the exam you select when adding them) and can optionally reference an image stored under a subject.</p>
+    <div class="gd-link-row">
+      <a href="{{ url_for('admin.categories') }}"><i class="fas fa-layer-group"></i> Manage Categories</a>
+      <a href="{{ url_for('admin.exams') }}"><i class="fas fa-file-alt"></i> Manage Exams</a>
+      <a href="{{ url_for('admin.subjects') }}"><i class="fas fa-book"></i> Manage Subjects</a>
+    </div>
+  </div>
+</details>
+
+<!-- ══ CREATING AN EXAM ══ -->
+<details class="gd-section" id="gd-create">
+  <summary>
+    <span class="gd-section-icon"><i class="fas fa-flag-checkered"></i></span>
+    <span style="flex:1">
+      <span class="gd-section-title">Creating an Exam — Step by Step</span>
+      <span class="gd-section-sub" style="display:block">From an empty portal to a live, attemptable exam</span>
+    </span>
+    <i class="fas fa-chevron-down gd-chevron"></i>
+  </summary>
+  <div class="gd-body">
+    <ol class="gd-steps">
+      <li><strong>Create or select a Category</strong><span>Open <strong>Manage Categories</strong>. If the right category doesn't exist yet (e.g. "SSC JE"), create it.</span></li>
+      <li><strong>Create or select a Subcategory</strong><span>From the same page, open the category's Subcategories and add one if needed (e.g. "Civil").</span></li>
+      <li><strong>Create the Exam</strong><span>Open <strong>Manage Exams</strong> → Add Exam. Assign the Category/Subcategory, and set the name, duration, positive/negative marks, max attempts, result mode and passing percentage.</span></li>
+      <li><strong>Set up a Subject (if the exam uses images)</strong><span>Only needed when questions will include images — create/reuse a subject on <strong>Manage Subjects</strong> to act as the image folder.</span></li>
+      <li><strong>Add Questions</strong><span>Open <strong>Manage Questions</strong>, select your exam, and add questions using whichever method fits — see <a href="#gd-questions">Adding Questions</a>.</span></li>
+      <li><strong>Configure exam settings</strong><span>Double-check duration, marks, attempts and result mode on <strong>Manage Exams</strong> before publishing.</span></li>
+      <li><strong>Review the questions</strong><span>Use the search and type/image filters on <strong>Manage Questions</strong> to check everything looks right.</span></li>
+      <li><strong>Publish the exam</strong><span>Set the exam's status to Published on <strong>Manage Exams</strong> so students can see and attempt it.</span></li>
+    </ol>
+    <div class="gd-callout warn">
+      <i class="fas fa-triangle-exclamation"></i>
+      <span>An exam left in Draft status won't appear to students — if a finished exam still isn't showing up, check its status first.</span>
+    </div>
+  </div>
+</details>
+
+<!-- ══ NORMAL EXAM AVAILABILITY ══ -->
+<details class="gd-section" id="gd-normal-availability">
+  <summary>
+    <span class="gd-section-icon"><i class="fas fa-infinity"></i></span>
+    <span style="flex:1">
+      <span class="gd-section-title">Normal Exam Availability</span>
+      <span class="gd-section-sub" style="display:block">Reusing a Normal Exam after its date/time has passed, without editing the schedule</span>
+    </span>
+    <i class="fas fa-chevron-down gd-chevron"></i>
+  </summary>
+  <div class="gd-body">
+    <p>By default, a Normal Exam's configured date/time is a hard expiry: once that window has passed, students can no longer start it — even if you leave (or set) its Status back to <strong>Ongoing</strong> — until you edit the date/time. <strong>Available After Selected Date/Time</strong> is an optional per-exam toggle on <strong>Manage Exams</strong> (Add Exam and Edit Exam) that removes that expiry, so you can reuse the same exam purely by controlling its Status.</p>
+
+    <p><strong>When ENABLED:</strong></p>
+    <ol class="gd-steps">
+      <li><strong>Status is the only gate</strong><span>The exam stays attemptable for as long as its Status is <strong>Ongoing</strong> — its configured date/time no longer expires it, no matter how long ago that date/time was.</span></li>
+      <li><strong>Reusable without editing the schedule</strong><span>If the exam has drifted to Upcoming/Completed and you want it Live again, just set its Status back to <strong>Ongoing</strong>. Students can attempt it immediately — there is no need to change the date, start time, or duration at all.</span></li>
+      <li><strong>Attempt count still applies</strong><span>This toggle only removes the date/time expiry. Each student's <strong>Max Attempts</strong> limit is completely unaffected — once a student has used all their allowed attempts, they cannot start another one, regardless of this setting.</span></li>
+    </ol>
+
+    <p><strong>When DISABLED (the default):</strong> a Normal Exam behaves exactly as it always has — its configured date/time still determines when it expires, on top of its Status.</p>
+
+    <div class="gd-callout tip">
+      <i class="fas fa-lightbulb"></i>
+      <span>Status (Upcoming/Ongoing/Completed) is what students see labelled on their dashboard either way — this toggle never changes that label. It only changes whether the date/time can additionally block starting an exam whose Status is Ongoing.</span>
+    </div>
+
+    <div class="gd-callout warn">
+      <i class="fas fa-triangle-exclamation"></i>
+      <span>This option applies <strong>only to Normal Exams</strong>. It has no effect on Scheduled Exams — the toggle isn't shown while <strong>Scheduled Exam</strong> is turned on, and a Scheduled Exam's lifecycle always follows its strict scheduled time window (preparation window, official start/end, late-start rules, auto-submit) exactly as described in the <a href="#gd-scheduled">Scheduled Exams</a> section below, with no expiry-toggle equivalent.</span>
+    </div>
+
+    <div class="gd-link-row">
+      <a href="{{ url_for('admin.exams') }}"><i class="fas fa-file-alt"></i> Manage Exams</a>
+    </div>
+  </div>
+</details>
+
+<!-- ══ SCHEDULED EXAMS ══ -->
+<details class="gd-section" id="gd-scheduled">
+  <summary>
+    <span class="gd-section-icon"><i class="fas fa-calendar-check"></i></span>
+    <span style="flex:1">
+      <span class="gd-section-title">Scheduled Exams</span>
+      <span class="gd-section-sub" style="display:block">Auto-opening exams, preparation windows, deadlines and auto-submit</span>
+    </span>
+    <i class="fas fa-chevron-down gd-chevron"></i>
+  </summary>
+  <div class="gd-body">
+    <p>A <strong>Scheduled Exam</strong> is the alternative to a Manual Exam's admin-controlled Status: instead of you flipping it to Ongoing/Completed yourself, you set a date, start time and duration once, and the portal computes its status automatically from the clock from then on — including an optional preparation/preload window before it goes live, a completion buffer right after the deadline, and server-side auto-submit enforcement that works even if a student's browser is closed.</p>
+    <p>This is enough to get you building one, but the full behaviour — every setting, exactly what locks once it's live, cancel/restore, and what a student experiences minute by minute — is covered in its own dedicated guide, linked below.</p>
+    <div class="gd-callout tip">
+      <i class="fas fa-lightbulb"></i>
+      <span>Turn on the <strong>Scheduled Exam</strong> toggle on Manage Exams → Add Exam (or on an existing exam's Edit form) to see the extra fields it adds.</span>
+    </div>
+    <div class="gd-link-row">
+      <a href="{{ url_for('admin.guide_scheduled_exams') }}"><i class="fas fa-book"></i> Open the full Scheduled Exam Guide</a>
+      <a href="{{ url_for('admin.exams') }}"><i class="fas fa-file-alt"></i> Manage Exams</a>
+    </div>
+  </div>
+</details>
+
+<!-- ══ ADDING QUESTIONS ══ -->
+<details class="gd-section" id="gd-questions">
+  <summary>
+    <span class="gd-section-icon"><i class="fas fa-list-check"></i></span>
+    <span style="flex:1">
+      <span class="gd-section-title">Adding Questions</span>
+      <span class="gd-section-sub" style="display:block">Four ways to get questions into an exam — all from Manage Questions</span>
+    </span>
+    <i class="fas fa-chevron-down gd-chevron"></i>
+  </summary>
+  <div class="gd-body">
+    <p>Pick whichever path fits what you're doing — they all end up in the same place: your exam's question list.</p>
+    <div class="gd-paths">
+      <div class="gd-path-card" style="--pc:#2d5be3">
+        <div class="gd-path-hdr"><i class="fas fa-pen"></i> Manual</div>
+        <div class="gd-path-chain"><div class="gd-path-node">Add Question</div></div>
+        <div class="gd-path-note">One question at a time — best for a single addition or a correction.</div>
+      </div>
+      <div class="gd-path-card" style="--pc:#7c3aed">
+        <div class="gd-path-hdr"><i class="fas fa-layer-group"></i> Bulk</div>
+        <div class="gd-path-chain"><div class="gd-path-node">Batch Add rows</div><div class="gd-path-node-arrow">↓</div><div class="gd-path-node">Add All Questions</div></div>
+        <div class="gd-path-note">A handful of new questions filled in directly on the page.</div>
+      </div>
+      <div class="gd-path-card" style="--pc:#0891b2">
+        <div class="gd-path-hdr"><i class="fas fa-file-csv"></i> CSV</div>
+        <div class="gd-path-chain"><div class="gd-path-node">Import CSV</div><div class="gd-path-node-arrow">↓</div><div class="gd-path-node">Preview &amp; edit</div><div class="gd-path-node-arrow">↓</div><div class="gd-path-node">Save to DB</div></div>
+        <div class="gd-path-note">Large sets, or anything already prepared in a spreadsheet.</div>
+      </div>
+      <div class="gd-path-card" style="--pc:#f59e0b">
+        <div class="gd-path-hdr"><i class="fas fa-robot"></i> AI</div>
+        <div class="gd-path-chain"><div class="gd-path-node">Generate</div><div class="gd-path-node-arrow">↓</div><div class="gd-path-node">Review</div><div class="gd-path-node-arrow">↓</div><div class="gd-path-node">Add to exam</div></div>
+        <div class="gd-path-note">Topic or PDF in, draft questions out — always reviewed before saving. See <a href="#gd-ai">AI Question Generation</a>.</div>
+      </div>
+    </div>
+    <div class="gd-converge"><i class="fas fa-arrow-down"></i> All four save into the exam you selected on Manage Questions</div>
+    <h4>What each field means</h4>
+    <p>Every method captures the same core fields: question text, up to four options, the correct answer, type (<strong>MCQ</strong> single-choice / <strong>MSQ</strong> multi-choice / <strong>Numerical</strong>), positive &amp; negative marks, an optional image path, and an optional Source / Previous Year Tag (e.g. "ESE 2021") shown as a small badge to students.</p>
+    <div class="gd-callout tip">
+      <i class="fas fa-lightbulb"></i>
+      <span>Use single-add for corrections, Bulk for a handful of new questions, and CSV Import for large sets or anything prepared outside the portal.</span>
+    </div>
+    <div class="gd-link-row">
+      <a href="{{ url_for('admin.questions_index') }}"><i class="fas fa-question-circle"></i> Manage Questions</a>
+    </div>
+  </div>
+</details>
+
+<!-- ══ AI QUESTION GENERATION ══ -->
+<details class="gd-section" id="gd-ai">
+  <summary>
+    <span class="gd-section-icon"><i class="fas fa-robot"></i></span>
+    <span style="flex:1">
+      <span class="gd-section-title">AI Question Generation</span>
+      <span class="gd-section-sub" style="display:block">Generate, review and add questions with AI</span>
+    </span>
+    <i class="fas fa-chevron-down gd-chevron"></i>
+  </summary>
+  <div class="gd-body">
+    <ol class="gd-steps">
+      <li><strong>Start a generation job</strong><span><strong>What to do:</strong> give it a topic or a source PDF. <strong>Where:</strong> the AI Command Centre. <strong>Then:</strong> it runs in the background with live progress — you can keep working while it generates.</span></li>
+      <li><strong>Review the generated questions</strong><span><strong>What happens next:</strong> once complete, the questions load into the same CSV Editor used for CSV import — each one shown as a card with raw and rendered (LaTeX) views.</span></li>
+      <li><strong>Edit anything that needs it</strong><span>Fix wording, adjust marks or tolerance, change the LaTeX size, delete a question you don't want, or add a Source / Previous Year Tag — the AI never invents one on its own.</span></li>
+      <li><strong>Add to the exam</strong><span>Click <strong>Save to DB</strong> to add the reviewed questions to the selected exam, or <strong>Export CSV</strong> to keep them as a file instead.</span></li>
+    </ol>
+    <div class="gd-callout tip">
+      <i class="fas fa-lightbulb"></i>
+      <span>Always review AI-generated questions before saving — check the correct answer and any LaTeX rendering, the same way you would for a manually written question.</span>
+    </div>
+    <div class="gd-link-row">
+      <a href="{{ url_for('admin.ai_command_centre') }}"><i class="fas fa-robot"></i> AI Command Centre</a>
+    </div>
+  </div>
+</details>
+
+<!-- ══ IMAGES ══ -->
+<details class="gd-section" id="gd-images">
+  <summary>
+    <span class="gd-section-icon"><i class="fas fa-image"></i></span>
+    <span style="flex:1">
+      <span class="gd-section-title">Images in Questions</span>
+      <span class="gd-section-sub" style="display:block">Two ways to attach an image to a question — classic manual entry, or the new Image Mapping tool</span>
+    </span>
+    <i class="fas fa-chevron-down gd-chevron"></i>
+  </summary>
+  <div class="gd-body">
+
+    <h4>Step Zero — Upload the Image (needed either way)</h4>
+    <p>Both methods below start from the same place: the image file has to already be uploaded to a <strong>Subject</strong> before it can be attached to any question.</p>
+    <ol class="gd-steps">
+      <li><strong>Create or reuse a Subject</strong><span><strong>Where to go:</strong> Manage Subjects. A Subject is just a named folder for organizing images — e.g. one per topic area.</span></li>
+      <li><strong>Upload the image(s)</strong><span><strong>Where to go:</strong> Upload Images. Pick the Subject, then drag in the file(s) — the original filename and extension are kept exactly as uploaded.</span></li>
+    </ol>
+    <div class="gd-link-row">
+      <a href="{{ url_for('admin.subjects') }}"><i class="fas fa-book"></i> Manage Subjects</a>
+      <a href="{{ url_for('admin.upload_images_page') }}"><i class="fas fa-images"></i> Upload Images</a>
+    </div>
+
+    <h4 style="margin-top:1.5rem">Method 1 — Classic Manual Path Entry</h4>
+    <p>The original way to attach an image: type its storage reference directly into the question's own <strong>Image Path</strong> field.</p>
+    <ol class="gd-steps">
+      <li><strong>Open the question</strong><span><strong>Where to go:</strong> Manage Questions → select the exam → click the pencil icon on the question, or <strong>Add Question</strong> for a new one.</span></li>
+      <li><strong>Find the Image Path field</strong><span>In the Add/Edit Question form it's labeled <strong>Image Path (optional)</strong>. The same field (labeled just <strong>Image Path</strong>) also appears in every row of <strong>Batch Add Questions</strong>, and as the <code>image_path</code> column when importing a CSV.</span></li>
+      <li><strong>Type the reference in the exact format</strong><span>Type <code>SubjectName/filename.ext</code> — the Subject name exactly as it appears on Manage Subjects, a forward slash, then the filename exactly as it was uploaded, including its extension. Example: <code>physics/ph-1.png</code>.</span></li>
+      <li><strong>Save the question</strong><span>Click <strong>Save Changes</strong> (Edit) or <strong>Add Question</strong> (new). Nothing validates the path at this point — a typo is accepted silently.</span></li>
+      <li><strong>Verify what was saved</strong><span>Back on the Manage Questions list, the question's Image column shows a small pill with the exact text you entered — hover it to read the full path. This confirms what's <em>stored</em>, not whether it's <em>correct</em>.</span></li>
+      <li><strong>Confirm the image actually appears</strong><span>Open <strong>Preview Exam</strong> (the eye icon next to the exam on Manage Exams) and navigate to the question. If the path was wrong, no image renders there — same as on the real Student Exam page.</span></li>
+    </ol>
+    <div class="gd-callout warn">
+      <i class="fas fa-triangle-exclamation"></i>
+      <div>
+        <strong>Common mistakes with this method:</strong>
+        <ul style="margin:.4rem 0 0;padding-left:1.1rem">
+          <li>Subject name doesn't exactly match Manage Subjects (wrong case, an extra space, or a rename that happened afterward)</li>
+          <li>Filename doesn't exactly match what was uploaded</li>
+          <li>Missing or wrong file extension (<code>.png</code> vs <code>.jpg</code>)</li>
+          <li>A plain typo anywhere in the path</li>
+          <li>The image was never actually uploaded to that Subject</li>
+          <li>The correct file exists, but under a different Subject than the one typed</li>
+        </ul>
+      </div>
+    </div>
+    <p>This method still has its place — a quick one-off fix, or attaching a single image while already editing a question for another reason, without leaving Manage Questions.</p>
+
+    <h4 style="margin-top:1.5rem">Method 2 — Question Image Mapping <span class="gd-badge-new"><i class="fas fa-star"></i> Recommended</span></h4>
+    <p>A dedicated visual tool for attaching images to many questions at once, with no manual typing at all. <strong>Where to go:</strong> <strong>Image Mapping</strong> in the sidebar.</p>
+    <p>Why it's recommended over the classic method:</p>
+    <ul>
+      <li>No manual path typing — you pick the image, you don't type its name</li>
+      <li>Built for mapping many questions in one visit, not just one</li>
+      <li>Every image shows a real thumbnail before anything is saved</li>
+      <li>Drag-and-drop, with a click-to-select alternative for touch devices</li>
+      <li>The Subject's image library is searchable</li>
+      <li>Every pending change is listed for review before it's saved</li>
+      <li>One "Save All Mappings" click applies everything together</li>
+      <li>Far less room for a filename or path mistake</li>
+    </ul>
+    <ol class="gd-steps">
+      <li><strong>Open Image Mapping</strong><span><strong>Where to go:</strong> the <strong>Image Mapping</strong> link in the sidebar.</span></li>
+      <li><strong>Select Exam</strong><span>Step 1 — pick the exam whose questions need images from the searchable dropdown.</span></li>
+      <li><strong>Select Subject</strong><span>Step 2 — pick the Subject whose uploaded images you want to use. Each option shows how many images it holds, e.g. "Images: 184".</span></li>
+      <li><strong>Select Questions</strong><span>Step 3 — search and filter the exam's questions (by text, Question Type, or Image Status — <strong>No Image</strong> / <strong>Image Attached</strong> / <strong>Missing/Broken Image</strong>), then tick the ones that need images. Use <strong>Select This Page</strong>, <strong>Select All Matching</strong>, or <strong>Clear Selection</strong> as needed.</span></li>
+      <li><strong>Continue to Mapping</strong><span>Click <strong>Continue to Mapping</strong> to open the workspace — <strong>Selected Questions</strong> on the left, the <strong>Subject Image Library</strong> on the right.</span></li>
+      <li><strong>Map an image</strong><span>Drag an image card from the right panel and drop it onto a question card on the left. Nothing is saved yet — the question card immediately shows the image with a <strong>Pending Mapping</strong> badge.</span></li>
+      <li><strong>No drag-and-drop? Click instead</strong><span>Click a question card to make it the active target (it highlights), then click any image in the library — it maps the same way as dragging.</span></li>
+      <li><strong>Replace an existing image</strong><span>On a question that already has one, click <strong>Replace</strong>, then drag or click a different image onto it — the new choice simply overwrites the pending one.</span></li>
+      <li><strong>Remove an image</strong><span>Click <strong>Remove</strong> on a question's card to mark its image for removal, shown as a <strong>Pending Removal</strong> badge until you save.</span></li>
+      <li><strong>Verify visually before saving</strong><span>Every mapped or current image shows as a real thumbnail on its question card — click a thumbnail to open a larger preview. Confirm each one is the right image before moving on.</span></li>
+      <li><strong>Review Pending Changes</strong><span>Click <strong>Review &amp; Save</strong> — a panel lists every pending change as "Q&lt;number&gt; → filename", so everything can be checked at a glance before it's committed.</span></li>
+      <li><strong>Save All Mappings</strong><span>Click <strong>Save All Mappings</strong>. All pending changes are saved together in one operation — never one at a time.</span></li>
+      <li><strong>Wait for it to finish</strong><span>The button shows a brief "Saving…" state and is disabled automatically until the save completes — no need to click it again.</span></li>
+      <li><strong>Confirm the success message</strong><span>A confirmation such as "✓ 3 image mappings saved successfully." appears, and the affected question cards update immediately to show their new saved image — no page reload needed.</span></li>
+      <li><strong>Verify the final result</strong><span>Open <strong>Preview Exam</strong> for the exam, or check the real Student Exam page, to confirm each image renders correctly where students will actually see it.</span></li>
+    </ol>
+    <div class="gd-link-row">
+      <a href="{{ url_for('admin.image_mapping_page') }}"><i class="fas fa-link"></i> Image Mapping</a>
+    </div>
+
+    <h4 style="margin-top:1.5rem">Classic Method vs. Image Mapping</h4>
+    <table class="gd-table">
+      <tr><th></th><th>Classic Method</th><th>Image Mapping</th></tr>
+      <tr><td>How you attach an image</td><td>Type <code>SubjectName/filename.ext</code> by hand</td><td>Drag or click the image itself</td></tr>
+      <tr><td>Best for</td><td>A single quick fix while already editing a question</td><td>Attaching images to many questions in one visit</td></tr>
+      <tr><td>Preview before saving</td><td>None — mistakes surface only after saving</td><td>Real thumbnail shown immediately</td></tr>
+      <tr><td>Risk of mistakes</td><td>Higher — a typo is accepted silently</td><td>Much lower — you're selecting a real, existing image</td></tr>
+      <tr><td>Saving multiple questions</td><td>One at a time</td><td>Reviewed together, then saved as one bulk operation</td></tr>
+    </table>
+
+    <h4 style="margin-top:1.5rem">Important Notes</h4>
+    <div class="gd-callout tip">
+      <i class="fas fa-circle-info"></i>
+      <div>
+        <ul style="margin:0;padding-left:1.1rem">
+          <li>Images must be uploaded to a Subject first — Image Mapping only shows what's already there, it doesn't upload anything itself.</li>
+          <li>Uploading and mapping are two separate steps: upload the image(s) on <strong>Upload Images</strong>, then map them on <strong>Image Mapping</strong>.</li>
+          <li>Picking the wrong Subject in Step 2 means the image you're looking for simply won't be in the library — double-check it's the Subject the image was actually uploaded to.</li>
+          <li>Image Mapping doesn't replace the bulk upload workflow — it's what you use <em>after</em> uploading, to attach what's already there to specific questions.</li>
+          <li>Always visually check every mapped thumbnail before clicking Save All Mappings.</li>
+          <li>For any question mapped through Image Mapping, you never need to type <code>SubjectName/filename.ext</code> by hand.</li>
+        </ul>
+      </div>
+    </div>
+
+    <h4 style="margin-top:1.5rem">Troubleshooting / FAQ</h4>
+    <p><strong>I uploaded an image but can't find it in Image Mapping.</strong><br>Confirm it was uploaded to the Subject selected in Step 2, not a different one — then re-select the Subject (or search again) to refresh the image library.</p>
+    <p><strong>The image is showing on the wrong question.</strong><br>Check the Review panel before clicking Save All Mappings — every pending change is listed as "Q&lt;number&gt; → filename", so a misplaced mapping is easy to catch before it's saved.</p>
+    <p><strong>Can I replace an image a question already has?</strong><br>Yes — click <strong>Replace</strong> (or <strong>Choose Different</strong>) on that question's card and pick a different image from the library.</p>
+    <p><strong>Can I map several questions at once?</strong><br>Yes — select the questions that need images, map each one, review the full list of pending changes, then use Save All Mappings once for all of them.</p>
+    <p><strong>Do I still need to type the image path myself?</strong><br>Not when using Image Mapping — manual typing is only part of the classic method above.</p>
+    <p><strong>What happens if Save All Mappings fails?</strong><br>Nothing is partially applied — a save either fully succeeds or fully fails, never something in between. An error message explains what went wrong (e.g. an image that could no longer be found), and the pending changes stay exactly as they were so the issue can be fixed and the save retried.</p>
+
+    <p style="margin-top:1rem">For direct browsing or cleanup of the underlying stored files, use <strong>Object Storage</strong>, which shows the raw folders and files as uploaded.</p>
+    <div class="gd-link-row">
+      <a href="{{ url_for('admin.object_storage') }}"><i class="fas fa-hdd"></i> Object Storage</a>
+    </div>
+  </div>
+</details>
+
+<!-- ══ IMPORT / EXPORT ══ -->
+<details class="gd-section" id="gd-importexport">
+  <summary>
+    <span class="gd-section-icon"><i class="fas fa-file-import"></i></span>
+    <span style="flex:1">
+      <span class="gd-section-title">Import / Export</span>
+      <span class="gd-section-sub" style="display:block">Moving questions in and out of the portal</span>
+    </span>
+    <i class="fas fa-chevron-down gd-chevron"></i>
+  </summary>
+  <div class="gd-body">
+    <h4>Import</h4>
+    <p>From <strong>Manage Questions → Import CSV</strong> (or from a completed AI generation job). Required columns:</p>
+    <table class="gd-table">
+      <tr><th>Column</th><th>Notes</th></tr>
+      <tr><td><code>exam_id</code></td><td>Must match an existing exam</td></tr>
+      <tr><td><code>question_text</code></td><td>Required</td></tr>
+      <tr><td><code>option_a</code> – <code>option_d</code></td><td>Leave blank for Numerical questions</td></tr>
+      <tr><td><code>correct_answer</code></td><td>Option letter(s) or numeric value</td></tr>
+      <tr><td><code>question_type</code></td><td><code>MCQ</code>, <code>MSQ</code>, or <code>NUMERIC</code></td></tr>
+      <tr><td><code>image_path</code></td><td>Optional — <code>SubjectName/filename.ext</code></td></tr>
+      <tr><td><code>positive_marks</code>, <code>negative_marks</code>, <code>tolerance</code></td><td><code>tolerance</code> only used by Numerical questions</td></tr>
+      <tr><td><code>source_tag</code></td><td>Optional — e.g. "ESE 2021"; leave blank or omit the column entirely if not applicable</td></tr>
+    </table>
+    <p>Rows missing a required field are skipped, and you'll see how many rows were imported vs. skipped after saving. A "Sample CSV" download is available on the CSV Editor if you need a starting template.</p>
+    <h4>Export</h4>
+    <p>From <strong>Manage Questions → Export CSV</strong> for a selected exam, producing the same column set as import (so an export can always be edited and re-imported). The CSV Editor also has its own Export CSV for whatever set of questions is currently being reviewed there.</p>
+  </div>
+</details>
+
+<!-- ══ ORGANIZING CONTENT ══ -->
+<details class="gd-section" id="gd-organize">
+  <summary>
+    <span class="gd-section-icon"><i class="fas fa-folder-tree"></i></span>
+    <span style="flex:1">
+      <span class="gd-section-title">Organizing Subjects, Categories &amp; Subcategories</span>
+      <span class="gd-section-sub" style="display:block">A practical example — not fixed application data</span>
+    </span>
+    <i class="fas fa-chevron-down gd-chevron"></i>
+  </summary>
+  <div class="gd-body">
+    <p>There's no single "correct" way to organize a portal — here's one practical example:</p>
+    <div class="gd-hier">SSC JE                    (Category)
+ &#8994; Civil                   (Subcategory)
+      &#8995; SOM Test 1          (Exam)
+      &#8995; Surveying Test 1    (Exam)
+      &#8995; PYQs                 (Exam)</div>
+    <p>Subjects follow the same idea but organize <em>images</em> rather than exams — e.g. a subject named <code>Civil-SOM</code> holding every image used by Strength of Materials questions. This is only an example of a sensible structure; none of these names are built into the application.</p>
+  </div>
+</details>
+
+<!-- ══ USERS & ADMIN MANAGEMENT ══ -->
+<details class="gd-section" id="gd-users">
+  <summary>
+    <span class="gd-section-icon"><i class="fas fa-user-shield"></i></span>
+    <span style="flex:1">
+      <span class="gd-section-title">Users &amp; Admin Management</span>
+      <span class="gd-section-sub" style="display:block">Access requests, attempts and analytics</span>
+    </span>
+    <i class="fas fa-chevron-down gd-chevron"></i>
+  </summary>
+  <div class="gd-body">
+    <h4>Users &amp; Requests</h4>
+    <p>New account access requests appear here for approval or rejection, with a history of past requests, plus user role management.</p>
+    <h4>Manage Attempts</h4>
+    <p>Every exam attempt taken across the portal, for monitoring and troubleshooting.</p>
+    <h4>Users Analytics</h4>
+    <p>Per-student performance and results. From a student's result you can open their full response breakdown — every question they saw, their answer, the correct answer, and (where set) its Source / Previous Year Tag.</p>
+    <h4>Profile &amp; Account</h4>
+    <p>Your own admin account settings.</p>
+    <div class="gd-link-row">
+      <a href="{{ url_for('admin.requests_dashboard') }}"><i class="fas fa-user-plus"></i> Users &amp; Requests</a>
+      <a href="{{ url_for('admin.attempts') }}"><i class="fas fa-list-ol"></i> Manage Attempts</a>
+      <a href="{{ url_for('admin.users_analytics') }}"><i class="fas fa-chart-line"></i> Users Analytics</a>
+    </div>
+  </div>
+</details>
+
+<!-- ══ PLANS & ACCESS ══ -->
+<details class="gd-section" id="gd-plans">
+  <summary>
+    <span class="gd-section-icon"><i class="fas fa-layer-group"></i></span>
+    <span style="flex:1">
+      <span class="gd-section-title">Plans &amp; Access</span>
+      <span class="gd-section-sub" style="display:block">What Free, Pro and Elite include, limits, admin permissions and special access</span>
+    </span>
+    <i class="fas fa-chevron-down gd-chevron"></i>
+  </summary>
+  <div class="gd-body">
+  {% if plans %}
+    <h4>What each plan adds</h4>
+    <ul>
+      {% for p in plans.plans %}
+      <li><strong>{{ p.label }}</strong>{% if p.is_default %} (the default plan, used by every account that has none set){% endif %}:
+        {% if p.inherits_label %}everything in {{ p.inherits_label }}, plus{% else %}includes{% endif %}
+        {% for a in p.adds %}{{ a.label }}{% if a.limits %} ({{ a.limits|join(', ') }}){% endif %}{% if not loop.last %}, {% endif %}{% endfor %}.
+      </li>
+      {% endfor %}
+    </ul>
+
+    <h4>Student features by plan</h4>
+    <table class="gd-table">
+      <thead><tr><th>Feature</th>{% for p in plans.plans %}<th>{{ p.label }}</th>{% endfor %}<th>Plan applied</th></tr></thead>
+      <tbody>
+        {% for f in plans.student_features %}
+        <tr>
+          <td><strong>{{ f.label }}</strong><br><span style="font-size:.72rem">{{ f.description }}</span></td>
+          {% for p in plans.plans %}{% set cell = f.plans[p.key] %}
+          <td>{% if cell is none %}&mdash;{% else %}Included{% for l in cell %}<br><span style="font-size:.72rem">{{ l }}</span>{% endfor %}{% endif %}</td>
+          {% endfor %}
+          <td>{{ 'Yes' if f.enforced else 'Not yet' }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    <p><strong>Limits.</strong> A limit is optional. A feature with no limit listed is unlimited and is not metered. A plan that lists a limit for a feature replaces the limit it would inherit.</p>
+    <p><strong>Plan applied.</strong> &ldquo;Yes&rdquo; means the server checks it: a student whose plan does not include the feature gets a locked page (or an error from the API) and the feature disappears from their portal. The limits shown are in force for the AI Assistant and AI Explanation, and they are set only here (not in the server settings).</p>
+    <h4>How a user gets a plan</h4>
+    <ul>
+      <li><strong>Everyone starts on the default plan, Free.</strong> An account with no plan set (every existing account, every new one) is Free automatically; you never have to set Free up. A plan that has expired also falls back to Free.</li>
+      <li>You give a user a higher plan in <a href="{{ url_for('admin.requests_dashboard') }}">Users &amp; Requests</a> &rarr; Users tab &rarr; click their plan badge &rarr; <em>Change plan</em>. A user cannot change their own plan.</li>
+      <li>Students see their plan in the sidebar and on their Profile page, together with what it includes and which plan unlocks each locked item.</li>
+    </ul>
+
+    <h4>Plan is not admin</h4>
+    <ul>
+      <li>A plan only decides which <em>student</em> features a user gets. Elite never makes anyone an admin, and an admin on Free has no paid student features.</li>
+      <li>Admin access is the <strong>Current Role</strong> in Users &amp; Requests. Admin permissions are a separate list, below, and are never part of a plan.</li>
+    </ul>
+    <table class="gd-table">
+      <thead><tr><th>Admin permission</th><th>Available to</th><th>Checked</th></tr></thead>
+      <tbody>
+        {% for f in plans.admin_features %}
+        <tr>
+          <td><strong>{{ f.label }}</strong><br><span style="font-size:.72rem">{{ f.description }}</span></td>
+          <td>{{ 'Every admin' if f.scope == 'all' else 'Only admins who are granted it' }}</td>
+          <td>{{ 'Yes' if f.enforced else 'Not yet' }}{% if f.step_up %} &middot; asks for a {{ f.step_up }}{% endif %}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    <p>Only <em>AI configuration</em> and <em>Access control</em> are checked today; the others are listed so they can be restricted later without any redesign.</p>
+  {% endif %}
+
+    <h4>Changing a plan and special access</h4>
+    <ul>
+      <li><strong>Change a user&rsquo;s plan:</strong> in <a href="{{ url_for('admin.requests_dashboard') }}">Users &amp; Requests</a>, open the Users tab, click the plan chip next to the user, choose a plan and save.</li>
+      <li><strong>Custom Access:</strong> a user with a grant or a deny on top of their plan shows a <em>Custom Access</em> chip; click the plan or the chip to open the card. There you can see what was granted or denied and until when, remove it with the &times;, or <em>Add access</em>: choose Grant or Deny, the feature (admin permissions are listed as <em>Admin: &hellip;</em>), optionally a number of days and a reason. A grant can be temporary. A deny always wins over the plan, over an earlier grant and over the admin role (once the feature is enforced).</li>
+      <li>Every plan and access change is recorded in the audit log. The same actions are available from the Access Control API (<code>PUT /api/v01/admin/access/users/&lt;id&gt;/overrides/&lt;feature&gt;</code>, which can also set <code>limits</code>).</li>
+      <li>A plan can have an expiry; after it the user is back on the default plan automatically.</li>
+    </ul>
+
+    <h4>Access requests</h4>
+    <p>Requests for admin access work as before: approving one sets the user&rsquo;s role. Requests for a plan or a single feature are not built yet; when they are, approving one will create the same grant described above, with its own expiry.</p>
+
+    <h4>Sensitive admin actions and payments</h4>
+    <p>A feature can be marked in the configuration as needing a passkey (Windows Hello, fingerprint, phone or security key) for sensitive actions. The marker is recorded and reported with every access check, but passkey verification is not implemented, so no feature uses it yet. Payments and subscriptions are not implemented either: a future billing system will simply set a user&rsquo;s plan and expiry.</p>
+
+    <h4>Changing what a plan contains</h4>
+    <p>Plans, features and limits live in <code>config/entitlements.json</code>; the file&rsquo;s guide is <code>config/ENTITLEMENTS.md</code>. Moving a feature to another plan, changing a limit, or adding a plan is an edit to that one file: no code changes.</p>
+  </div>
+</details>
+
+{% endblock %}

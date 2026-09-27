@@ -1,0 +1,1670 @@
+{% extends "base.html" %}
+{% block title %}{{ exam.name }} - SmartAIExam{% endblock %}
+
+{% block content %}
+<style>
+/* exam_page.html — all colors via CSS variables */
+
+/* Exam page takes over full viewport below topnav */
+html, body { overflow:hidden !important; height:100% !important; }
+.exam-wrap { display:flex; flex-direction:column; position:fixed; top:48px; left:0; right:0; bottom:0; overflow-y:auto; background:var(--bg); z-index:100; }
+
+/* Top bar */
+.exam-topbar {
+  display:flex; align-items:center; justify-content:space-between;
+  padding:.6rem 1.25rem; border-bottom:1px solid var(--border);
+  background:var(--surface); flex-shrink:0; gap:.75rem; flex-wrap:wrap;
+}
+.exam-name { font-size:.92rem; font-weight:700; color:var(--text-1); display:flex; align-items:center; gap:.45rem; min-width:0; flex:1 1 auto; }
+.exam-name i { color:var(--accent); flex-shrink:0; }
+.exam-name-text { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; min-width:0; }
+.exam-qcounter {
+  display:inline-flex; align-items:center; flex-shrink:0;
+  background:var(--accent-subtle); color:var(--accent);
+  border:1px solid var(--border); border-radius:20px;
+  padding:.2rem .65rem; font-size:.75rem; font-weight:700;
+}
+.exam-topbar-right { display:flex; align-items:center; gap:.5rem; flex-shrink:0; }
+.exam-secure-badge {
+  display:inline-flex; align-items:center; gap:.3rem; flex-shrink:0;
+  padding:.3rem .6rem; border-radius:20px; font-size:.72rem; font-weight:700;
+  white-space:nowrap; pointer-events:none; transition:background .2s,color .2s;
+}
+.exam-secure-badge:empty { display:none; }
+.exam-timer {
+  display:flex; align-items:center; gap:.4rem; flex-shrink:0;
+  background:var(--surface-2); border:1px solid var(--border);
+  border-radius:var(--radius); padding:.35rem .75rem;
+  font-size:.88rem; font-weight:700; color:var(--text-1);
+  transition:background .3s, color .3s; white-space:nowrap;
+}
+.exam-timer i { color:var(--accent); flex-shrink:0; }
+.exam-timer.warn   { background:var(--warning-bg); border-color:var(--warning-border); color:var(--warning-text); }
+.exam-timer.danger { background:var(--danger-bg);  border-color:var(--danger-border);  color:var(--danger-text); animation:timerPulse 1s infinite; }
+@keyframes timerPulse{0%,100%{opacity:1}50%{opacity:.5}}
+@media (max-width:560px) {
+  .exam-topbar { padding:.5rem .75rem; gap:.5rem; }
+  .exam-name { font-size:.82rem; }
+  .exam-timer-label, .exam-secure-badge .badge-text { display:none; }
+  .exam-timer { padding:.3rem .55rem; font-size:.82rem; }
+  .exam-qcounter { padding:.15rem .5rem; font-size:.68rem; }
+}
+
+/* Question source/previous-year metadata badge */
+.question-source-tag {
+  display:inline-flex; align-items:center; gap:.35rem;
+  background:var(--accent-subtle); color:var(--accent);
+  border:1px solid var(--accent); border-radius:20px;
+  padding:.2rem .65rem; font-size:.7rem; font-weight:700;
+  letter-spacing:.01em; margin:0 0 .75rem;
+}
+
+/* Body split */
+.exam-body { display:flex; width:100%; align-items:flex-start; }
+
+/* Question area */
+.exam-content { 
+  flex:1; 
+  min-width:0; 
+  padding:1.25rem 1.5rem 100px 1.5rem; 
+  overflow-y:auto;
+  overflow-x:hidden;
+  max-height:calc(100vh - 96px);
+}
+.exam-content::-webkit-scrollbar {
+  width:6px;
+}
+.exam-content::-webkit-scrollbar-track {
+  background:transparent;
+}
+.exam-content::-webkit-scrollbar-thumb {
+  background:var(--accent-subtle);
+  border-radius:3px;
+}
+.exam-content::-webkit-scrollbar-thumb:hover {
+  background:var(--accent);
+}
+.question-card {
+  background:var(--surface); border:1px solid var(--border);
+  border-radius:calc(var(--radius)+2px); padding:1.5rem;
+  transition:opacity .15s, box-shadow .2s;
+  box-shadow:0 1px 3px rgba(0,0,0,.05);
+}
+.question-card:hover {
+  box-shadow:0 4px 12px rgba(0,0,0,.08);
+}
+.question-card.loading { 
+  opacity:.4; 
+}
+.option-container { overflow:hidden; }
+.question-card.loading { opacity:.4; }
+
+/* Options */
+.option-container {
+  background:var(--surface-2); border:1px solid var(--border);
+  border-radius:var(--radius); padding:.65rem .9rem;
+  margin-bottom:.5rem; cursor:pointer;
+  transition:border-color .12s, background .12s;
+}
+.option-container:hover { border-color:var(--accent); background:var(--accent-subtle); }
+.option-container.selected { border-color:var(--accent); background:var(--accent-subtle); }
+.option-container.selected-msq { border-color:var(--success); background:var(--success-bg); }
+.option-container .form-check-label { cursor:pointer; color:var(--text-1); font-size:.875rem; }
+.form-check-input { accent-color:var(--accent); }
+
+/* Numeric */
+.numeric-display {
+  background:var(--bg); border:1px solid var(--border);
+  border-radius:var(--radius); padding:.65rem 1rem;
+  font-size:1.25rem; font-weight:700; color:var(--text-1);
+  min-height:52px; display:flex; align-items:center;
+  font-family:monospace; letter-spacing:.05em;
+}
+.cursor-blink { animation:blink .8s step-end infinite; }
+@keyframes blink{0%,100%{opacity:1}50%{opacity:0}}
+
+.numeric-keypad { background:var(--surface-2); border:1px solid var(--border); border-radius:var(--radius); padding:.75rem; }
+.keypad-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:.4rem; }
+.keypad-btn {
+  padding:.55rem; border-radius:var(--radius); border:1px solid var(--border);
+  background:var(--surface); color:var(--text-1); font-size:.88rem; font-weight:600;
+  cursor:pointer; transition:background .1s, transform .08s; font-family:inherit;
+  display:flex; align-items:center; justify-content:center;
+}
+.keypad-btn:hover { background:var(--accent-subtle); border-color:var(--accent); }
+.keypad-btn:active { transform:scale(.94); }
+.keypad-btn.clear { background:var(--danger-bg); color:var(--danger-text); border-color:var(--danger-border); }
+.keypad-btn.backspace { background:var(--warning-bg); color:var(--warning-text); border-color:var(--warning-border); }
+.keypad-btn.sign,.keypad-btn.decimal { background:var(--info-bg); color:var(--info-text); border-color:var(--info-border); }
+.keypad-guide-card { background:var(--surface-2); border:1px solid var(--border); color:var(--text-1); }
+.keypad-guide-grid { display:grid; grid-template-columns:1fr 1fr; gap:.4rem; }
+.keypad-guide-item { background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); padding:.4rem .6rem; text-align:center; font-size:.72rem; color:var(--text-2); }
+
+/* Nav buttons */
+.exam-navigation-btn {
+  padding:.55rem 1rem; min-height:44px; border-radius:var(--radius); font-size:.82rem;
+  font-weight:700; font-family:inherit; cursor:pointer; transition:all .12s;
+  display:inline-flex; align-items:center; gap:.4rem; border:1.5px solid var(--border);
+}
+.btn-outline-secondary.exam-navigation-btn { background:var(--info-bg); color:var(--info-text); border-color:var(--info-border); }
+.btn-outline-secondary.exam-navigation-btn:hover:not(:disabled) { border-color:var(--accent); color:var(--accent); background:var(--accent-subtle); }
+.btn-outline-secondary.exam-navigation-btn:disabled { opacity:.4; cursor:not-allowed; background:var(--surface-2); color:var(--text-3); border-color:var(--border); }
+.btn-warning.exam-navigation-btn  { background:var(--warning-bg); color:var(--warning-text); border-color:var(--warning-border); }
+.btn-warning.exam-navigation-btn:hover { background:var(--warning); color:#fff; }
+.btn-warning.exam-navigation-btn.marked { background:var(--success); color:#fff; border-color:var(--success); }
+.btn-warning.exam-navigation-btn.marked:hover { opacity:.88; }
+.btn-primary.exam-navigation-btn  { background:var(--accent); color:var(--accent-on); border-color:var(--accent); }
+.btn-primary.exam-navigation-btn:hover { background:var(--accent-hover); }
+.btn-success.exam-navigation-btn  { background:var(--success); color:#fff; border-color:var(--success); }
+.btn-success.exam-navigation-btn:hover { opacity:.88; }
+.btn-outline-danger.btn-sm { background:var(--danger-bg); color:var(--danger-text); border:1px solid var(--danger-border); border-radius:var(--radius); padding:.28rem .65rem; font-size:.75rem; font-weight:600; cursor:pointer; font-family:inherit; }
+.btn-outline-danger.btn-sm:hover { background:var(--danger); color:#fff; }
+
+.d-flex.justify-content-between.align-items-center.mt-4.p-3.bg-light.rounded {
+  background:var(--surface-2) !important; border:1px solid var(--border); border-radius:var(--radius) !important;
+  display:flex; justify-content:space-between; align-items:center;
+  margin-top:1rem; padding:.75rem 1rem; flex-wrap:wrap; gap:.5rem;
+}
+
+/* Nav badges */
+.badge.bg-primary { background:var(--accent) !important; color:var(--accent-on) !important; }
+.badge-info { background:var(--info-bg); color:var(--info-text); border:1px solid var(--info-border); border-radius:20px; padding:.2rem .65rem; font-size:.72rem; font-weight:700; }
+.badge.bg-success { background:var(--success) !important; color:#fff !important; }
+.badge.bg-warning { background:var(--warning) !important; color:#fff !important; }
+.badge.bg-info    { background:var(--info)    !important; color:#fff !important; }
+.badge.bg-secondary { background:var(--surface-2) !important; color:var(--text-2) !important; border:1px solid var(--border); }
+
+/* Alert overrides */
+.alert-info    { background:var(--info-bg)   !important; border-color:var(--info-border)   !important; color:var(--info-text)    !important; }
+.alert-warning { background:var(--warning-bg)!important; border-color:var(--warning-border)!important; color:var(--warning-text) !important; }
+.alert-danger  { background:var(--danger-bg) !important; border-color:var(--danger-border) !important; color:var(--danger-text)  !important; }
+
+/* Sidebar */
+.exam-sidebar {
+  width:280px; flex-shrink:0;
+  background:var(--surface); border-left:1px solid var(--border);
+  padding:.85rem; display:flex; flex-direction:column; gap:.75rem;
+  position:sticky; top:0; max-height:calc(100vh - 96px); overflow-y:auto;
+  transition:all .3s ease;
+  scrollbar-width:thin;
+  scrollbar-color:var(--accent-subtle) transparent;
+}
+.exam-sidebar::-webkit-scrollbar { width:5px; }
+.exam-sidebar::-webkit-scrollbar-track { background:transparent; }
+.exam-sidebar::-webkit-scrollbar-thumb { background:var(--accent-subtle); border-radius:3px; }
+.exam-sidebar::-webkit-scrollbar-thumb:hover { background:var(--accent); }
+.exam-sidebar.sidebar-collapsed {
+  width:0;
+  padding:0;
+  border-left:none;
+  overflow:hidden;
+  gap:0;
+}
+.sidebar-toggle-btn {
+  position:fixed;
+  right:16px;
+  top:60px;
+  background:var(--accent);
+  color:#fff;
+  border:none;
+  border-radius:50%;
+  box-shadow:0 3px 10px rgba(0,0,0,.2);
+  cursor:pointer;
+  font-size:.75rem;
+  padding:.4rem;
+  width:34px;
+  height:34px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  transition:all .3s ease;
+  z-index:200;
+  flex-shrink:0;
+}
+.sidebar-toggle-btn:hover {
+  background:var(--accent-hover);
+  box-shadow:0 8px 28px rgba(0,0,0,.3);
+  transform:scale(1.1);
+}
+.sidebar-toggle-btn:active {
+  transform:scale(0.95);
+}
+.sidebar-backdrop { display:none; }
+.exam-sidebar .card {
+  background:var(--surface-2); border:1px solid var(--border);
+  border-radius:var(--radius); overflow:hidden;
+  flex-shrink:0;
+}
+.exam-sidebar .card-header {
+  background:var(--surface); border-bottom:1px solid var(--border);
+  padding:.55rem .85rem; font-size:.8rem; font-weight:700; color:var(--text-1);
+  display:flex; align-items:center; gap:.35rem;
+}
+.exam-sidebar .card-header.bg-primary { background:var(--accent) !important; color:var(--accent-on) !important; }
+.exam-sidebar .card-body { padding:.75rem; color:var(--text-2); font-size:.82rem; }
+
+/* Palette */
+.question-palette { display:flex; flex-wrap:wrap; gap:.3rem; justify-content:center; }
+.palette-link {
+  width:32px; height:32px; border-radius:7px;
+  display:inline-flex; align-items:center; justify-content:center;
+  font-size:.72rem; font-weight:700; cursor:pointer;
+  transition:transform .1s; position:relative;
+  background:linear-gradient(135deg,#6c757d,#495057); color:#fff;
+  border:2px solid transparent;
+}
+.palette-link:hover { transform:scale(1.1); }
+.palette-link.current { border-color:var(--text-1) !important; box-shadow:0 0 0 2px var(--accent); }
+.palette-link.answered { background:linear-gradient(135deg,#16a34a,#059669); }
+.palette-link.review   { background:linear-gradient(135deg,#f59e0b,#f97316); }
+.palette-link.visited  { background:linear-gradient(135deg,#0ea5e9,#0369a1); }
+.palette-link.not-visited { background:linear-gradient(135deg,#6c757d,#495057); }
+
+/* Legend */
+.legend-box { display:flex; align-items:center; gap:.4rem; font-size:.75rem; color:var(--text-2); }
+.swatch { width:14px; height:14px; border-radius:4px; flex-shrink:0; display:inline-block; }
+
+/* Quick guide */
+.exam-sidebar .small { font-size:.78rem; line-height:1.65; color:var(--text-2); }
+.exam-sidebar .small strong { color:var(--text-1); }
+.exam-sidebar .mb-2 { margin-bottom:.35rem; }
+
+/* Image */
+.question-image img { border-radius:var(--radius); max-height:420px; width:auto; max-width:100%; cursor:pointer; }
+.image-loading { padding:2rem; color:var(--text-3); font-size:.85rem; }
+.image-error { padding:1rem; color:var(--danger-text); }
+.loading-spinner { width:28px; height:28px; border-radius:50%; border:3px solid var(--border); border-top-color:var(--accent); animation:spin .8s linear infinite; margin:0 auto .75rem; }
+@keyframes spin{to{transform:rotate(360deg)}}
+.img-fluid { border-radius:var(--radius); }
+
+/* ─── Exam gate (start / resume secure-mode) popups ─────────────────────── */
+.exam-gate-overlay {
+  position:fixed; inset:0; background:rgba(0,0,0,.92); z-index:20001;
+  display:flex; align-items:center; justify-content:center;
+  backdrop-filter:blur(8px); padding:1.5rem; animation:examGateFade .18s ease;
+}
+@keyframes examGateFade { from{opacity:0} to{opacity:1} }
+.exam-gate-card {
+  background:var(--surface); border:1px solid var(--border); border-radius:16px;
+  padding:2.25rem 2.25rem 2rem; max-width:480px; width:100%;
+  color:var(--text-1); text-align:center; box-shadow:0 24px 60px rgba(0,0,0,.45);
+}
+.exam-gate-icon {
+  width:56px; height:56px; border-radius:50%;
+  background:var(--accent-subtle); border:1px solid var(--accent);
+  display:flex; align-items:center; justify-content:center;
+  margin:0 auto 1.1rem; font-size:1.4rem; color:var(--accent);
+}
+.exam-gate-icon.warn { background:var(--warning-bg); border-color:var(--warning-border); color:var(--warning); }
+.exam-gate-icon.success { background:var(--success-bg); border-color:var(--success-border); color:var(--success); }
+.exam-gate-btn.success { background:var(--success); color:#fff; }
+.exam-gate-btn[disabled] { opacity:.6; cursor:not-allowed; }
+.exam-gate-btn[disabled]:hover { transform:none; box-shadow:0 8px 24px rgba(0,0,0,.15); }
+.exam-gate-title { font-size:1.15rem; font-weight:700; margin-bottom:.5rem; letter-spacing:-.01em; }
+.exam-gate-desc  { font-size:.86rem; line-height:1.6; color:var(--text-2); margin-bottom:1.4rem; }
+.exam-gate-features {
+  background:var(--surface-2); border:1px solid var(--border); border-radius:12px;
+  padding:1.05rem 1.2rem; margin-bottom:1.4rem; text-align:left;
+}
+.exam-gate-features-title { font-size:.7rem; font-weight:700; text-transform:uppercase; letter-spacing:.05em; color:var(--text-3); margin-bottom:.65rem; }
+.exam-gate-feature { display:flex; align-items:flex-start; gap:.55rem; font-size:.82rem; color:var(--text-2); padding:.28rem 0; }
+.exam-gate-feature i { color:var(--accent); font-size:.72rem; margin-top:.25rem; flex-shrink:0; }
+.exam-gate-meta {
+  font-size:.82rem; color:var(--text-2); margin-bottom:1.4rem; line-height:1.6;
+  background:var(--surface-2); border:1px solid var(--border); border-radius:10px; padding:.7rem .9rem;
+}
+.exam-gate-notice {
+  display:flex; align-items:center; justify-content:center; gap:.4rem;
+  font-size:.78rem; color:var(--warning-text); background:var(--warning-bg);
+  border:1px solid var(--warning-border); border-radius:8px;
+  padding:.55rem .75rem; margin-bottom:1.4rem;
+}
+.exam-gate-btn {
+  background:var(--accent); border:none; color:var(--accent-on); font-weight:700;
+  border-radius:10px; padding:.8rem 1.75rem; font-size:.92rem; cursor:pointer;
+  transition:transform .15s ease, box-shadow .15s ease; font-family:inherit;
+  box-shadow:0 8px 24px rgba(0,0,0,.15); display:inline-flex; align-items:center; gap:.5rem;
+}
+.exam-gate-btn:hover  { transform:translateY(-2px); box-shadow:0 12px 28px rgba(0,0,0,.22); }
+.exam-gate-btn:active { transform:translateY(0); }
+.exam-gate-btn.warn   { background:var(--warning); color:#fff; }
+.exam-gate-hint { margin-top:1rem; font-size:.75rem; color:var(--text-3); }
+
+/* ─── Submit confirmation / progress overlay — dark always, for focus ───── */
+.sco-overlay {
+  position:fixed; inset:0; background:rgba(0,0,0,.92); z-index:20000;
+  display:none; align-items:center; justify-content:center;
+  backdrop-filter:blur(6px); padding:1.5rem;
+}
+.sco-card {
+  background:var(--surface); border:1px solid var(--border); border-radius:16px;
+  padding:2rem 2.25rem; max-width:520px; width:100%; color:var(--text-1);
+  box-shadow:0 24px 60px rgba(0,0,0,.45);
+}
+.sco-header { text-align:center; margin-bottom:1.4rem; }
+.sco-icon {
+  width:52px; height:52px; border-radius:50%;
+  background:var(--accent-subtle); border:1px solid var(--accent);
+  display:flex; align-items:center; justify-content:center;
+  margin:0 auto .85rem; font-size:1.3rem; color:var(--accent);
+}
+.sco-title { font-size:1.1rem; font-weight:700; margin-bottom:.4rem; letter-spacing:-.01em; }
+.sco-desc  { font-size:.85rem; color:var(--text-2); line-height:1.55; }
+
+/* Stepper: Submit → Confirm → Submitting → Submitted */
+.sco-stepper { display:flex; align-items:center; justify-content:center; gap:.35rem; margin-bottom:1.4rem; }
+.sco-step { display:flex; flex-direction:column; align-items:center; gap:.35rem; }
+.sco-step-dot { width:8px; height:8px; border-radius:50%; background:var(--border); transition:background .25s ease, transform .25s ease; }
+.sco-step-label { font-size:.64rem; font-weight:600; color:var(--text-3); text-transform:uppercase; letter-spacing:.03em; transition:color .25s ease; white-space:nowrap; }
+.sco-step-line { width:18px; height:1px; background:var(--border); margin-bottom:1.05rem; transition:background .25s ease; }
+.sco-step.active .sco-step-dot { background:var(--accent); transform:scale(1.35); }
+.sco-step.active .sco-step-label { color:var(--accent); }
+.sco-step.done .sco-step-dot { background:var(--success); transform:scale(1); }
+.sco-step-line.done { background:var(--success); }
+
+/* Progress summary */
+.sco-stats {
+  background:var(--surface-2); border:1px solid var(--border); border-radius:12px;
+  padding:1rem 1.1rem; margin-bottom:1.1rem;
+}
+.sco-stats-title { font-size:.68rem; font-weight:700; text-transform:uppercase; letter-spacing:.05em; color:var(--text-3); margin-bottom:.7rem; }
+.sco-stats-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:.5rem; margin-bottom:.85rem; }
+.sco-stat { text-align:center; }
+.sco-stat-num { font-weight:700; font-size:1.15rem; line-height:1.2; }
+.sco-stat-label { font-size:.66rem; color:var(--text-3); margin-top:.15rem; }
+.sco-stats-note { background:var(--surface); border:1px solid var(--border); border-radius:8px; padding:.7rem .85rem; }
+.sco-stats-note ul { margin:0; padding-left:1.1rem; color:var(--text-2); font-size:.78rem; line-height:1.7; }
+
+/* Submitting progress */
+.sco-progress { display:none; text-align:left; margin-bottom:1.1rem; }
+.sco-progress-head { display:flex; align-items:center; gap:.65rem; margin-bottom:.8rem; }
+.sco-progress-spinner {
+  width:22px; height:22px; border-radius:50%; flex-shrink:0;
+  border:2.5px solid var(--border); border-top-color:var(--accent);
+  animation:spin .8s linear infinite;
+}
+.sco-progress-done {
+  width:22px; height:22px; border-radius:50%; flex-shrink:0;
+  background:var(--success); color:#fff; font-size:.62rem;
+  display:flex; align-items:center; justify-content:center;
+}
+.sco-progress-text    { font-weight:700; font-size:.86rem; color:var(--text-1); }
+.sco-progress-details { font-size:.75rem; color:var(--text-3); margin-top:.1rem; }
+.sco-progress-meta    { display:flex; justify-content:space-between; font-size:.72rem; color:var(--text-3); margin-bottom:.4rem; }
+.sco-progress-track   { background:var(--surface-2); border:1px solid var(--border); border-radius:99px; height:8px; overflow:hidden; margin-bottom:.5rem; }
+.sco-progress-fill    { height:100%; width:0%; background:var(--accent); border-radius:99px; transition:width .35s ease; }
+.sco-progress-log     { font-size:.72rem; color:var(--text-3); font-family:ui-monospace,SFMono-Regular,Menlo,monospace; max-height:54px; overflow:hidden; line-height:1.6; }
+
+/* Actions */
+.sco-actions { display:flex; gap:.65rem; justify-content:center; flex-wrap:wrap; }
+.sco-btn {
+  border-radius:10px; padding:.75rem 1.6rem; font-size:.88rem; font-weight:700;
+  cursor:pointer; font-family:inherit; border:1px solid transparent;
+  display:inline-flex; align-items:center; gap:.45rem;
+  transition:transform .15s ease, box-shadow .15s ease, background .15s ease;
+}
+.sco-btn-primary   { background:var(--accent); color:var(--accent-on); box-shadow:0 8px 20px rgba(0,0,0,.15); }
+.sco-btn-primary:hover   { transform:translateY(-2px); box-shadow:0 12px 26px rgba(0,0,0,.22); }
+.sco-btn-secondary { background:var(--surface-2); color:var(--text-2); border-color:var(--border); }
+.sco-btn-secondary:hover { background:var(--border); color:var(--text-1); }
+.sco-footnote { text-align:center; margin-top:1rem; font-size:.72rem; color:var(--text-3); }
+
+@media (max-width:480px) {
+  .exam-gate-card, .sco-card { padding:1.5rem 1.25rem; }
+  .sco-stepper { gap:.2rem; }
+  .sco-step-line { width:10px; }
+  .sco-step-label { font-size:.58rem; }
+  .sco-stats-grid { gap:.3rem; }
+  .sco-actions { flex-direction:column-reverse; }
+  .sco-btn { width:100%; justify-content:center; }
+}
+
+.exam-nav-bar {
+  position:fixed; bottom:0; left:0; right:0; padding:.85rem 1.5rem;
+  background:var(--surface-2); border-top:1px solid var(--border);
+  display:flex; justify-content:space-between; align-items:center;
+  flex-wrap:wrap; gap:.6rem; z-index:50; box-shadow:0 -2px 8px rgba(0,0,0,.1);
+}
+.no-manual-submit-notice {
+  display:inline-flex; align-items:center; gap:.4rem;
+  font-size:.78rem; font-weight:600; color:var(--text-3);
+  background:var(--surface); border:1px solid var(--border); border-radius:var(--radius);
+  padding:.5rem .85rem;
+}
+
+/* Image modal */
+.modal-content { background:var(--surface); border:1px solid var(--border); border-radius:calc(var(--radius)+4px); }
+.modal-header  { border-bottom:1px solid var(--border); padding:.85rem 1.1rem; }
+.modal-title   { font-size:.9rem; font-weight:700; color:var(--text-1); }
+.modal-body    { padding:1.1rem; background:var(--surface); }
+.modal-footer  { border-top:1px solid var(--border); }
+[data-theme="dark"] .btn-close,[data-theme="midnight"] .btn-close,[data-theme="emerald"] .btn-close { filter:brightness(0) invert(1); opacity:.5; }
+.btn-secondary { background:var(--surface-2);color:var(--text-2);border:1px solid var(--border);border-radius:var(--radius);padding:.4rem .85rem;font-size:.8rem;font-weight:600;cursor:pointer;font-family:inherit; }
+
+/* Bootstrap grid minimal — only what exam uses */
+.container-fluid { width:100%; }
+.row { display:flex; flex-wrap:wrap; margin:0 -.75rem; }
+.col-md-8,.col-lg-8 { padding:0 .75rem; }
+.col-md-4,.col-lg-4 { padding:0 .75rem; }
+.col-3,.col-6 { padding:0 .25rem; }
+.col-3 { flex:0 0 25%; max-width:25%; }
+.col-6 { flex:0 0 50%; max-width:50%; }
+.text-center { text-align:center; }
+.text-md-end { text-align:right; }
+.mb-0{margin-bottom:0}.mb-2{margin-bottom:.5rem}.mb-3{margin-bottom:.75rem}.mb-4{margin-bottom:1rem}.mt-2{margin-top:.5rem}.mt-3{margin-top:.75rem}.mt-4{margin-top:1rem}.me-2{margin-right:.4rem}.me-1{margin-right:.25rem}.ms-2{margin-left:.4rem}
+.d-flex{display:flex}.align-items-center{align-items:center}.justify-content-between{justify-content:space-between}.justify-content-center{justify-content:center}.flex-grow-1{flex:1}.gap-1{gap:.25rem}.gap-2{gap:.5rem}.text-end{text-align:right}.fw-bold{font-weight:700}
+.small{font-size:.82rem}.fs-6{font-size:.88rem}.w-100{width:100%}.h-100{height:100%}.position-relative{position:relative}.position-absolute{position:absolute}.sticky-top{position:sticky;top:16px}
+.form-check{display:flex;align-items:flex-start;gap:.5rem}.form-check-input{width:15px;height:15px;flex-shrink:0;margin-top:.15rem}.form-check-label{flex:1}
+.form-label{display:block;font-size:.8rem;font-weight:600;color:var(--text-2);margin-bottom:.35rem}
+.row.g-2{gap:.5rem}.row.g-1{gap:.25rem}.row.g-3{gap:.75rem}
+.btn-sm{padding:.3rem .65rem;font-size:.75rem}
+.img-fluid{max-width:100%;height:auto}
+.rounded{border-radius:var(--radius)}
+
+@media(max-width:992px){
+  .col-lg-8{flex:0 0 100%;max-width:100%;}
+  .col-lg-4{flex:0 0 100%;max-width:100%;}
+  .exam-body{flex-direction:column;}
+
+  /* Question navigator becomes a slide-in drawer instead of stacked
+     inline content — otherwise it sat below the full question list,
+     requiring a long scroll past every question to reach it. */
+  .exam-sidebar{
+    position:fixed; top:0; right:0; height:100%; max-height:100%;
+    width:88%; max-width:340px; z-index:300;
+    border-left:1px solid var(--border); border-top:none;
+    box-shadow:-10px 0 30px rgba(0,0,0,.3);
+    transform:translateX(100%); transition:transform .25s ease;
+    padding:.85rem;
+  }
+  .exam-sidebar.sidebar-collapsed{
+    transform:translateX(100%); width:88%; max-width:340px; padding:.85rem;
+    border-left:1px solid var(--border); overflow:hidden;
+  }
+  .exam-sidebar:not(.sidebar-collapsed){ transform:translateX(0); overflow-y:auto; }
+  .sidebar-toggle-btn{ top:auto; bottom:96px; }
+  .sidebar-backdrop{
+    display:block; position:fixed; inset:0; background:rgba(0,0,0,.5);
+    z-index:290; opacity:0; pointer-events:none; transition:opacity .25s ease;
+  }
+  .sidebar-backdrop.show{ opacity:1; pointer-events:auto; }
+}
+@media(max-width:768px){
+  .exam-content{padding:.85rem .85rem 140px;}
+  .question-card{padding:1.1rem;}
+  .col-md-8,.col-md-4{flex:0 0 100%;max-width:100%;}
+  .text-md-end{text-align:left;}
+}
+@media(max-width:600px){
+  .exam-nav-bar{padding:.6rem .75rem;gap:.4rem;}
+  .exam-navigation-btn{padding:.5rem .75rem;font-size:.78rem;}
+}
+</style>
+
+{# Top bar #}
+<div class="exam-topbar">
+  <div class="exam-name">
+    <i class="fas fa-file-alt"></i>
+    <span class="exam-name-text">{{ exam.name }}</span>
+    <span class="exam-qcounter">Q <span id="questionCounter">{{ current_index + 1 }}</span> / {{ total_questions }}</span>
+  </div>
+  <div class="exam-topbar-right">
+    <span id="fullscreenStatus" class="exam-secure-badge"></span>
+    <div class="exam-timer" id="timerBox">
+      <i class="fas fa-clock"></i>
+      <span class="exam-timer-label">Time Left:</span>
+      {# Static pre-fullscreen-gate display — JS overwrites this the instant
+         startTimer() runs (after "Enter Secure Mode"), but until then this
+         must show the actual remaining_seconds (already correctly
+         resume-aware and, for a Scheduled Exam, capped at the official end
+         via get_effective_deadline()) rather than the exam's raw nominal
+         duration, or a resumed/late-started attempt would flash a
+         too-generous time on this screen. #}
+      <strong id="timer">{{ '%d:%02d' % (remaining_seconds // 60, remaining_seconds % 60) }}</strong>
+    </div>
+  </div>
+</div>
+
+<div class="exam-body">
+
+  {# Question content #}
+  <div class="exam-content">
+    <div class="question-card" id="questionCard">
+      <div id="questionContent"></div>
+    </div>
+  </div>
+
+  {# Sidebar toggle — lives outside sidebar so overflow:hidden never clips it #}
+  <button class="sidebar-toggle-btn" id="sidebarToggleBtn" title="Collapse sidebar">
+    <i class="fas fa-chevron-right"></i>
+  </button>
+
+  {# Backdrop — mobile only (CSS), closes the drawer on tap #}
+  <div class="sidebar-backdrop" id="sidebarBackdrop"></div>
+
+  {# Sidebar #}
+  <div class="exam-sidebar">
+    
+    <div class="card" style="position:relative">
+      <div class="card-header bg-primary">
+        <i class="fas fa-th"></i> Question Navigation
+      </div>
+      <div class="card-body">
+        <div class="question-palette" id="questionPalette"></div>
+        <div style="margin-top:.75rem">
+          <div style="font-size:.75rem;font-weight:700;color:var(--text-2);margin-bottom:.4rem">Legend</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:.35rem">
+            <div class="legend-box"><span class="swatch" style="background:linear-gradient(90deg,#16a34a,#059669)"></span><small>Answered (<span id="answeredCount">0</span>)</small></div>
+            <div class="legend-box"><span class="swatch" style="background:linear-gradient(90deg,#f59e0b,#f97316)"></span><small>Review (<span id="reviewCount">0</span>)</small></div>
+            <div class="legend-box"><span class="swatch" style="background:linear-gradient(90deg,#0ea5e9,#0369a1)"></span><small>Visited (<span id="visitedCount">0</span>)</small></div>
+            <div class="legend-box"><span class="swatch" style="background:linear-gradient(90deg,#6c757d,#495057)"></span><small>Not visited (<span id="notVisitedCount">0</span>)</small></div>
+          </div>
+          <div style="margin-top:.65rem;font-size:.72rem;color:var(--text-3)">
+            <div style="margin-bottom:.2rem"><span style="color:#28a745;font-weight:900">&#9679;</span> Single (MCQ)</div>
+            <div style="margin-bottom:.2rem"><span style="color:#007bff;font-weight:900">&#9632;</span> Multiple (MSQ)</div>
+            <div style="margin-bottom:.2rem"><span style="color:#ffc107;font-weight:900">&#9650;</span> Numerical</div>
+            <div><i class="fas fa-image" style="color:#17a2b8;font-size:.65rem"></i> Has Image</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header"><i class="fas fa-info-circle"></i> Quick Guide</div>
+      <div class="card-body small">
+        <div class="mb-2"><strong>Navigation:</strong> Click question numbers to jump</div>
+        <div class="mb-2"><strong>MCQ:</strong> Select one correct option</div>
+        <div class="mb-2"><strong>MSQ:</strong> Select all correct options</div>
+        <div class="mb-2"><strong>Numerical:</strong> Use keypad to enter answer</div>
+        <div class="mb-2"><strong>Review:</strong> Mark questions to revisit later</div>
+        <div><strong>Submit:</strong> Double-click to confirm submission</div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+{# Fixed Navigation Bar #}
+<div id="examNavBar" class="exam-nav-bar"></div>
+
+{# Submit Confirmation Overlay — kept dark always for focus #}
+<div id="submitConfirmationOverlay" class="sco-overlay">
+  <div class="sco-card">
+
+    <div class="sco-header">
+      <div class="sco-icon"><i class="fas fa-paper-plane"></i></div>
+      <div class="sco-title">Submit Exam?</div>
+      <div class="sco-desc">Once submitted, you won't be able to change any answers.</div>
+    </div>
+
+    <div class="sco-stepper" id="scoStepper">
+      <div class="sco-step" data-step="1"><span class="sco-step-dot"></span><span class="sco-step-label">Submit</span></div>
+      <span class="sco-step-line" data-line="1"></span>
+      <div class="sco-step" data-step="2"><span class="sco-step-dot"></span><span class="sco-step-label">Confirm</span></div>
+      <span class="sco-step-line" data-line="2"></span>
+      <div class="sco-step" data-step="3"><span class="sco-step-dot"></span><span class="sco-step-label">Submitting</span></div>
+      <span class="sco-step-line" data-line="3"></span>
+      <div class="sco-step" data-step="4"><span class="sco-step-dot"></span><span class="sco-step-label">Submitted</span></div>
+    </div>
+
+    <div class="sco-stats">
+      <div class="sco-stats-title"><i class="fas fa-chart-bar me-1"></i> Progress summary</div>
+      <div class="sco-stats-grid">
+        <div class="sco-stat"><div class="sco-stat-num" style="color:var(--success)" id="confirmAnsweredCount">0</div><div class="sco-stat-label">Answered</div></div>
+        <div class="sco-stat"><div class="sco-stat-num" style="color:var(--warning)" id="confirmReviewCount">0</div><div class="sco-stat-label">Review</div></div>
+        <div class="sco-stat"><div class="sco-stat-num" style="color:var(--info)" id="confirmVisitedCount">0</div><div class="sco-stat-label">Visited</div></div>
+        <div class="sco-stat"><div class="sco-stat-num" style="color:var(--text-3)" id="confirmNotVisitedCount">0</div><div class="sco-stat-label">Not visited</div></div>
+      </div>
+      <div class="sco-stats-note">
+        <ul>
+          <li>Your answers are already saved automatically</li>
+          <li>Detailed results will be available after submission</li>
+          <li>This action cannot be undone</li>
+        </ul>
+      </div>
+    </div>
+
+    <div id="submitProgressSection" class="sco-progress">
+      <div class="sco-progress-head">
+        <div id="submitProgressIcon" class="sco-progress-spinner"></div>
+        <div>
+          <div id="submitProgressText" class="sco-progress-text">Processing your submission...</div>
+          <div id="submitProgressDetails" class="sco-progress-details">Initializing submission process...</div>
+        </div>
+      </div>
+      <div class="sco-progress-meta"><span>Progress</span><span id="submitProgressPercent">0%</span></div>
+      <div class="sco-progress-track"><div id="submitProgressFill" class="sco-progress-fill"></div></div>
+      <div id="submitProgressLog" class="sco-progress-log"></div>
+    </div>
+
+    <div class="sco-actions" id="submitConfirmationButtons">
+      <button class="sco-btn sco-btn-primary" onclick="examPortal.confirmSubmission()"><i class="fas fa-check"></i> Yes, Submit Exam</button>
+      <button class="sco-btn sco-btn-secondary" onclick="examPortal.cancelSubmission()"><i class="fas fa-arrow-left"></i> Go Back</button>
+    </div>
+    <div class="sco-footnote"><i class="fas fa-clock me-1"></i> Take your time — there's no rush.</div>
+  </div>
+</div>
+
+{# Auto-submit / forced-submit notice — replaces the previous
+   alert('Time is up! Auto-submitting exam...') and the confirm() shown on
+   a security violation. Reused for both (see showAutoSubmitNotice() in
+   the script below): the exam-time-expired case and the security-
+   violation forced-submit case are the same underlying event from the
+   student's point of view — "your exam is being submitted automatically,
+   right now, without further action from you" — just with different
+   wording. Not user-dismissible: it's showing while the actual submit
+   request is in flight and the page is about to navigate away regardless. #}
+<div id="autoSubmitNoticeOverlay" class="exam-gate-overlay" style="display:none;z-index:20010">
+  <div class="exam-gate-card">
+    <div class="exam-gate-icon success" id="autoSubmitNoticeIcon"><i class="fas fa-check-circle"></i></div>
+    <div class="exam-gate-title" id="autoSubmitNoticeTitle">Time's Up</div>
+    <div class="exam-gate-desc" id="autoSubmitNoticeDesc">Your exam time has ended. Your attempt is being submitted automatically and your responses will be saved.</div>
+    <div class="exam-gate-meta" id="autoSubmitNoticeStatus"><i class="fas fa-spinner fa-spin me-1"></i> Finalizing your submission…</div>
+  </div>
+</div>
+
+{# Image Modal #}
+<div id="imageModal" style="display:none;position:fixed;inset:0;z-index:19999;background:rgba(0,0,0,.85);align-items:center;justify-content:center;" onclick="if(event.target===this)document.getElementById('imageModal').style.display='none'">
+  <div style="background:var(--surface);border:1px solid var(--border);border-radius:calc(var(--radius)+4px);max-width:90vw;max-height:90vh;overflow:auto;display:flex;flex-direction:column;">
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:.85rem 1.1rem;border-bottom:1px solid var(--border);">
+      <span id="imageModalTitle" style="font-size:.9rem;font-weight:700;color:var(--text-1)"><i class="fas fa-image me-2"></i>Question Image</span>
+      <button onclick="document.getElementById('imageModal').style.display='none'" style="background:none;border:none;color:var(--text-3);cursor:pointer;font-size:1rem;padding:.2rem .4rem;"><i class="fas fa-times"></i></button>
+    </div>
+    <div style="padding:1.1rem;text-align:center;">
+      <img id="modalImage" src="" alt="Question image" style="max-height:75vh;max-width:100%;border-radius:var(--radius);">
+    </div>
+    <div style="padding:.8rem 1.1rem;border-top:1px solid var(--border);display:flex;justify-content:flex-end;">
+      <button onclick="document.getElementById('imageModal').style.display='none'" class="btn-secondary"><i class="fas fa-times"></i> Close</button>
+    </div>
+  </div>
+</div>
+
+<script>
+class ExamPortal {
+  constructor() {
+    this.examId = {{ exam.id }};
+    this.totalQuestions = {{ total_questions }};
+    this.currentIndex = {{ current_index }};
+    this.questions = {{ questions | tojson }};
+    this.answers = {};
+    this.markedForReview = [];
+    this.palette = {};
+    this.currentValue = '';
+    this.hasDecimal = false;
+    this.timerInterval = null;
+    this.duration = {{ remaining_seconds }};
+    this.activeAttempt = {{ active_attempt | tojson if active_attempt else 'null' }};
+    this.isFreshStart = {{ 'true' if is_fresh_start else 'false' }};
+    this.isNavigating = false;
+    this.fullscreenWarnings = 0;
+    this.maxWarnings = 2;
+    this.isFullscreenEnabled = false;
+    this.visibilityViolations = 0;
+    this.maxVisibilityViolations = 3;
+    this.fullscreenCheckInterval = null;
+    this.isSubmitting = false;
+    this.submissionInProgress = false;
+    // Feature: Scheduled Exam manual-submission control — server-computed,
+    // never inferred client-side (see is_manual_submission_allowed() in
+    // app/services/exam_service.py). Only ever false for a Scheduled Exam
+    // whose admin explicitly disabled early submission; always true for
+    // every Manual Exam.
+    this.manualSubmissionAllowed = {{ 'true' if manual_submission_allowed else 'false' }};
+    this.autoSyncInterval = null;
+    // Scheduled Exam, launched in-place inside the still-fullscreen
+    // preparation page (see templates/exam_instructions.html) instead of a
+    // separate popup window — this frame never owns the real fullscreen
+    // session itself (the PARENT document does), so every fullscreen check/
+    // request below is redirected accordingly. See initializeFullscreen(),
+    // isTopFullscreen(), and notifyParentFullscreenNeeded(). Manual Exams
+    // never set this — they keep the original popup-window + own-fullscreen
+    // flow completely unchanged.
+    this.isEmbedded = new URLSearchParams(location.search).get('embedded') === '1';
+    this.init();
+  }
+
+init() {
+  this.imageCache = {};
+  this.sidebarCollapsed = false;
+  this.loadSessionData();
+  this.preloadAllImages();
+  this.initializePalette();
+  this.loadQuestion(this.currentIndex);
+  this.attachEventListeners();
+  this.setupSidebarToggle();
+  this.updateMetricsCounts();
+  this.initializeFullscreen();
+}
+
+setupSidebarToggle() {
+  const sidebar = document.querySelector('.exam-sidebar');
+  const toggleBtn = document.getElementById('sidebarToggleBtn');
+  const backdrop = document.getElementById('sidebarBackdrop');
+  const isMobile = () => window.innerWidth <= 992;
+
+  if (!sidebar || !toggleBtn) return;
+
+  const updateIcon = () => {
+    if (this.sidebarCollapsed) {
+      toggleBtn.innerHTML = isMobile() ? '<i class="fas fa-list-ol"></i>' : '<i class="fas fa-chevron-right"></i>';
+      toggleBtn.title = isMobile() ? 'Open question navigator' : 'Expand sidebar';
+    } else {
+      toggleBtn.innerHTML = isMobile() ? '<i class="fas fa-xmark"></i>' : '<i class="fas fa-chevron-left"></i>';
+      toggleBtn.title = isMobile() ? 'Close question navigator' : 'Collapse sidebar';
+    }
+    if (backdrop) backdrop.classList.toggle('show', !this.sidebarCollapsed);
+  };
+
+  // Restore saved state from localStorage — default closed on mobile
+  // (a drawer covering the question on load would be worse than useless)
+  // and open on desktop, matching the original default.
+  const saved = localStorage.getItem('exam_sidebar_collapsed');
+  this.sidebarCollapsed = saved !== null ? saved === 'true' : isMobile();
+  if (this.sidebarCollapsed) {
+    sidebar.classList.add('sidebar-collapsed');
+  }
+  updateIcon();
+
+  toggleBtn.addEventListener('click', () => {
+    this.sidebarCollapsed = !this.sidebarCollapsed;
+    sidebar.classList.toggle('sidebar-collapsed');
+    updateIcon();
+    localStorage.setItem('exam_sidebar_collapsed', this.sidebarCollapsed);
+  });
+
+  if (backdrop) backdrop.addEventListener('click', () => { if (!this.sidebarCollapsed) toggleBtn.click(); });
+}
+
+preloadAllImages() {
+  this.questions.forEach(q => {
+    if (q.has_image && q.image_url) {
+      const url = q.image_url;
+      if (!this.imageCache[url]) {
+        const img = new Image();
+        img.decoding = 'async';
+        img.fetchpriority = 'high';
+        img.onload = () => { this.imageCache[url] = { status: 'loaded', element: img }; };
+        img.onerror = () => { this.imageCache[url] = { status: 'error', element: null }; };
+        this.imageCache[url] = { status: 'loading', element: img };
+        img.src = url;
+      }
+    }
+  });
+}
+
+async initializeFullscreen() {
+  // Scheduled Exam embedded launch: fullscreen was already established on
+  // the PARENT document during preparation, and a fresh requestFullscreen()
+  // call from THIS frame would need a user gesture this frame never
+  // received (and would just reintroduce the gate/popup the embedded path
+  // exists to remove) — reuse the parent's fullscreen state instead of
+  // asking for our own. Every other exam entry point (Manual, or a
+  // Scheduled Exam that lost fullscreen before launch and fell back to the
+  // popup path — see launchExamWindow() in exam_instructions.html) is
+  // unaffected and keeps showing this gate exactly as before.
+  if (this.isEmbedded) { this.startEmbeddedSecurity(); return; }
+  this.showFullscreenInitModal();
+}
+
+// Only the top (parent) document actually owns the real fullscreen
+// session — a click inside this iframe cannot itself re-request
+// fullscreen on an ancestor document, so ask the parent to do it instead
+// of showing a same-frame prompt that could never succeed.
+notifyParentFullscreenNeeded() {
+  try { window.parent.postMessage({ type: 'exam-fullscreen-restore-needed' }, window.location.origin); } catch (e) {}
+}
+
+isTopFullscreen() {
+  try {
+    const d = window.top.document;
+    return !!(d.fullscreenElement || d.webkitFullscreenElement || d.mozFullScreenElement || d.msFullscreenElement);
+  } catch (e) {
+    return false;
+  }
+}
+
+startEmbeddedSecurity() {
+  this.isFullscreenEnabled = this.isTopFullscreen();
+  this.showFullscreenStatus(this.isFullscreenEnabled);
+  this.setupFullscreenMonitoring();
+  this.setupVisibilityMonitoring();
+  this.preventTabSwitching();
+  this.startFullscreenMonitoring();
+  this.startExamAfterFullscreen();
+}
+
+showFullscreenInitModal() {
+  const modal = document.createElement('div');
+  modal.id = 'fullscreenInitModal';
+  modal.className = 'exam-gate-overlay';
+  modal.innerHTML = `
+    <div class="exam-gate-card">
+      <div class="exam-gate-icon"><i class="fas fa-shield-halved"></i></div>
+      <div class="exam-gate-title">Secure Exam Mode Required</div>
+      <div class="exam-gate-desc">This exam must be taken in fullscreen mode to ensure a fair and secure testing environment.</div>
+      <div class="exam-gate-features">
+        <div class="exam-gate-features-title">Security features</div>
+        <div class="exam-gate-feature"><i class="fas fa-check"></i> Prevents tab switching during the exam</div>
+        <div class="exam-gate-feature"><i class="fas fa-check"></i> Disables keyboard shortcuts</div>
+        <div class="exam-gate-feature"><i class="fas fa-check"></i> Monitors exam window focus</div>
+        <div class="exam-gate-feature"><i class="fas fa-check"></i> Auto-submits on security violations</div>
+      </div>
+      <div class="exam-gate-notice"><i class="fas fa-info-circle"></i> Security monitoring begins once you enter fullscreen</div>
+      <button id="enterFullscreenBtn" class="exam-gate-btn"><i class="fas fa-expand-arrows-alt"></i> Enter Secure Mode &amp; Start Exam</button>
+      <div class="exam-gate-hint">Click above to enable fullscreen and begin your exam</div>
+    </div>`;
+  document.body.appendChild(modal);
+  const btn = modal.querySelector('#enterFullscreenBtn');
+  btn.addEventListener('click', async () => {
+    await this.actuallyEnterFullscreen();
+    this.removeFullscreenInitModal();
+    this.setupFullscreenMonitoring();
+    this.setupVisibilityMonitoring();
+    this.preventTabSwitching();
+    this.startFullscreenMonitoring();
+  });
+}
+
+startExamAfterFullscreen() { this.startTimer(); }
+removeFullscreenInitModal() { document.getElementById('fullscreenInitModal')?.remove(); }
+
+async actuallyEnterFullscreen() {
+  try {
+    const e = document.documentElement;
+    await (e.requestFullscreen||e.webkitRequestFullscreen||e.msRequestFullscreen||e.mozRequestFullScreen).call(e);
+    setTimeout(() => { this.checkFullscreenStatus(); this.startExamAfterFullscreen(); }, 500);
+  } catch(err) { console.warn('Fullscreen failed:',err); this.showFullscreenError(); }
+}
+
+async enterFullscreen() {
+  if (this.isEmbedded) { this.notifyParentFullscreenNeeded(); return; }
+  try {
+    const e = document.documentElement;
+    await (e.requestFullscreen||e.webkitRequestFullscreen||e.msRequestFullscreen||e.mozRequestFullScreen).call(e);
+    setTimeout(() => this.checkFullscreenStatus(), 500);
+  } catch(err) { console.warn('Fullscreen failed:',err); this.showFullscreenError(); }
+}
+
+checkFullscreenStatus() {
+  const isFs = this.isEmbedded ? this.isTopFullscreen()
+    : !!(document.fullscreenElement||document.webkitFullscreenElement||document.mozFullScreenElement||document.msFullscreenElement);
+  this.isFullscreenEnabled = isFs;
+  this.showFullscreenStatus(isFs);
+  if (!isFs && !this.isSubmitting) this.handleFullscreenExit();
+}
+
+startFullscreenMonitoring() {
+  this.fullscreenCheckInterval = setInterval(() => { if (!this.isSubmitting) this.checkFullscreenStatus(); }, 2000);
+}
+
+setupFullscreenMonitoring() {
+  // Embedded (Scheduled Exam): the real fullscreenchange events fire on
+  // the PARENT document, not this iframe's own — see isEmbedded above.
+  let target = document;
+  if (this.isEmbedded) {
+    try { target = window.top.document; } catch (e) { target = document; }
+  }
+  ['fullscreenchange','webkitfullscreenchange','mozfullscreenchange','MSFullscreenChange'].forEach(ev => {
+    target.addEventListener(ev, () => setTimeout(() => this.checkFullscreenStatus(), 100));
+  });
+}
+
+setupVisibilityMonitoring() {
+  document.addEventListener('visibilitychange', () => { if (document.hidden && !this.isSubmitting) this.handleTabSwitch(); });
+  window.addEventListener('blur', () => { if (!this.isSubmitting) this.handleWindowBlur(); });
+  window.addEventListener('focus', () => { if (!this.isFullscreenEnabled && !this.isSubmitting) this.enterFullscreen(); });
+}
+
+preventTabSwitching() {
+  document.addEventListener('keydown', (e) => {
+    const blocked = ['F11','Escape'];
+    const combos = [(e.altKey&&e.key==='Tab'),(e.ctrlKey&&e.key==='Tab'),(e.altKey&&e.key==='F4'),(e.ctrlKey&&['w','n','t'].includes(e.key))];
+    if (blocked.includes(e.key)||combos.some(c=>c)) { e.preventDefault(); e.stopPropagation(); this.showSecurityWarning('Keyboard shortcuts are disabled during the exam!'); return false; }
+  });
+  document.addEventListener('contextmenu', (e) => { e.preventDefault(); this.showSecurityWarning('Right-click is disabled during the exam!'); return false; });
+}
+
+handleFullscreenExit() {
+  this.fullscreenWarnings++;
+  this.isFullscreenEnabled = false;
+  this.showFullscreenStatus(false);
+  if (this.fullscreenWarnings >= this.maxWarnings) this.handleSecurityViolation('Multiple fullscreen exits detected');
+  else this.showFullscreenRestorePrompt();
+}
+
+handleTabSwitch() {
+  this.visibilityViolations++;
+  if (this.visibilityViolations >= this.maxVisibilityViolations) this.handleSecurityViolation('Multiple tab switching attempts detected');
+  else this.showSecurityWarning(`Tab switching detected! Warning ${this.visibilityViolations}/${this.maxVisibilityViolations}`);
+}
+
+handleWindowBlur() { this.showSecurityWarning('Focus lost from exam window!'); }
+
+handleSecurityViolation(reason) {
+  this.saveCurrentAnswer(); this.isSubmitting = true;
+  if (this.fullscreenCheckInterval) clearInterval(this.fullscreenCheckInterval);
+  if (this.timerInterval) clearInterval(this.timerInterval);
+  if (this.autoSyncInterval) { clearInterval(this.autoSyncInterval); this.autoSyncInterval = null; }
+  this.showAutoSubmitNotice('Security Violation Detected',
+    `${reason}. Your exam is being submitted automatically and your responses will be saved.`);
+  this.forceSubmitExam(reason);
+}
+
+showFullscreenStatus(isFs) {
+  // Lives inside .exam-topbar (see HTML) as a normal flex child — never an
+  // independent fixed-position overlay, so it can never cover the exam
+  // name/timer/other topbar content regardless of viewport width.
+  const el = document.getElementById('fullscreenStatus');
+  if (!el) return;
+  if (isFs) { el.innerHTML='<i class="fas fa-shield-halved"></i><span class="badge-text"> Secure Mode</span>'; el.style.background='linear-gradient(90deg,#10b981,#059669)'; el.style.color='#fff'; }
+  else       { el.innerHTML='<i class="fas fa-exclamation-triangle"></i><span class="badge-text"> Alert</span>'; el.style.background='linear-gradient(90deg,#ef4444,#dc2626)'; el.style.color='#fff'; }
+}
+
+showFullscreenRestorePrompt() {
+  // Embedded: a click in this iframe can't itself re-request fullscreen on
+  // the parent document — ask the parent to show its own restore prompt
+  // instead (see notifyParentFullscreenNeeded()). Warning-counting and the
+  // eventual auto-submit via handleSecurityViolation() are unchanged.
+  if (this.isEmbedded) { this.notifyParentFullscreenNeeded(); return; }
+  this.closeSecurityModal();
+  this.createSecurityModal('Security Alert — Return to Fullscreen',
+    `<div class="text-center"><i class="fas fa-expand-arrows-alt fa-3x" style="color:#fbbf24;margin-bottom:.75rem"></i><h5 style="color:#fff">Fullscreen Mode Required</h5><p style="color:rgba(255,255,255,.6)">You must return to fullscreen to continue securely.</p><p style="font-size:.8rem;color:#fb7185">Warning ${this.fullscreenWarnings} of ${this.maxWarnings} — exam auto-submits after ${this.maxWarnings}!</p></div>`,
+    [{text:'Return to Fullscreen Now',class:'btn-success',action:()=>{this.enterFullscreen();this.closeSecurityModal();}}]);
+}
+
+showFullscreenError() { this.showSecurityWarning('Fullscreen mode is required. Please allow fullscreen access.'); }
+
+showSecurityWarning(msg) {
+  document.getElementById('securityWarning')?.remove();
+  const el = document.createElement('div'); el.id='securityWarning';
+  el.style.cssText='position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);z-index:10001;background:linear-gradient(135deg,#fef3c7,#fde68a);border:2px solid #f59e0b;border-radius:12px;padding:20px;max-width:380px;text-align:center;box-shadow:0 20px 40px rgba(0,0,0,.3);color:#92400e';
+  el.innerHTML=`<i class="fas fa-exclamation-triangle fa-2x" style="color:#f59e0b;margin-bottom:.5rem"></i><div style="font-weight:600;margin-bottom:.4rem">Security Warning</div><div>${msg}</div>`;
+  document.body.appendChild(el);
+  setTimeout(() => { if(el.parentNode) el.parentNode.removeChild(el); }, 4000);
+}
+
+createSecurityModal(title, content, buttons) {
+  const modal = document.createElement('div'); modal.id='securityModal';
+  modal.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.9);z-index:10002;display:flex;align-items:center;justify-content:center';
+  modal.innerHTML=`<div style="background:linear-gradient(135deg,#1f2937,#111827);border-radius:16px;padding:30px;max-width:500px;width:90%;color:#fff;box-shadow:0 25px 50px rgba(0,0,0,.5)"><h4 style="margin-bottom:20px;text-align:center;color:#fbbf24"><i class="fas fa-shield-exclamation"></i> ${title}</h4><div style="margin-bottom:25px">${content}</div><div style="text-align:center;display:flex;gap:10px;justify-content:center">${buttons.map((b,i)=>`<button type="button" class="btn ${b.class} exam-navigation-btn" data-i="${i}">${b.text}</button>`).join('')}</div></div>`;
+  buttons.forEach((b,i) => { if(b.action) modal.querySelector(`[data-i="${i}"]`)?.addEventListener('click',b.action); });
+  document.body.appendChild(modal); return modal;
+}
+
+closeSecurityModal() { document.getElementById('securityModal')?.remove(); }
+
+forceSubmitExam(reason) {
+  this.saveCurrentAnswer(); this.isSubmitting = true; this.isNavigating = true;
+  if (this.fullscreenCheckInterval) clearInterval(this.fullscreenCheckInterval);
+  if (this.timerInterval) clearInterval(this.timerInterval);
+  if (this.autoSyncInterval) { clearInterval(this.autoSyncInterval); this.autoSyncInterval = null; }
+  this.syncAnswersToServer()
+    .then(()=>this.performActualSubmission())
+    .catch(()=>this.performActualSubmission())
+    .catch((e)=>{
+      console.error('Forced submit failed:',e);
+      this.setAutoSubmitNoticeStatus('<i class="fas fa-triangle-exclamation me-1"></i> We could not confirm your submission — your answers are saved on our server and will be finalized automatically shortly. You may safely close this page.', true);
+    });
+}
+
+addAnimationStyles() {
+  if (!document.getElementById('examSecStyles')) {
+    const s=document.createElement('style');s.id='examSecStyles';
+    s.textContent='@keyframes fadeIn{from{opacity:0}to{opacity:1}}@keyframes slideInUp{from{transform:translateY(30px);opacity:0}to{transform:translateY(0);opacity:1}}';
+    document.head.appendChild(s);
+  }
+}
+
+loadSessionData() {
+  try {
+    const a=sessionStorage.getItem(`exam_${this.examId}_answers`);
+    const r=sessionStorage.getItem(`exam_${this.examId}_review`);
+    if(a) this.answers=JSON.parse(a);
+    if(r) this.markedForReview=JSON.parse(r);
+  } catch(e) {}
+}
+
+saveSessionData() {
+  try {
+    sessionStorage.setItem(`exam_${this.examId}_answers`,JSON.stringify(this.answers));
+    sessionStorage.setItem(`exam_${this.examId}_review`,JSON.stringify(this.markedForReview));
+  } catch(e) {}
+}
+
+// this.palette tracks ONLY "has this question been opened" (visited /
+// not-visited) — answered/review are never stored redundantly here, they
+// are derived below from this.answers / this.markedForReview (the actual
+// source of truth) so a question's displayed status can never drift out
+// of sync with its real answer/review state, and so it can be BOTH
+// answered AND marked for review without one silently overwriting the other.
+isAnswered(qid) {
+  const v = this.answers[qid];
+  if (v===undefined||v===null||v==='') return false;
+  return Array.isArray(v) ? v.length>0 : true;
+}
+
+getStatus(index) {
+  const qid = String(this.questions[index].id);
+  if (this.markedForReview.includes(qid)) return 'review';
+  if (this.isAnswered(qid)) return 'answered';
+  return this.palette[index]==='visited' ? 'visited' : 'not-visited';
+}
+
+initializePalette() {
+  for (let i=0;i<this.totalQuestions;i++) this.palette[i]='not-visited';
+  this.palette[this.currentIndex]='visited';
+  this.renderPalette();
+}
+
+renderPalette() {
+  const c=document.getElementById('questionPalette'); c.innerHTML='';
+  for (let i=0;i<this.totalQuestions;i++) {
+    const q=this.questions[i], status=this.getStatus(i), qtype=q.question_type||'MCQ';
+    const link=document.createElement('div');
+    link.className=`palette-link ${status}${i===this.currentIndex?' current':''}`;
+    link.setAttribute('data-question-index',i);
+    link.title=`Q${i+1} - ${qtype}${q.has_image?' (Image)':''}`;
+    link.style.position='relative'; link.style.display='inline-flex'; link.style.alignItems='center'; link.style.justifyContent='center';
+    link.textContent=i+1;
+    if (q.has_image) { const ic=document.createElement('i'); ic.className='fas fa-image position-absolute'; ic.style.cssText='font-size:7px;top:2px;right:2px;color:#fff;text-shadow:0 0 2px rgba(0,0,0,.8)'; link.appendChild(ic); }
+    const ti=document.createElement('div'); ti.style.cssText='position:absolute;bottom:1px;left:50%;transform:translateX(-50%);font-size:6px;line-height:1';
+    const sym={'MCQ':['●','#28a745'],'MSQ':['■','#007bff'],'NUMERIC':['▲','#ffc107']}[qtype]||['?','#6c757d'];
+    ti.innerHTML=`<span style="color:${sym[1]};font-weight:900">${sym[0]}</span>`; link.appendChild(ti);
+    link.addEventListener('click',()=>{
+      this.navigateToQuestion(i);
+      // Mobile drawer: return smoothly to the question instead of leaving
+      // the navigator open over it.
+      if (window.innerWidth<=992 && !this.sidebarCollapsed) document.getElementById('sidebarToggleBtn')?.click();
+    });
+    c.appendChild(link);
+  }
+}
+
+navigateToQuestion(index) {
+  if (index<0||index>=this.totalQuestions) return;
+  this.saveCurrentAnswer(); this.currentIndex=index;
+  this.loadQuestion(index); this.updatePaletteCurrentQuestion(); this.updateQuestionCounter();
+}
+
+updatePaletteCurrentQuestion() {
+  document.querySelectorAll('.palette-link').forEach((l,i)=>l.classList.toggle('current',i===this.currentIndex));
+}
+
+updateQuestionCounter() {
+  const el=document.getElementById('questionCounter'); if(el) el.textContent=this.currentIndex+1;
+}
+
+loadQuestion(index) {
+  const q=this.questions[index]; if(!q) return;
+  const card=document.getElementById('questionCard'); card.classList.add('loading');
+  setTimeout(()=>{this.renderQuestion(q);card.classList.remove('loading');if(this.palette[index]==='not-visited'){this.palette[index]='visited';this.renderPalette();this.updateMetricsCounts();}this.renderMathJax();},50);
+}
+
+renderMathJax() {
+  // window.mathJaxTypeset (base.html) is safe to call at any time — it runs
+  // immediately if MathJax has finished initializing, otherwise queues until
+  // it has, instead of racing an arbitrary timeout against an async script load.
+  if (!window.mathJaxTypeset) return;
+  const qc = document.getElementById('questionContent');
+  window.mathJaxTypeset(qc ? [qc] : undefined);
+}
+
+renderQuestion(question) {
+  const qc=document.getElementById('questionContent'), qid=String(question.id), sel=this.answers[qid];
+  const p=(t)=>{
+    if(!t) return '';
+    t = String(t);
+    // Protect LaTeX zones
+    const lz=[];
+    t = t.replace(/\$\$[\s\S]*?\$\$/g,m=>{lz.push(m);return`\x00L${lz.length-1}\x00`;})
+         .replace(/\$[^$\n]+?\$/g,m=>{lz.push(m);return`\x00L${lz.length-1}\x00`;});
+    // \n → real newlines
+    t = t.replace(/\\n/g,'\n').replace(/\r\n/g,'\n').replace(/\r/g,'\n');
+    // Pipe-table detection
+    const lines=t.split('\n'), out=[], buf=[];
+    const isTR=l=>{const s=l.trim();return(s.startsWith('|')&&s.endsWith('|')&&s.length>2)||/^[^|]+(\|[^|]+){1,}$/.test(s);};
+    const isSep=l=>/^\|?[\s|:|-]+\|?$/.test(l.trim())&&/[-]{2,}/.test(l);
+    const flush=()=>{
+      if(!buf.length)return;
+      let h='<div style="overflow-x:auto;margin:.4rem 0"><table style="border-collapse:collapse;width:100%;font-size:.82rem;">';
+      let hdr=true;
+      buf.forEach(r=>{
+        if(isSep(r))return;
+        const s=r.trim(); let cells;
+        if(s.startsWith('|')&&s.endsWith('|')) cells=s.split('|').map(c=>c.trim()).filter((_,i,a)=>i>0&&i<a.length-1);
+        else cells=s.split('|').map(c=>c.trim());
+        if(!cells.length)return;
+        if(hdr){h+='<tr>'+cells.map(c=>`<th style="border:1px solid var(--border);padding:.3rem .55rem;background:var(--surface-2);font-weight:700;text-align:left;white-space:nowrap;">${c}</th>`).join('')+'</tr>';hdr=false;}
+        else h+='<tr>'+cells.map(c=>`<td style="border:1px solid var(--border);padding:.28rem .55rem;">${c}</td>`).join('')+'</tr>';
+      });
+      h+='</table></div>';out.push(h);buf.length=0;
+    };
+    const stg=lines.map(l=>isTR(l)?{t:'p',l}:{t:'x',l});
+    let i=0;
+    while(i<stg.length){
+      if(stg[i].t==='p'){let j=i;while(j<stg.length&&stg[j].t==='p')j++;const run=stg.slice(i,j);if(run.length>=2){run.forEach(s=>buf.push(s.l));flush();}else out.push(stg[i].l);i=j;}
+      else{out.push(stg[i].l);i++;}
+    }
+    flush();
+    let r=out.join('\n').replace(/\n{3,}/g,'\n\n').split('\n').map(l=>l.trim()===''?'<br>':l).join('<br>');
+    r=r.replace(/\x00L(\d+)\x00/g,(_,idx)=>lz[+idx]);
+    return r;
+  };
+  // Optional per-question source/previous-year tag (question.metadata.source_tag,
+  // e.g. "ESE 2021") — shown only when present, never a hardcoded value.
+  const sourceTag = question.metadata && question.metadata.source_tag ? String(question.metadata.source_tag).trim() : '';
+  let html = sourceTag ? `<div class="question-source-tag"><i class="fas fa-bookmark"></i> ${sourceTag.replace(/</g,'&lt;').replace(/>/g,'&gt;')}</div>` : '';
+  html+=`<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:1rem;gap:1rem">
+    <div style="flex:1"><h5 style="margin:0;font-size:.95rem;color:var(--text-1);line-height:1.5;display:flex;align-items:flex-start"><span class="badge bg-primary me-2" style="flex-shrink:0">Q${this.currentIndex+1}</span><span style="flex:1;min-width:0">${p(question.question_text)||''}</span></h5></div>
+    <div style="text-align:right;flex-shrink:0">
+      <span class="badge ${this.getQTypeBadge(question.question_type)} fs-6">${this.getQTypeDisplay(question.question_type)}</span>
+      <div style="margin-top:.5rem;font-size:.75rem;color:var(--text-2)"><i class="fas fa-plus" style="color:var(--success-text)"></i> <span style="color:var(--success-text)">${question.positive_marks||1}</span>${question.negative_marks?` <i class="fas fa-minus ms-2" style="color:var(--danger-text)"></i><span style="color:var(--danger-text)">${question.negative_marks}</span>`:'<i class="fas fa-shield-alt ms-2" style="color:var(--warning-text)"></i> <span style="color:var(--warning-text)">No neg</span>'}</div>
+    </div></div>`;
+  if (question.has_image&&question.image_url&&String(question.image_url).trim()&&question.image_url!=='None'&&question.image_url!=='null') html+=this.renderQuestionImage(question);
+  html+=`<div style="margin-top:1rem">${this.renderQuestionOptions(question,sel,p)}</div>`;
+  html+=this.renderNavButtons();
+  qc.innerHTML=html;
+  this.attachQListeners(question);
+  if (question.question_type==='NUMERIC') this.initializeNumericKeypad(sel);
+  this.renderNavButtonsExternal();
+}
+
+getQTypeBadge(t){ return{MCQ:'bg-success',MSQ:'bg-warning',NUMERIC:'bg-info'}[t]||'bg-secondary'; }
+getQTypeDisplay(t){ return{MCQ:'Single Choice',MSQ:'Multiple Choice',NUMERIC:'Numerical'}[t]||t||'Unknown'; }
+
+renderQuestionImage(question) {
+  const idx=this.currentIndex, url=question.image_url, cached=this.imageCache&&this.imageCache[url];
+  if (cached&&cached.status==='loaded') return `<div class="question-image mb-3"><img src="${url}" alt="Q${idx+1}" class="img-fluid" onclick="examPortal.openImageModal('${url}','Question ${idx+1}')" title="Click to enlarge"><div style="font-size:.72rem;color:var(--text-3);margin-top:.35rem"><i class="fas fa-search-plus"></i> Click to enlarge</div></div>`;
+  if (cached&&cached.status==='error') return `<div class="image-error"><i class="fas fa-exclamation-triangle"></i> Image failed to load. <button onclick="examPortal.retryImageLoad(${idx})" style="background:var(--warning-bg);border:1px solid var(--warning-border);color:var(--warning-text);border-radius:5px;padding:.2rem .5rem;font-size:.75rem;cursor:pointer">Retry</button></div>`;
+  return `<div class="question-image mb-3"><div class="image-loading" id="imageLoading${idx}"><div class="loading-spinner"></div><div>Loading image...</div></div><div id="imageError${idx}" style="display:none" class="image-error"><i class="fas fa-exclamation-triangle"></i> Image failed. <button onclick="examPortal.retryImageLoad(${idx})" style="background:var(--warning-bg);border:1px solid var(--warning-border);color:var(--warning-text);border-radius:5px;padding:.2rem .5rem;font-size:.75rem;cursor:pointer">Retry</button></div><div id="imageContainer${idx}" style="display:none"><img id="questionImage${idx}" src="${url}" alt="Q${idx+1}" class="img-fluid" onclick="examPortal.openImageModal('${url}','Question ${idx+1}')" onload="examPortal.handleImageLoad(${idx})" onerror="examPortal.handleImageError(${idx})" title="Click to enlarge"><div style="font-size:.72rem;color:var(--text-3);margin-top:.35rem"><i class="fas fa-search-plus"></i> Click to enlarge</div></div></div>`;
+}
+
+renderQuestionOptions(q,sel,p) {
+  const t=q.question_type||'MCQ';
+  if(t==='MCQ') return this.renderMCQ(q,sel,p);
+  if(t==='MSQ') return this.renderMSQ(q,sel,p);
+  if(t==='NUMERIC') return this.renderNumeric(q,sel);
+  return '<div class="alert-danger" style="padding:.65rem;border-radius:var(--radius);background:var(--danger-bg);color:var(--danger-text)">Unknown question type</div>';
+}
+
+renderMCQ(q,sel,p) {
+  return [['A',q.option_a],['B',q.option_b],['C',q.option_c],['D',q.option_d]].filter(([,t])=>t&&t!=='nan'&&String(t).trim()&&t!=='None').map(([id,text])=>`
+    <div class="option-container mcq-option${sel===id?' selected':''}" data-option-id="${id}">
+      <div class="form-check"><input class="form-check-input" type="radio" name="answer" value="${id}" id="opt${id}" ${sel===id?'checked':''}>
+      <label class="form-check-label w-100" for="opt${id}"><strong>${id}.</strong> ${p(text)}</label></div>
+    </div>`).join('');
+}
+
+renderMSQ(q,sel,p) {
+  const chosen=Array.isArray(sel)?sel:[];
+  return `<div class="alert-info" style="padding:.65rem .85rem;border-radius:var(--radius);background:var(--info-bg);color:var(--info-text);margin-bottom:.85rem;font-size:.83rem"><i class="fas fa-info-circle me-2"></i><strong>Multiple Select:</strong> Select ALL correct options.</div>`+
+  [['A',q.option_a],['B',q.option_b],['C',q.option_c],['D',q.option_d]].filter(([,t])=>t&&t!=='nan'&&String(t).trim()&&t!=='None').map(([id,text])=>`
+    <div class="option-container msq-option${chosen.includes(id)?' selected-msq':''}" data-option-id="${id}">
+      <div class="form-check"><input class="form-check-input" type="checkbox" name="answer" value="${id}" id="optMSQ${id}" ${chosen.includes(id)?'checked':''}>
+      <label class="form-check-label w-100" for="optMSQ${id}"><strong>${id}.</strong> ${p(text)}</label></div>
+    </div>`).join('');
+}
+
+renderNumeric(q,sel) {
+  return `<div style="padding:.65rem .85rem;border-radius:var(--radius);background:var(--warning-bg);color:var(--warning-text);border:1px solid var(--warning-border);margin-bottom:.85rem;font-size:.83rem"><i class="fas fa-calculator me-2"></i><strong>Numerical Answer:</strong> Enter using keypad${q.tolerance?` &middot; Tolerance: &plusmn;${q.tolerance}`:''}</div>
+  <div style="margin-bottom:1rem"><label class="form-label"><strong><i class="fas fa-hashtag me-2"></i>Your Answer:</strong></label>
+  <div class="numeric-display" id="numericDisplay"><span id="displayValue">${sel||''}</span><span id="cursor" class="cursor-blink" style="color:var(--text-3)">|</span></div>
+  <input type="hidden" name="numeric_answer" id="numericAnswer" value="${sel||''}"></div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem">
+    <div class="numeric-keypad">
+      <div class="keypad-grid">
+        <button type="button" class="keypad-btn clear" onclick="examPortal.clearAll()"><i class="fas fa-times"></i></button>
+        <button type="button" class="keypad-btn sign" onclick="examPortal.toggleSign()"><i class="fas fa-plus-minus"></i></button>
+        <button type="button" class="keypad-btn number" onclick="examPortal.addDigit('0')">0</button>
+        <button type="button" class="keypad-btn backspace" onclick="examPortal.backspace()"><i class="fas fa-backspace"></i></button>
+        <button type="button" class="keypad-btn number" onclick="examPortal.addDigit('1')">1</button>
+        <button type="button" class="keypad-btn number" onclick="examPortal.addDigit('2')">2</button>
+        <button type="button" class="keypad-btn number" onclick="examPortal.addDigit('3')">3</button>
+        <button type="button" class="keypad-btn decimal" onclick="examPortal.addDecimal()"><i class="fas fa-circle" style="font-size:.4rem"></i></button>
+        <button type="button" class="keypad-btn number" onclick="examPortal.addDigit('4')">4</button>
+        <button type="button" class="keypad-btn number" onclick="examPortal.addDigit('5')">5</button>
+        <button type="button" class="keypad-btn number" onclick="examPortal.addDigit('6')">6</button>
+        <div></div>
+        <button type="button" class="keypad-btn number" onclick="examPortal.addDigit('7')">7</button>
+        <button type="button" class="keypad-btn number" onclick="examPortal.addDigit('8')">8</button>
+        <button type="button" class="keypad-btn number" onclick="examPortal.addDigit('9')">9</button>
+        <div></div>
+      </div>
+      <div style="text-align:center;margin-top:.5rem;font-size:.7rem;color:var(--text-3)">Use keypad only</div>
+    </div>
+    <div class="keypad-guide-card" style="padding:.75rem;border-radius:var(--radius)">
+      <div style="font-size:.8rem;font-weight:700;color:var(--text-1);margin-bottom:.5rem"><i class="fas fa-keyboard"></i> Guide</div>
+      <div class="keypad-guide-grid">
+        <div class="keypad-guide-item">0–9<br><small>Numbers</small></div>
+        <div class="keypad-guide-item"><i class="fas fa-circle" style="font-size:.45rem"></i><br><small>Decimal</small></div>
+        <div class="keypad-guide-item"><i class="fas fa-plus-minus"></i><br><small>Sign</small></div>
+        <div class="keypad-guide-item"><i class="fas fa-backspace"></i><br><small>Delete</small></div>
+      </div>
+    </div>
+  </div>`;
+}
+
+renderNavButtons() {
+  return `<div style="margin:.85rem 0"><button type="button" id="clearSelectionBtn" class="btn-outline-danger btn-sm" onclick="examPortal.clearSelection()"><i class="fas fa-times-circle me-1"></i>Clear Selection</button></div>`;
+}
+
+renderNavButtonsExternal() {
+  const container = document.getElementById('examNavBar');
+  if (!container) return;
+  // Feature: Scheduled Exam manual-submission control — when disabled,
+  // the student has no way to voluntarily end the attempt (see
+  // is_manual_submission_allowed() in app/services/exam_service.py); the
+  // exam only ends when the timer reaches zero or the server's own
+  // deadline sweep finalizes it. This is a UX nicety only — submit_exam()
+  // independently re-enforces the same rule server-side regardless of
+  // whether this button exists.
+  const submitBtnHtml = this.manualSubmissionAllowed
+    ? '<button type="button" class="btn-success exam-navigation-btn" onclick="examPortal.submitExam()"><i class="fas fa-paper-plane"></i> Submit Exam</button>'
+    : '<span class="no-manual-submit-notice"><i class="fas fa-lock"></i> Ends automatically at time up</span>';
+  const html = `<button type="button" class="btn-outline-secondary exam-navigation-btn" onclick="examPortal.navigatePrevious()" ${this.currentIndex===0?'disabled':''}><i class="fas fa-chevron-left"></i> Previous</button>
+    <div style="display:flex;gap:.5rem;flex-wrap:wrap;justify-content:center;align-items:center">
+      <button type="button" id="markReviewBtn" class="btn-warning exam-navigation-btn" onclick="examPortal.markForReview()"><i class="fas fa-flag"></i> Mark for Review</button>
+      ${this.currentIndex<this.totalQuestions-1?'<button type="button" class="btn-primary exam-navigation-btn" onclick="examPortal.navigateNext()">Save &amp; Next <i class="fas fa-chevron-right"></i></button>':''}
+      ${submitBtnHtml}
+    </div>`;
+  container.innerHTML = html;
+  this.updateMarkReviewButton();
+}
+
+updateMarkReviewButton() {
+  const btn = document.getElementById('markReviewBtn');
+  if (!btn) return;
+  const qid = String(this.questions[this.currentIndex].id);
+  const marked = this.markedForReview.includes(qid);
+  btn.classList.toggle('marked', marked);
+  btn.innerHTML = marked
+    ? '<i class="fas fa-flag-checkered"></i> Marked — Unmark'
+    : '<i class="fas fa-flag"></i> Mark for Review';
+}
+
+attachQListeners(question) {
+  setTimeout(()=>{
+    document.querySelectorAll('.mcq-option').forEach(c=>{
+      const r=c.querySelector('input[type="radio"]'), l=c.querySelector('label');
+      [c,r,l].forEach(el=>{ if(el) el.addEventListener('click',(e)=>{e.stopPropagation();this.selectMCQOption(c.dataset.optionId);}); });
+    });
+    document.querySelectorAll('.msq-option').forEach(c=>{
+      c.replaceWith(c.cloneNode(true));
+      const nc=document.querySelector(`[data-option-id="${c.dataset.optionId}"].msq-option`);
+      if(nc) nc.addEventListener('click',(e)=>{e.preventDefault();e.stopPropagation();this.selectMSQOption(nc.dataset.optionId);});
+    });
+    if(question.question_type==='NUMERIC') document.addEventListener('keydown',this.preventKeyboardInput);
+    else document.removeEventListener('keydown',this.preventKeyboardInput);
+  },10);
+}
+
+preventKeyboardInput(e) { if(document.getElementById('numericDisplay')&&!['Tab','Enter','Escape'].includes(e.key)&&!e.ctrlKey&&!e.altKey) e.preventDefault(); }
+
+attachEventListeners() {
+  this.addAnimationStyles();
+  window.addEventListener('beforeunload',(e)=>{if(!this.isNavigating&&!this.isSubmitting){e.preventDefault();e.returnValue='Are you sure you want to leave?';}});
+  document.addEventListener('contextmenu',(e)=>{e.preventDefault();this.showSecurityWarning('Right-click is disabled!');return false;});
+}
+
+selectMCQOption(optionId) {
+  const qid=String(this.questions[this.currentIndex].id);
+  document.querySelectorAll('.mcq-option').forEach(c=>{c.classList.remove('selected');const r=c.querySelector('input[type="radio"]');if(r)r.checked=false;});
+  const tc=document.querySelector(`[data-option-id="${optionId}"]`), tr=document.querySelector(`#opt${optionId}`);
+  if(tc&&tr){tc.classList.add('selected');tr.checked=true;this.answers[qid]=optionId;this.saveSessionData();this.updatePaletteStatus('answered');}
+}
+
+selectMSQOption(optionId) {
+  const qid=String(this.questions[this.currentIndex].id);
+  let cur=this.answers[qid]||[]; if(!Array.isArray(cur)) cur=[];
+  const tc=document.querySelector(`[data-option-id="${optionId}"].msq-option`), cb=document.querySelector(`#optMSQ${optionId}`);
+  if(tc&&cb){
+    if(cur.includes(optionId)){cur=cur.filter(i=>i!==optionId);tc.classList.remove('selected-msq');cb.checked=false;}
+    else{cur.push(optionId);tc.classList.add('selected-msq');cb.checked=true;}
+    this.answers[qid]=cur; this.saveSessionData();
+    this.updatePaletteStatus(cur.length>0?'answered':'visited');
+  }
+}
+
+initializeNumericKeypad(sel) { this.currentValue=sel||''; this.hasDecimal=this.currentValue.includes('.'); this.updateDisplay(); }
+addDigit(d){ if(this.currentValue.replace('-','').replace('.','').length>=12)return;this.currentValue+=d;this.updateNumericAnswer();this.updateDisplay(); }
+addDecimal(){ if(this.hasDecimal)return;if(!this.currentValue||this.currentValue==='-')this.currentValue+='0';this.currentValue+='.';this.hasDecimal=true;this.updateNumericAnswer();this.updateDisplay(); }
+toggleSign(){ if(!this.currentValue)this.currentValue='-';else if(this.currentValue==='-')this.currentValue='';else if(this.currentValue.startsWith('-'))this.currentValue=this.currentValue.slice(1);else this.currentValue='-'+this.currentValue;this.updateNumericAnswer();this.updateDisplay(); }
+backspace(){ if(this.currentValue.length>0){if(this.currentValue.slice(-1)==='.') this.hasDecimal=false;this.currentValue=this.currentValue.slice(0,-1);this.updateNumericAnswer();this.updateDisplay();} }
+clearAll(){ this.currentValue='';this.hasDecimal=false;this.updateNumericAnswer();this.updateDisplay(); }
+updateDisplay(){ const d=document.getElementById('displayValue'),c=document.getElementById('cursor');if(d)d.textContent=this.currentValue||'';if(c)c.style.display=this.currentValue?'none':'inline'; }
+updateNumericAnswer(){ const qid=String(this.questions[this.currentIndex].id);if(this.currentValue.trim()){this.answers[qid]=this.currentValue.trim();this.updatePaletteStatus('answered');}else{delete this.answers[qid];this.updatePaletteStatus('visited');}this.saveSessionData(); }
+
+navigatePrevious(){ if(this.currentIndex>0){this.saveCurrentAnswer();this.navigateToQuestion(this.currentIndex-1);} }
+navigateNext(){ if(this.currentIndex<this.totalQuestions-1){this.saveCurrentAnswer();this.navigateToQuestion(this.currentIndex+1);} }
+
+saveCurrentAnswer(){
+  const q=this.questions[this.currentIndex],qid=String(q.id),t=q.question_type||'MCQ';
+  if(t==='MCQ'){const s=document.querySelector('input[name="answer"]:checked');if(s)this.answers[qid]=s.value;}
+  else if(t==='MSQ'){const s=Array.from(document.querySelectorAll('input[name="answer"]:checked')).map(i=>i.value);if(s.length)this.answers[qid]=s;}
+  else if(t==='NUMERIC'){if(this.currentValue.trim())this.answers[qid]=this.currentValue.trim();}
+  this.saveSessionData();
+}
+
+markForReview(){
+  const qid=String(this.questions[this.currentIndex].id);
+  const idx=this.markedForReview.indexOf(qid);
+  const wasMarked = idx>-1;
+  if (wasMarked) this.markedForReview.splice(idx,1);
+  else this.markedForReview.push(qid);
+  this.saveSessionData();
+  this.updatePaletteStatus();
+  this.updateMarkReviewButton();
+  // Only auto-advance on mark (matches the original "mark and move on"
+  // flow) — unmarking keeps the user on the question so they can act on it.
+  if (!wasMarked && this.currentIndex<this.totalQuestions-1) this.navigateNext();
+}
+
+clearSelection(){
+  const qid=String(this.questions[this.currentIndex].id);
+  delete this.answers[qid];
+  const ri=this.markedForReview.indexOf(qid);if(ri>-1)this.markedForReview.splice(ri,1);
+  this.saveSessionData();this.updatePaletteStatus();this.updateMarkReviewButton();
+  document.querySelectorAll('input[name="answer"]').forEach(i=>i.checked=false);
+  document.querySelectorAll('.option-container').forEach(c=>c.classList.remove('selected','selected-msq'));
+  if(this.questions[this.currentIndex].question_type==='NUMERIC'){this.currentValue='';this.hasDecimal=false;this.updateDisplay();}
+  const btn=document.getElementById('clearSelectionBtn');
+  if(btn){btn.innerHTML='<i class="fas fa-check me-1"></i>Cleared!';btn.style.background='var(--success)';btn.style.color='#fff';btn.style.borderColor='var(--success)';setTimeout(()=>{btn.innerHTML='<i class="fas fa-times-circle me-1"></i>Clear Selection';btn.style.background='';btn.style.color='';btn.style.borderColor='';},1500);}
+}
+
+// Status (answered/review/visited/not-visited) is derived, not stored, so
+// this only needs to mark the current question visited and re-render —
+// there is no longer a status string to overwrite.
+updatePaletteStatus(){
+  if (this.palette[this.currentIndex]!=='visited') this.palette[this.currentIndex]='visited';
+  this.renderPalette();
+  this.updateMetricsCounts();
+}
+
+// Always recomputed from this.answers / this.markedForReview / this.palette
+// (visited) across every question index — never incrementally patched —
+// so the four counts are mutually exclusive, always sum to totalQuestions,
+// and can never drift or "reset" from a stale partial update.
+updateMetricsCounts(){
+  const c=this.getStatusCounts();
+  Object.entries({answeredCount:c.answered,reviewCount:c.review,visitedCount:c.visited,notVisitedCount:c['not-visited']}).forEach(([id,v])=>{const el=document.getElementById(id);if(el)el.textContent=v;});
+}
+
+getStatusCounts(){
+  const c={answered:0,review:0,visited:0,'not-visited':0};
+  for (let i=0;i<this.totalQuestions;i++) { const s=this.getStatus(i); c[s]=(c[s]||0)+1; }
+  return c;
+}
+
+handleImageLoad(i){ document.getElementById(`imageLoading${i}`)?.style.setProperty('display','none');document.getElementById(`imageError${i}`)?.style.setProperty('display','none');const co=document.getElementById(`imageContainer${i}`);if(co){co.style.display='block';const img=document.getElementById(`questionImage${i}`);if(img&&this.imageCache)this.imageCache[img.src]={status:'loaded',element:img};} }
+handleImageError(i){ document.getElementById(`imageLoading${i}`)?.style.setProperty('display','none');document.getElementById(`imageContainer${i}`)?.style.setProperty('display','none');const er=document.getElementById(`imageError${i}`);if(er)er.style.display='block'; }
+retryImageLoad(i){ const el=document.getElementById(`imageError${i}`),co=document.getElementById(`imageContainer${i}`),lo=document.getElementById(`imageLoading${i}`),img=document.getElementById(`questionImage${i}`);if(el)el.style.display='none';if(co)co.style.display='none';if(lo)lo.style.display='block';if(img)img.src=img.src+(img.src.includes('?')?'&':'?')+'t='+Date.now(); }
+openImageModal(src,title){ document.getElementById('modalImage').src=src;document.getElementById('imageModalTitle').innerHTML=`<i class="fas fa-image me-2"></i>${title||'Question Image'}`;const m=document.getElementById('imageModal');m.style.display='flex'; }
+
+startTimer(){
+  if(this.timerInterval) clearInterval(this.timerInterval);
+  this.updateTimer();
+  this.timerInterval=setInterval(()=>{this.duration--;this.updateTimer();if(this.duration<=0){clearInterval(this.timerInterval);this.autoSubmitExam();}},1000);
+  this.startAutoSync();
+}
+
+// Durable, server-side answer persistence during the exam — previously
+// the server only ever learned the student's answers at the very final
+// submit request (saveCurrentAnswer()/saveSessionData() are purely
+// client-side, sessionStorage only). This periodic sync is what makes
+// the server-side auto-submit deadline sweep (and a crashed/closed
+// browser) able to score from real, recent answers instead of nothing —
+// see sync_exam_answers() in app/routes/api/v01/exams.py, which now also
+// writes exam_attempts.answers_draft on every call. Errors are swallowed
+// deliberately: this is a best-effort background safety net, not the
+// only thing standing between the student and a lost answer — the final
+// submit (manual or auto) always syncs once more before finalizing.
+startAutoSync(){
+  if(this.autoSyncInterval) clearInterval(this.autoSyncInterval);
+  this.autoSyncInterval=setInterval(()=>{
+    if(this.isSubmitting) return;
+    this.saveCurrentAnswer();
+    this.syncAnswersToServer().catch(()=>{});
+  },20000);
+}
+
+updateTimer(){
+  const el=document.getElementById('timer'),box=document.getElementById('timerBox');
+  if(!el)return;
+  const m=Math.floor(this.duration/60),s=this.duration%60;
+  el.textContent=`${m}:${String(s).padStart(2,'0')}`;
+  if(box){box.className='exam-timer'+(this.duration<=0?' danger':this.duration<=600?' warn':'');}
+}
+
+submitExam(){ if(this.submissionInProgress)return;this.saveCurrentAnswer();this.showSubmissionConfirmation(); }
+
+showSubmissionConfirmation(){
+  const c=this.getStatusCounts();
+  document.getElementById('confirmAnsweredCount').textContent=c.answered;
+  document.getElementById('confirmReviewCount').textContent=c.review;
+  document.getElementById('confirmVisitedCount').textContent=c.visited;
+  document.getElementById('confirmNotVisitedCount').textContent=c['not-visited'];
+  this.setSubmitStep(2);
+  document.getElementById('submitConfirmationOverlay').style.display='flex';
+}
+
+cancelSubmission(){ document.getElementById('submitConfirmationOverlay').style.display='none'; }
+
+// Purely visual — advances the Submit -> Confirm -> Submitting -> Submitted
+// indicator in the submit overlay. No effect on submission state/timing.
+setSubmitStep(n){
+  document.querySelectorAll('#scoStepper .sco-step').forEach(el=>{
+    const s=parseInt(el.dataset.step,10);
+    el.classList.toggle('done', s<n);
+    el.classList.toggle('active', s===n);
+  });
+  document.querySelectorAll('#scoStepper .sco-step-line').forEach(el=>{
+    el.classList.toggle('done', parseInt(el.dataset.line,10)<n);
+  });
+}
+
+// Best-effort final sync fired from beforeunload/unload — the URL used to
+// point at a route that was never actually implemented server-side
+// (a 404, silently swallowed), so a tab close never actually persisted
+// anything beyond whatever the last real autosave (syncAnswersToServer /
+// the periodic this.autoSyncInterval) had already saved. Now points at
+// the real, DB-durable answers endpoint (see sync_exam_answers() in
+// app/routes/api/v01/exams.py, which writes exam_attempts.answers_draft)
+// — this is genuine defense-in-depth on top of the periodic sync, not
+// the only thing standing between a closed tab and lost answers.
+emergencySyncAnswers(){
+  try{
+    const url=`/api/v01/exams/${this.examId}/answers`;
+    const body=JSON.stringify({answers:this.answers,markedForReview:this.markedForReview});
+    if(navigator.sendBeacon){
+      // sendBeacon sets Content-Type from the Blob's own type — a plain
+      // string defaults to text/plain, which the server's JSON parser
+      // would reject; an explicit application/json Blob is required.
+      navigator.sendBeacon(url,new Blob([body],{type:'application/json'}));
+    }else{
+      const x=new XMLHttpRequest();
+      x.open('POST',url,false);
+      x.setRequestHeader('Content-Type','application/json');
+      x.send(body);
+    }
+  }catch(e){}
+}
+
+handlePageVisibilityChange(){ if(!this.isFullscreenEnabled&&!this.isSubmitting) this.showResumeModal(); }
+
+showResumeModal(){
+  // Embedded: same reasoning as showFullscreenRestorePrompt() — only the
+  // parent document can actually restore fullscreen here.
+  if (this.isEmbedded) { this.notifyParentFullscreenNeeded(); return; }
+  const m=document.createElement('div');
+  m.id='resumeExamModal';
+  m.className='exam-gate-overlay';
+  m.innerHTML=`
+    <div class="exam-gate-card">
+      <div class="exam-gate-icon warn"><i class="fas fa-redo"></i></div>
+      <div class="exam-gate-title">Resume Secure Exam</div>
+      <div class="exam-gate-desc">Your exam was interrupted, but your progress was saved. Re-enter fullscreen to continue.</div>
+      <div class="exam-gate-meta"><i class="fas fa-clock me-1"></i> ${Math.floor(this.duration/60)}:${String(this.duration%60).padStart(2,'0')} remaining &nbsp;&middot;&nbsp; Q${this.currentIndex+1}/${this.totalQuestions} &nbsp;&middot;&nbsp; ${Object.keys(this.answers).length} answered</div>
+      <button id="resumeBtn" class="exam-gate-btn warn"><i class="fas fa-expand-arrows-alt"></i> Resume in Fullscreen</button>
+    </div>`;
+  document.body.appendChild(m);
+  m.querySelector('#resumeBtn').addEventListener('click',async()=>{await this.actuallyEnterFullscreen();m.remove();this.setupFullscreenMonitoring();this.setupVisibilityMonitoring();this.preventTabSwitching();this.startFullscreenMonitoring();});
+}
+
+async confirmSubmission(){
+  if(this.submissionInProgress)return;
+  this.submissionInProgress=true;this.isSubmitting=true;this.isNavigating=true;
+  if(this.fullscreenCheckInterval)clearInterval(this.fullscreenCheckInterval);
+  if(this.autoSyncInterval){clearInterval(this.autoSyncInterval);this.autoSyncInterval=null;}
+  document.getElementById('submitConfirmationButtons').style.display='none';
+  document.getElementById('submitProgressSection').style.display='block';
+  const icon0=document.getElementById('submitProgressIcon');
+  if(icon0 && icon0.classList.contains('sco-progress-done')) icon0.outerHTML='<div id="submitProgressIcon" class="sco-progress-spinner"></div>';
+  this.setSubmitStep(3);
+  this.updateSubmissionProgress(2,'Starting submission...','Preparing transfer','User confirmed');
+  const ds={done:false};
+  const sim=this.simulateSubmissionProgress(ds);
+  try{
+    await this.syncAnswersToServer();ds.done=true;
+    this.updateSubmissionProgress(95,'Finalizing...','Completing submission','Final sync complete');
+    await new Promise(r=>setTimeout(r,800));
+    this.updateSubmissionProgress(100,'Done!','Redirecting...','Submission successful');
+    await new Promise(r=>setTimeout(r,1000));
+    this.performActualSubmission();
+  }catch(err){ds.done=true;this.showSubmissionError(err.message||'Submission failed.');}
+}
+
+async simulateSubmissionProgress(ds){
+  const phases=[{p:6,text:'Loading exam data...',details:'Retrieving answers',log:'Reading answers'},{p:18,text:'Validating responses...',details:'Checking format',log:'Validating'},{p:30,text:'Processing questions...',details:'Analyzing responses',log:'Running evals'},{p:50,text:'Calculating scores...',details:'Computing marks',log:'Scoring'},{p:68,text:'Generating results...',details:'Creating summary',log:'Formatting'},{p:82,text:'Saving to database...',details:'Storing results',log:'Writing'},{p:90,text:'Creating analysis...',details:'Preparing breakdown',log:'Preparing'}];
+  for(const p of phases){if(ds.done)break;this.updateSubmissionProgress(p.p,p.text,p.details,p.log);await new Promise(r=>setTimeout(r,400+Math.random()*700));}
+}
+
+updateSubmissionProgress(pct,text,details,log){
+  const f=document.getElementById('submitProgressFill');if(f)f.style.width=pct+'%';
+  const el={submitProgressPercent:pct+'%',submitProgressText:text,submitProgressDetails:details};
+  Object.entries(el).forEach(([id,v])=>{const e=document.getElementById(id);if(e)e.textContent=v;});
+  const lg=document.getElementById('submitProgressLog');if(lg&&log)lg.innerHTML=`<div>&bull; ${log}</div>`+lg.innerHTML;
+  if(pct>=100){
+    this.setSubmitStep(4);
+    if(f)f.style.background='var(--success)';
+    const icon=document.getElementById('submitProgressIcon');
+    if(icon && !icon.classList.contains('sco-progress-done')) icon.outerHTML='<div id="submitProgressIcon" class="sco-progress-done"><i class="fas fa-check"></i></div>';
+  }
+}
+
+showSubmissionError(msg){
+  this.updateSubmissionProgress(0,'Submission failed!','An error occurred. Please try again.','Error: '+msg);
+  const f=document.getElementById('submitProgressFill');if(f)f.style.background='var(--danger)';
+  setTimeout(()=>{
+    this.submissionInProgress=false;this.isSubmitting=false;this.isNavigating=false;
+    document.getElementById('submitProgressSection').style.display='none';
+    document.getElementById('submitConfirmationButtons').style.display='flex';
+    this.setSubmitStep(2);
+    const icon=document.getElementById('submitProgressIcon');
+    if(icon && icon.classList.contains('sco-progress-done')) icon.outerHTML='<div id="submitProgressIcon" class="sco-progress-spinner"></div>';
+    const f=document.getElementById('submitProgressFill');
+    if(f){f.style.background='var(--accent)';f.style.width='0%';}
+    ['submitProgressPercent','submitProgressText','submitProgressDetails'].forEach((id,i)=>{const e=document.getElementById(id);if(e)e.textContent=['0%','Processing your submission...','Initializing...'][i];});
+    document.getElementById('submitProgressLog').innerHTML='';
+  },3000);
+}
+
+// Embedded (Scheduled Exam Kiosk): the exam owning the completion UI is
+// the KIOSK window (it's the one holding real fullscreen, and the one
+// that must stop enforcing it now that the attempt is over) — this frame
+// hands off the result URL via postMessage instead of navigating itself.
+// See exam_kiosk.html's 'exam-completed' listener, which exits
+// fullscreen, tears down every guard, and shows the completion screen.
+notifyParentExamCompleted(redirectUrl){
+  try { window.parent.postMessage({ type: 'exam-completed', redirect: redirectUrl }, window.location.origin); } catch (e) {}
+}
+
+async performActualSubmission(){
+  try{
+    const r=await fetch(`/submit-exam/${this.examId}`,{method:'POST',credentials:'same-origin',headers:{'X-Requested-With':'XMLHttpRequest','Content-Type':'application/x-www-form-urlencoded'},body:new URLSearchParams()});
+    let redirectUrl;
+    if(r.redirected){ redirectUrl = r.url; }
+    else if(r.ok){
+      const ct=r.headers.get('content-type')||'';
+      if(ct.includes('application/json')){
+        const j=await r.json();
+        redirectUrl = (j && j.success && j.redirect) ? j.redirect : `/result/${this.examId}`;
+      } else {
+        redirectUrl = `/result/${this.examId}`;
+      }
+    } else {
+      throw new Error(`Server ${r.status}`);
+    }
+    if (this.isEmbedded) { this.notifyParentExamCompleted(redirectUrl); return; }
+    window.location.href = redirectUrl;
+  }catch(e){console.error('Submission failed:',e);throw e;}
+}
+
+// ── Feature: HTML/CSS auto-submit notice (replaces alert()/confirm()) ──
+// Shown for BOTH the timer-expiry auto-submit and a security-violation
+// forced submit — from the student's point of view these are the same
+// event ("your exam is ending automatically, right now"), just with
+// different copy. Not dismissible by the student: the real submit
+// request is in flight underneath it and the page is about to navigate
+// away on success regardless.
+showAutoSubmitNotice(title, desc){
+  const overlay=document.getElementById('autoSubmitNoticeOverlay');
+  if(!overlay) return;
+  const t=document.getElementById('autoSubmitNoticeTitle'), d=document.getElementById('autoSubmitNoticeDesc');
+  if(t) t.textContent=title;
+  if(d) d.textContent=desc;
+  this.setAutoSubmitNoticeStatus('<i class="fas fa-spinner fa-spin me-1"></i> Finalizing your submission…', false);
+  overlay.style.display='flex';
+}
+
+setAutoSubmitNoticeStatus(html, isError){
+  const el=document.getElementById('autoSubmitNoticeStatus');
+  if(!el) return;
+  el.innerHTML=html;
+  el.style.color=isError?'var(--danger-text)':'';
+  el.style.background=isError?'var(--danger-bg)':'';
+  el.style.borderColor=isError?'var(--danger-border)':'';
+}
+
+autoSubmitExam(){
+  this.saveCurrentAnswer();this.isSubmitting=true;this.isNavigating=true;
+  if(this.autoSyncInterval){clearInterval(this.autoSyncInterval);this.autoSyncInterval=null;}
+  this.showAutoSubmitNotice('Time\'s Up — Exam Submitted',
+    'Your exam time has ended. Your attempt is being submitted automatically and your responses will be saved.');
+  this.syncAnswersToServer()
+    .then(()=>this.performActualSubmission())
+    .catch(()=>this.performActualSubmission())
+    .catch((e)=>{
+      console.error('Auto-submit failed:',e);
+      this.setAutoSubmitNoticeStatus('<i class="fas fa-triangle-exclamation me-1"></i> We could not confirm your submission — your answers are saved on our server and will be finalized automatically shortly. You may safely close this page.', true);
+    });
+}
+
+async syncAnswersToServer(){
+  const r=await fetch(`/api/v01/exams/${this.examId}/answers`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({answers:this.answers,markedForReview:this.markedForReview})});
+  if(!r.ok) throw new Error('Failed to sync');
+  return r.json();
+}
+}
+
+let examPortal;
+document.addEventListener('DOMContentLoaded',()=>{
+  try{
+    examPortal=new ExamPortal();
+  }catch(e){
+    console.error('Init failed:',e);
+    // No JS alert() — ExamPortal itself failed to construct, so this
+    // can't rely on any of its own modal helpers; a small self-contained
+    // banner (same visual language as the rest of the app, just inlined
+    // since the exam UI never finished initializing) instead.
+    const el=document.createElement('div');
+    el.style.cssText='position:fixed;inset:0;z-index:20002;background:rgba(0,0,0,.85);display:flex;align-items:center;justify-content:center;padding:1.5rem;';
+    el.innerHTML='<div style="background:#1f2937;border-radius:16px;padding:2rem;max-width:420px;text-align:center;color:#fff;box-shadow:0 24px 60px rgba(0,0,0,.45)"><i class="fas fa-triangle-exclamation" style="font-size:1.6rem;color:#fbbf24;margin-bottom:.75rem;display:block"></i><div style="font-weight:700;margin-bottom:.5rem">Unable to load the exam</div><div style="font-size:.85rem;opacity:.85;margin-bottom:1.25rem">Something went wrong while preparing this page. Please refresh to try again — your progress so far has not been affected.</div><button onclick="window.location.reload()" style="background:#f97316;border:none;color:#fff;font-weight:700;border-radius:10px;padding:.7rem 1.5rem;cursor:pointer">Refresh Page</button></div>';
+    document.body.appendChild(el);
+  }
+});
+
+window.addEventListener('beforeunload',(e)=>{if(examPortal&&!examPortal.isSubmitting&&!examPortal.isNavigating){examPortal.saveCurrentAnswer();examPortal.emergencySyncAnswers();e.preventDefault();e.returnValue='Your exam progress will be saved. Are you sure you want to leave?';}});
+window.addEventListener('unload',()=>{if(examPortal){examPortal.isSubmitting=true;examPortal.saveCurrentAnswer();examPortal.emergencySyncAnswers();if(examPortal.timerInterval)clearInterval(examPortal.timerInterval);if(examPortal.fullscreenCheckInterval)clearInterval(examPortal.fullscreenCheckInterval);if(examPortal.autoSyncInterval)clearInterval(examPortal.autoSyncInterval);}});
+document.addEventListener('visibilitychange',()=>{if(examPortal&&!document.hidden&&!examPortal.isSubmitting)examPortal.handlePageVisibilityChange();});
+</script>
+{% endblock %}
